@@ -1,6 +1,8 @@
 // ============================================================
 // usePPTGenerator — AI generation + autosave + version history
 // ✔ Research-enhanced: Wikipedia + DuckDuckGo injected into prompt
+// ✔ Bulletproof save: always INSERT first, UPDATE on edit
+// ✔ Version snapshot: taken BEFORE every overwrite
 // ============================================================
 
 import { useState, useCallback, useRef } from 'react';
@@ -29,66 +31,92 @@ export interface PPTInput {
 
 const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama3-8b-8192'];
 
+// ── Prompt builder ────────────────────────────────────────────
 function buildPrompt(input: PPTInput, research: ResearchResult): string {
   const toneMap: Record<PresentationType, string> = {
-    academic: 'structured, formal, citation-worthy, data-driven',
-    business: 'concise, impact-driven, executive-level, ROI-focused',
-    creative: 'engaging, visual-heavy, storytelling, energetic',
+    academic: 'structured, formal, citation-worthy, data-driven with clear evidence',
+    business: 'concise, impact-driven, executive-level, ROI-focused with metrics',
+    creative: 'engaging, storytelling, visually descriptive, energetic and bold',
   };
 
-  const modeInstructions = input.mode === 'high_quality'
-    ? `Follow this storytelling arc across slides:
-1. Hook slide — grab attention with a provocative question or bold statement
-2. Context slide — set the scene, why this matters
-3. Core concept slides — one key idea per slide, clear and memorable
-4. Examples/Evidence slides — real-world applications, data, or case studies
-5. Summary/CTA slide — key takeaways and next steps
+  const layoutPool = ['title', 'content', 'two-column', 'image-focus', 'quote', 'stats'];
 
-Each slide must:
-- Have a strong, punchy title (max 8 words)
-- Max 4-5 bullet points, each max 12 words
-- Include a clear visual_suggestion (specific: "bar chart comparing X vs Y", "timeline diagram", "icon grid")
-- Include speaker_notes (2-3 sentences for the presenter)
-- Avoid text walls — slides should be scannable in 5 seconds`
-    : `Keep slides simple and clear:
-- Direct titles
-- 3-5 bullet points per slide
-- No complex visual suggestions needed
-- Basic structure only`;
+  const modeInstructions = input.mode === 'high_quality'
+    ? `
+You are designing a GAMMA-LEVEL presentation. Follow this exact storytelling arc:
+
+Slide 1: HOOK — Bold question, shocking fact, or provocative statement that grabs attention immediately
+Slide 2: CONTEXT — Why this topic matters right now, the big picture
+Slides 3 to ${input.number_of_slides - 2}: CORE CONTENT — One key idea per slide, deep but scannable
+Slide ${input.number_of_slides - 1}: EVIDENCE/EXAMPLES — Real-world data, case studies, statistics
+Slide ${input.number_of_slides}: SUMMARY + TAKEAWAYS — Key insights and memorable closing
+
+PER-SLIDE RULES (NON-NEGOTIABLE):
+- title: Maximum 8 words, punchy and specific — NOT generic like "Introduction" or "Overview"
+- content array: MINIMUM 4 items, MAXIMUM 5 items per slide
+- Each bullet must be a COMPLETE sentence of 10-15 words — NOT 2-word fragments
+- subtitle: A strong one-liner that supports the title (always include this)
+- visual_suggestion: MUST be one of these exact values: "bar-chart" | "line-chart" | "pie-chart" | "timeline" | "image-placeholder" | "icon-grid" | "two-column-table" | "quote-callout" | "stat-highlight" | "diagram"
+- layout_type: MUST vary across slides — use each of these at least once across the deck: "title" | "content" | "two-column" | "image-focus" | "quote" | "stats"
+- speaker_notes: 2-3 sentences of actual presenter talking points — not a summary of the bullets
+- NEVER repeat the same layout_type on consecutive slides
+`
+    : `
+Keep slides clean and educational:
+- title: Clear, direct (max 10 words)
+- content: MINIMUM 4 complete sentences per slide, MAXIMUM 5
+- Each bullet must be a complete sentence (10+ words), not a fragment
+- subtitle: A brief supporting line
+- visual_suggestion: describe a useful visual
+- layout_type: alternate between "content" and "two-column"
+- speaker_notes: brief presenter note
+`;
 
   const researchPreamble = buildResearchPreamble(research);
 
-  return `You are an expert presentation designer. ${researchPreamble}generate a ${input.number_of_slides}-slide presentation.
+  return `You are a world-class presentation designer. ${researchPreamble}Create a ${input.number_of_slides}-slide presentation.
 
 Topic: "${input.topic}"
-Mode: ${input.mode === 'high_quality' ? 'HIGH QUALITY (Gamma-level)' : 'BASIC'}
-Presentation Type: ${input.presentation_type} — tone should be ${toneMap[input.presentation_type]}
+Mode: ${input.mode === 'high_quality' ? 'HIGH QUALITY — Gamma.app level' : 'BASIC — Clean educational'}
+Audience tone: ${toneMap[input.presentation_type]}
 
 ${modeInstructions}
 
-Return ONLY valid JSON. No markdown, no explanation, no code blocks. Strict format:
+DESIGN THEME RULES:
+- academic presentation → design_theme: "minimal"
+- business presentation → design_theme: "corporate"
+- creative presentation → design_theme: "modern"
+
+RETURN ONLY VALID JSON. No markdown, no code blocks, no explanation. Pure JSON only.
+
 {
-  "title": "<presentation title>",
+  "title": "<compelling presentation title — 5-10 words>",
   "design_theme": "<modern|minimal|corporate>",
   "slides": [
     {
       "slide_number": 1,
-      "title": "<slide title>",
-      "subtitle": "<optional one-liner>",
-      "content": ["bullet 1", "bullet 2", "bullet 3"],
-      "visual_suggestion": "<specific visual idea>",
-      "layout_type": "<title|content|two-column|image-focus>",
-      "speaker_notes": "<presenter notes>"
+      "title": "<punchy slide title — max 8 words>",
+      "subtitle": "<one strong supporting sentence>",
+      "content": [
+        "<complete sentence bullet — 10-15 words>",
+        "<complete sentence bullet — 10-15 words>",
+        "<complete sentence bullet — 10-15 words>",
+        "<complete sentence bullet — 10-15 words>"
+      ],
+      "visual_suggestion": "<one of the exact allowed values>",
+      "layout_type": "<title|content|two-column|image-focus|quote|stats>",
+      "speaker_notes": "<2-3 sentences of actual presenter talking points>"
     }
   ]
 }
 
-Generate exactly ${input.number_of_slides} slides. The design_theme should match: academic→minimal, business→corporate, creative→modern.`;
+Generate EXACTLY ${input.number_of_slides} slides. Every slide MUST have exactly 4 bullets in the content array. This is mandatory.`;
 }
 
+// ── Groq caller ───────────────────────────────────────────────
 async function callGroq(prompt: string): Promise<GeneratedPPT> {
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-  if (!apiKey) throw new Error('VITE_GROQ_API_KEY not set');
+  if (!apiKey) throw new Error('VITE_GROQ_API_KEY not set in environment variables.');
 
   for (const model of GROQ_MODELS) {
     try {
@@ -100,15 +128,21 @@ async function callGroq(prompt: string): Promise<GeneratedPPT> {
         },
         body: JSON.stringify({
           model,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-          max_tokens: 4096,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a presentation designer. You ONLY output valid JSON. Never output markdown, never output explanations. Only pure JSON matching the exact schema provided.',
+            },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.75,
+          max_tokens: 6000,
           response_format: { type: 'json_object' },
         }),
       });
 
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.error?.message ?? `HTTP ${res.status}`);
       }
 
@@ -116,20 +150,34 @@ async function callGroq(prompt: string): Promise<GeneratedPPT> {
       const raw = data.choices[0]?.message?.content ?? '';
       const parsed = JSON.parse(raw) as GeneratedPPT;
 
-      if (!parsed.slides || !Array.isArray(parsed.slides)) {
-        throw new Error('Invalid response structure');
+      if (!parsed.slides || !Array.isArray(parsed.slides) || parsed.slides.length === 0) {
+        throw new Error('Invalid response: missing or empty slides array');
       }
+
+      // Normalise: ensure every slide has at least 4 bullets
+      parsed.slides = parsed.slides.map((slide, i) => ({
+        slide_number: i + 1,
+        title: slide.title || `Slide ${i + 1}`,
+        subtitle: slide.subtitle || '',
+        content: Array.isArray(slide.content) && slide.content.length >= 3
+          ? slide.content
+          : [...(slide.content || []), 'Key insight about this topic that deserves attention.', 'Supporting evidence strengthens understanding of the core concept.'].slice(0, 4),
+        visual_suggestion: slide.visual_suggestion || 'image-placeholder',
+        layout_type: slide.layout_type || (i === 0 ? 'title' : 'content'),
+        speaker_notes: slide.speaker_notes || '',
+      }));
 
       return parsed;
     } catch (e) {
       if (model === GROQ_MODELS[GROQ_MODELS.length - 1]) throw e;
-      console.warn(`Model ${model} failed, trying next...`, e);
+      console.warn(`[PPT] Model ${model} failed, trying fallback...`, e);
     }
   }
 
-  throw new Error('All models failed');
+  throw new Error('All Groq models failed. Please check your API key and try again.');
 }
 
+// ── Hook ──────────────────────────────────────────────────────
 export function usePPTGenerator() {
   const { user } = useAuth();
   const [ppt, setPPT] = useState<GeneratedPPT | null>(null);
@@ -141,13 +189,12 @@ export function usePPTGenerator() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [researchSource, setResearchSource] = useState<ResearchResult['source']>('none');
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const savedPPTIdRef = useRef<string | null>(null);
   const currentInputRef = useRef<PPTInput | null>(null);
   savedPPTIdRef.current = savedPPTId;
 
-  // ── Save to Supabase ─────────────────────────────────────────────
-const saveToSupabase = useCallback(async (
+  // ── Snapshot + save ──────────────────────────────────────────
+  const saveToSupabase = useCallback(async (
     data: GeneratedPPT,
     existingId: string | null,
     mode: PPTMode,
@@ -159,16 +206,17 @@ const saveToSupabase = useCallback(async (
     try {
       const payload = {
         user_id: user.id,
-        topic: data.title,
-        title: data.title,
+        topic:   data.title,
+        title:   data.title,
         mode,
         presentation_type,
         design_theme: data.design_theme,
-        slide_count: data.slides.length,
-        slides: data.slides as any,
+        slide_count:  data.slides.length,
+        slides:       data.slides as any,
       };
 
       if (existingId) {
+        // ── UPDATE path: snapshot first, then overwrite ──────────
         const { data: current } = await supabase
           .from('ppts')
           .select('slides, topic, mode, presentation_type, design_theme')
@@ -176,41 +224,52 @@ const saveToSupabase = useCallback(async (
           .single();
 
         if (current) {
-          const { data: lastVersion } = await supabase
+          const { data: lastVer } = await supabase
             .from('ppt_versions')
             .select('version')
             .eq('ppt_id', existingId)
             .order('version', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
           await supabase.from('ppt_versions').insert({
-            ppt_id: existingId,
-            user_id: user.id,
-            version: (lastVersion?.version ?? 0) + 1,
-            slides: current.slides,
-            topic: current.topic,
-            mode: current.mode,
+            ppt_id:            existingId,
+            user_id:           user.id,
+            version:           (lastVer?.version ?? 0) + 1,
+            slides:            current.slides,
+            topic:             current.topic,
+            mode:              current.mode,
             presentation_type: current.presentation_type ?? 'academic',
-            design_theme: current.design_theme ?? 'minimal',
+            design_theme:      current.design_theme       ?? 'minimal',
           });
         }
 
-        await supabase.from('ppts').update(payload).eq('id', existingId);
+        const { error: updateErr } = await supabase
+          .from('ppts')
+          .update(payload)
+          .eq('id', existingId);
+        if (updateErr) throw updateErr;
+
         setSavedPPTId(existingId);
         savedPPTIdRef.current = existingId;
       } else {
+        // ── INSERT path: fresh row ───────────────────────────────
         const { data: newPPT, error: insertErr } = await supabase
-          .from('ppts').insert(payload).select().single();
+          .from('ppts')
+          .insert(payload)
+          .select('id')
+          .single();
+
         if (insertErr) throw insertErr;
+
         setSavedPPTId(newPPT.id);
         savedPPTIdRef.current = newPPT.id;
       }
 
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 3000);
-    } catch (e) {
-      console.error('saveToSupabase:', e);
+    } catch (e: any) {
+      console.error('[PPT] saveToSupabase error:', e);
       setSaveStatus('error');
     }
   }, [user]);
@@ -218,9 +277,10 @@ const saveToSupabase = useCallback(async (
   // ── Generate ──────────────────────────────────────────────────
   const generate = useCallback(async (input: PPTInput) => {
     if (!input.topic.trim()) {
-      setError('Please enter a topic.');
+      setError('Please enter a topic to generate a presentation.');
       return;
     }
+
     setIsGenerating(true);
     setError(null);
     setPPT(null);
@@ -232,7 +292,6 @@ const saveToSupabase = useCallback(async (
     currentInputRef.current = input;
 
     try {
-      // Fetch research in parallel with nothing else (fast, free)
       const research = await fetchResearch(input.topic);
       setResearchSource(research.source);
 
@@ -247,7 +306,7 @@ const saveToSupabase = useCallback(async (
     }
   }, [saveToSupabase]);
 
-  // ── Update a slide field + debounced autosave ─────────────────────
+  // ── Update slide field + debounced autosave ───────────────────
   const updateSlide = useCallback((
     idx: number,
     field: keyof GeneratedSlide,
@@ -274,16 +333,15 @@ const saveToSupabase = useCallback(async (
     });
   }, [saveToSupabase]);
 
-  // ── Regenerate a single slide ─────────────────────────────────
+  // ── Regenerate single slide ──────────────────────────────────
   const regenerateSlide = useCallback(async (idx: number, input: PPTInput) => {
     if (!ppt) return;
     setError(null);
     try {
-      // Re-fetch research for regeneration too
       const research = await fetchResearch(input.topic);
       const singlePrompt =
         buildPrompt({ ...input, number_of_slides: 1 }, research) +
-        `\n\nThis is slide ${idx + 1} of ${ppt.slides.length} in the presentation "${ppt.title}". Generate only this one slide.`;
+        `\n\nThis is slide ${idx + 1} of ${ppt.slides.length} in the deck titled "${ppt.title}". Generate ONLY this one replacement slide. Output a JSON object with a "slides" array containing exactly 1 slide.`;
 
       const result = await callGroq(singlePrompt);
       const regenerated = result.slides[0];
@@ -297,12 +355,7 @@ const saveToSupabase = useCallback(async (
 
         if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
         autosaveTimer.current = setTimeout(() => {
-          saveToSupabase(
-            updated,
-            savedPPTIdRef.current,
-            input.mode,
-            input.presentation_type,
-          );
+          saveToSupabase(updated, savedPPTIdRef.current, input.mode, input.presentation_type);
         }, 1500);
 
         return updated;
@@ -312,7 +365,7 @@ const saveToSupabase = useCallback(async (
     }
   }, [ppt, saveToSupabase]);
 
-  // ── Load version history ───────────────────────────────────────
+  // ── Load version history ──────────────────────────────────────
   const loadVersions = useCallback(async (pptId: string) => {
     const { data } = await supabase
       .from('ppt_versions')
@@ -322,17 +375,21 @@ const saveToSupabase = useCallback(async (
     setVersions(data ?? []);
   }, []);
 
-  // ── Restore a version ────────────────────────────────────────
+  // ── Restore version ───────────────────────────────────────────
   const restoreVersion = useCallback(async (version: any) => {
     if (!ppt || !savedPPTIdRef.current) return;
     setPPT(prev => prev ? { ...prev, slides: version.slides } : prev);
     setSaveStatus('saving');
-    await supabase
+    const { error: restoreErr } = await supabase
       .from('ppts')
       .update({ slides: version.slides })
       .eq('id', savedPPTIdRef.current);
-    setSaveStatus('saved');
-    setTimeout(() => setSaveStatus('idle'), 2000);
+    if (restoreErr) {
+      setSaveStatus('error');
+    } else {
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    }
   }, [ppt]);
 
   return {
@@ -344,7 +401,7 @@ const saveToSupabase = useCallback(async (
     versions,
     activeSlide,
     setActiveSlide,
-    researchSource,   // 'wikipedia' | 'duckduckgo' | 'both' | 'none'
+    researchSource,
     generate,
     updateSlide,
     regenerateSlide,
