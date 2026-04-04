@@ -1,11 +1,13 @@
 // ============================================================
 // usePPTGenerator — AI generation + autosave + version history
+// ✔ Research-enhanced: Wikipedia + DuckDuckGo injected into prompt
 // ============================================================
 
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import type { GeneratedSlide } from '@/types/database';
+import { fetchResearch, buildResearchPreamble, type ResearchResult } from '@/lib/research';
 
 export type PPTMode = 'basic' | 'high_quality';
 export type PresentationType = 'academic' | 'business' | 'creative';
@@ -27,7 +29,7 @@ export interface PPTInput {
 
 const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama3-8b-8192'];
 
-function buildPrompt(input: PPTInput): string {
+function buildPrompt(input: PPTInput, research: ResearchResult): string {
   const toneMap: Record<PresentationType, string> = {
     academic: 'structured, formal, citation-worthy, data-driven',
     business: 'concise, impact-driven, executive-level, ROI-focused',
@@ -54,7 +56,9 @@ Each slide must:
 - No complex visual suggestions needed
 - Basic structure only`;
 
-  return `You are an expert presentation designer. Generate a ${input.number_of_slides}-slide presentation.
+  const researchPreamble = buildResearchPreamble(research);
+
+  return `You are an expert presentation designer. ${researchPreamble}generate a ${input.number_of_slides}-slide presentation.
 
 Topic: "${input.topic}"
 Mode: ${input.mode === 'high_quality' ? 'HIGH QUALITY (Gamma-level)' : 'BASIC'}
@@ -135,19 +139,15 @@ export function usePPTGenerator() {
   const [error, setError] = useState<string | null>(null);
   const [versions, setVersions] = useState<any[]>([]);
   const [activeSlide, setActiveSlide] = useState(0);
+  const [researchSource, setResearchSource] = useState<ResearchResult['source']>('none');
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // FIX: use refs so autosave closure always sees latest values without
-  // needing them in dependency arrays (avoids stale closure bug #5)
   const savedPPTIdRef = useRef<string | null>(null);
   const currentInputRef = useRef<PPTInput | null>(null);
-
-  // Keep ref in sync
   savedPPTIdRef.current = savedPPTId;
 
-  // ── Save to Supabase ─────────────────────────────────────
-  // Defined first so generate() can call it without stale closure (bug #5)
-  const saveToSupabase = useCallback(async (
+  // ── Save to Supabase ─────────────────────────────────────────────
+const saveToSupabase = useCallback(async (
     data: GeneratedPPT,
     existingId: string | null,
     mode: PPTMode,
@@ -169,7 +169,6 @@ export function usePPTGenerator() {
       };
 
       if (existingId) {
-        // Snapshot current state as a version before overwriting
         const { data: current } = await supabase
           .from('ppts')
           .select('slides, topic, mode, presentation_type, design_theme')
@@ -216,7 +215,7 @@ export function usePPTGenerator() {
     }
   }, [user]);
 
-  // ── Generate ─────────────────────────────────────────────
+  // ── Generate ──────────────────────────────────────────────────
   const generate = useCallback(async (input: PPTInput) => {
     if (!input.topic.trim()) {
       setError('Please enter a topic.');
@@ -229,13 +228,17 @@ export function usePPTGenerator() {
     savedPPTIdRef.current = null;
     setVersions([]);
     setActiveSlide(0);
+    setResearchSource('none');
     currentInputRef.current = input;
 
     try {
-      const prompt = buildPrompt(input);
+      // Fetch research in parallel with nothing else (fast, free)
+      const research = await fetchResearch(input.topic);
+      setResearchSource(research.source);
+
+      const prompt = buildPrompt(input, research);
       const result = await callGroq(prompt);
       setPPT(result);
-      // saveToSupabase is defined above — no stale closure issue here
       await saveToSupabase(result, null, input.mode, input.presentation_type);
     } catch (e: any) {
       setError(e?.message ?? 'Generation failed. Please try again.');
@@ -244,8 +247,7 @@ export function usePPTGenerator() {
     }
   }, [saveToSupabase]);
 
-  // ── Update a slide field + debounced autosave ──────────────────
-  // FIX bug #2: autosave now reads mode/type from currentInputRef, not hardcoded strings
+  // ── Update a slide field + debounced autosave ─────────────────────
   const updateSlide = useCallback((
     idx: number,
     field: keyof GeneratedSlide,
@@ -259,12 +261,12 @@ export function usePPTGenerator() {
 
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
       autosaveTimer.current = setTimeout(() => {
-        const input = currentInputRef.current;
+        const inp = currentInputRef.current;
         saveToSupabase(
           updated,
           savedPPTIdRef.current,
-          input?.mode ?? 'basic',
-          input?.presentation_type ?? 'academic',
+          inp?.mode ?? 'basic',
+          inp?.presentation_type ?? 'academic',
         );
       }, 1500);
 
@@ -272,29 +274,25 @@ export function usePPTGenerator() {
     });
   }, [saveToSupabase]);
 
-  // ── Regenerate a single slide ──────────────────────────────
-  // FIX bug #3: replace the full slide object in one atomic setPPT call,
-  // preserving all fields (visual_suggestion, speaker_notes, layout_type)
+  // ── Regenerate a single slide ─────────────────────────────────
   const regenerateSlide = useCallback(async (idx: number, input: PPTInput) => {
     if (!ppt) return;
     setError(null);
     try {
+      // Re-fetch research for regeneration too
+      const research = await fetchResearch(input.topic);
       const singlePrompt =
-        buildPrompt({ ...input, number_of_slides: 1 }) +
+        buildPrompt({ ...input, number_of_slides: 1 }, research) +
         `\n\nThis is slide ${idx + 1} of ${ppt.slides.length} in the presentation "${ppt.title}". Generate only this one slide.`;
 
       const result = await callGroq(singlePrompt);
       const regenerated = result.slides[0];
       if (!regenerated) return;
 
-      // Replace whole slide atomically — no partial updateSlide calls
       setPPT(prev => {
         if (!prev) return prev;
         const slides = [...prev.slides];
-        slides[idx] = {
-          ...regenerated,
-          slide_number: idx + 1, // preserve correct ordering
-        };
+        slides[idx] = { ...regenerated, slide_number: idx + 1 };
         const updated = { ...prev, slides };
 
         if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
@@ -314,7 +312,7 @@ export function usePPTGenerator() {
     }
   }, [ppt, saveToSupabase]);
 
-  // ── Load version history ──────────────────────────────────
+  // ── Load version history ───────────────────────────────────────
   const loadVersions = useCallback(async (pptId: string) => {
     const { data } = await supabase
       .from('ppt_versions')
@@ -324,7 +322,7 @@ export function usePPTGenerator() {
     setVersions(data ?? []);
   }, []);
 
-  // ── Restore a version ────────────────────────────────────
+  // ── Restore a version ────────────────────────────────────────
   const restoreVersion = useCallback(async (version: any) => {
     if (!ppt || !savedPPTIdRef.current) return;
     setPPT(prev => prev ? { ...prev, slides: version.slides } : prev);
@@ -346,6 +344,7 @@ export function usePPTGenerator() {
     versions,
     activeSlide,
     setActiveSlide,
+    researchSource,   // 'wikipedia' | 'duckduckgo' | 'both' | 'none'
     generate,
     updateSlide,
     regenerateSlide,
