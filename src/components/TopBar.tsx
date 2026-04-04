@@ -1,7 +1,8 @@
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Bell, Search, Sparkles } from "lucide-react";
+import { Bell, Search } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 // Route → page title map
 const TITLES: Record<string, string> = {
@@ -14,11 +15,36 @@ const TITLES: Record<string, string> = {
   "/dashboard/profile":     "Profile",
 };
 
+/** Returns initials from a full name or email, e.g. "Ronit Sinha" → "RS", "foo@bar.com" → "F" */
+function getInitials(nameOrEmail: string | null | undefined): string {
+  if (!nameOrEmail) return "?";
+  const parts = nameOrEmail.includes("@")
+    ? [nameOrEmail.split("@")[0]]
+    : nameOrEmail.trim().split(/\s+/);
+  return parts
+    .slice(0, 2)
+    .map(p => p[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+/** Returns the display name: full_name if available, else the part before @ in email */
+function getDisplayName(user: { email?: string; user_metadata?: { full_name?: string } } | null): string {
+  if (!user) return "";
+  const full = user.user_metadata?.full_name;
+  if (full) return full.split(" ")[0]; // first name only
+  return user.email?.split("@")[0] ?? "";
+}
+
 const TopBar = () => {
   const location = useLocation();
   const title = TITLES[location.pathname] ?? "StudyAI";
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const { user } = useAuth();
+
+  const initials = getInitials(user?.user_metadata?.full_name ?? user?.email);
+  const displayName = getDisplayName(user);
+  const avatarUrl: string | undefined = user?.user_metadata?.avatar_url;
 
   return (
     <header
@@ -107,25 +133,10 @@ const TopBar = () => {
           >
             <Search size={13} />
             <span className="hidden sm:block">Search</span>
-            <kbd
-              className="hidden sm:block"
-              style={{
-                fontSize: 10,
-                padding: "1px 5px",
-                borderRadius: 4,
-                background: "hsl(240,12%,16%)",
-                border: "1px solid hsl(240,10%,22%)",
-                color: "hsl(220,8%,45%)",
-                fontFamily: "inherit",
-                lineHeight: 1.6,
-              }}
-            >
-              ⌘K
-            </kbd>
           </button>
         )}
 
-        {/* Notification bell */}
+        {/* Notification bell — no dot until notifications are implemented */}
         <button
           className="relative flex items-center justify-center rounded-xl hover:bg-secondary transition-all text-muted-foreground hover:text-foreground"
           style={{
@@ -134,21 +145,11 @@ const TopBar = () => {
             border: "1px solid hsl(var(--border))",
             flexShrink: 0,
           }}
-          aria-label="Notifications"
+          aria-label="Notifications (coming soon)"
+          title="Notifications coming soon"
+          disabled
         >
           <Bell size={15} />
-          <span
-            className="absolute glow-pulse"
-            style={{
-              top: 8,
-              right: 8,
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "hsl(262,80%,68%)",
-              border: "1.5px solid hsl(240,16%,5%)",
-            }}
-          />
         </button>
 
         {/* Avatar → profile */}
@@ -162,12 +163,21 @@ const TopBar = () => {
             flexShrink: 0,
           }}
         >
-          <span
-            className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
-            style={{ background: "var(--gradient-primary)" }}
-          >
-            R
-          </span>
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={displayName || "Avatar"}
+              className="w-6 h-6 rounded-lg object-cover shrink-0"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span
+              className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
+              style={{ background: "var(--gradient-primary)" }}
+            >
+              {initials}
+            </span>
+          )}
           <span
             className="hidden sm:flex flex-col"
             style={{ gap: 0 }}
@@ -180,7 +190,7 @@ const TopBar = () => {
                 lineHeight: 1.2,
               }}
             >
-              Ronit
+              {displayName}
             </span>
             <span
               style={{
