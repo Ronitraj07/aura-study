@@ -302,16 +302,16 @@ export default function PPTPage() {
   const handleGenerate = () =>
     generate({ topic, number_of_slides: slideCount, mode, presentation_type: presentationType });
 
-  // FIX: pass ppt directly — no fake DbPPT wrapper needed anymore
   const handleExport = async () => {
     if (!ppt) return;
     setIsExporting(true);
     setExportError(null);
     try {
       await exportToPPTX(ppt);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Export failed. Please try again.';
       console.error('Export failed:', e);
-      setExportError(e?.message ?? 'Export failed');
+      setExportError(msg);
     } finally {
       setIsExporting(false);
     }
@@ -329,7 +329,7 @@ export default function PPTPage() {
 
   return (
     <div className="flex h-full gap-0">
-      {/* ── LEFT PANEL — Inputs ─────────────────────────────────── */}
+      {/* ── LEFT PANEL — Inputs ──────────────────────────────────────── */}
       <div className="w-80 shrink-0 flex flex-col gap-5 p-6 border-r border-white/5 overflow-y-auto">
         <div>
           <h1 className="text-lg font-semibold gradient-text">PPT Generator</h1>
@@ -422,28 +422,44 @@ export default function PPTPage() {
         </Button>
 
         {/* Generation error */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20"
-          >
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-            <p className="text-xs text-red-400">{error}</p>
-          </motion.div>
-        )}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20"
+            >
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-red-400">{error}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Export error */}
-        {exportError && (
-          <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-start gap-2 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20"
-          >
-            <AlertCircle className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
-            <p className="text-xs text-orange-400">{exportError}</p>
-          </motion.div>
-        )}
+        {/* Export error — shown below generate button so user sees it */}
+        <AnimatePresence>
+          {exportError && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              className="flex items-start gap-2 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20"
+            >
+              <AlertCircle className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-orange-400">Export failed</p>
+                <p className="text-xs text-orange-400/80 mt-0.5 break-words">{exportError}</p>
+              </div>
+              <button
+                onClick={() => setExportError(null)}
+                className="text-orange-400/60 hover:text-orange-400 transition-colors shrink-0 text-xs leading-none"
+                aria-label="Dismiss export error"
+              >
+                ×
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Slide thumbnail list */}
         {ppt && (
@@ -469,7 +485,7 @@ export default function PPTPage() {
         )}
       </div>
 
-      {/* ── RIGHT PANEL — Preview ──────────────────────────────── */}
+      {/* ── RIGHT PANEL — Preview ────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Top bar (only when ppt exists) */}
