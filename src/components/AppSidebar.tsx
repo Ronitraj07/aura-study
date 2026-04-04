@@ -5,12 +5,12 @@ import {
   BookOpen,
   CalendarDays,
   CheckSquare,
-  User,
   Sparkles,
   ChevronRight,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -34,10 +34,35 @@ const mainItems = [
   { title: "Checklist",    url: "/dashboard/checklist",    icon: CheckSquare     },
 ];
 
+/** Returns initials from a full name or email */
+function getInitials(nameOrEmail: string | null | undefined): string {
+  if (!nameOrEmail) return "?";
+  const parts = nameOrEmail.includes("@")
+    ? [nameOrEmail.split("@")[0]]
+    : nameOrEmail.trim().split(/\s+/);
+  return parts
+    .slice(0, 2)
+    .map(p => p[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+/** Returns first name from full_name, or the part before @ in email */
+function getDisplayName(user: { email?: string; user_metadata?: { full_name?: string } } | null): string {
+  if (!user) return "";
+  const full = user.user_metadata?.full_name;
+  if (full) return full.split(" ")[0];
+  return user.email?.split("@")[0] ?? "";
+}
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const { user } = useAuth();
+
+  const initials = getInitials(user?.user_metadata?.full_name ?? user?.email);
+  const displayName = getDisplayName(user);
+  const avatarUrl: string | undefined = user?.user_metadata?.avatar_url;
 
   const isActive = (url: string) =>
     url === "/dashboard"
@@ -186,16 +211,25 @@ export function AppSidebar() {
                     }}
                     activeClassName=""
                   >
-                    {/* mini avatar */}
-                    <span
-                      className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold text-white"
-                      style={{ background: "var(--gradient-primary)" }}
-                    >
-                      R
-                    </span>
+                    {/* avatar — real photo or initials fallback */}
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={displayName || "Profile"}
+                        className="w-6 h-6 rounded-lg object-cover shrink-0"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span
+                        className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold text-white"
+                        style={{ background: "var(--gradient-primary)" }}
+                      >
+                        {initials}
+                      </span>
+                    )}
                     {!collapsed && (
                       <>
-                        <span className="flex-1 truncate">Ronit</span>
+                        <span className="flex-1 truncate">{displayName}</span>
                         <ChevronRight size={13} style={{ color: "hsl(220,8%,42%)" }} />
                       </>
                     )}
