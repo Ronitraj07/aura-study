@@ -11,19 +11,11 @@ import Assignments from "./pages/Assignments.tsx";
 import Notes from "./pages/Notes.tsx";
 import Timetable from "./pages/Timetable.tsx";
 import Checklist from "./pages/Checklist.tsx";
+import Profile from "./pages/Profile.tsx";
 import DashboardLayout from "./components/DashboardLayout.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
-
-const PlaceholderPage = ({ title }: { title: string }) => (
-  <div className="flex items-center justify-center h-full">
-    <div className="glass-card rounded-2xl p-10 text-center">
-      <h1 className="font-display text-2xl font-bold gradient-text mb-2">{title}</h1>
-      <p className="text-muted-foreground text-sm">Coming soon.</p>
-    </div>
-  </div>
-);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -41,7 +33,7 @@ const App = () => (
             <Route path="notes" element={<Notes />} />
             <Route path="timetable" element={<Timetable />} />
             <Route path="checklist" element={<Checklist />} />
-            <Route path="profile" element={<PlaceholderPage title="Profile" />} />
+            <Route path="profile" element={<Profile />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
