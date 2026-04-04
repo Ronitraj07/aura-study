@@ -5,11 +5,24 @@
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
 
 // ─── Slide (PPT) ─────────────────────────────────────────────
+/** Legacy minimal slide shape stored in DB before L4 */
 export interface Slide {
   slide_number: number;
   title: string;
   content: string[];      // bullet points
-  design_hint?: string;   // e.g. "Use dark background with chart"
+  design_hint?: string;
+}
+
+/** Full slide shape produced by the AI generator */
+export interface GeneratedSlide {
+  slide_number: number;
+  title: string;
+  subtitle?: string;
+  content: string[];
+  visual_suggestion?: string;
+  layout_type?: 'title' | 'content' | 'two-column' | 'image-focus';
+  speaker_notes?: string;
+  design_hint?: string;   // kept for backwards compat
 }
 
 // ─── Timetable ────────────────────────────────────────────────
@@ -57,11 +70,28 @@ export interface DbPPT {
   id: string;
   user_id: string;
   topic: string;
+  title: string;
   mode: 'basic' | 'high_quality';
+  presentation_type: 'academic' | 'business' | 'creative';
+  design_theme: 'modern' | 'minimal' | 'corporate';
   slide_count: number;
-  slides: Slide[];
+  slides: GeneratedSlide[];
   created_at: string;
   updated_at: string;
+}
+
+/** A single saved version of a PPT (version history row) */
+export interface DbPPTVersion {
+  id: string;
+  ppt_id: string;
+  user_id: string;
+  version: number;
+  topic: string;
+  mode: 'basic' | 'high_quality';
+  presentation_type: 'academic' | 'business' | 'creative';
+  design_theme: 'modern' | 'minimal' | 'corporate';
+  slides: GeneratedSlide[];
+  created_at: string;
 }
 
 export interface DbAssignment {
