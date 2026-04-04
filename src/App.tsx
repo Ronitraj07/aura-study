@@ -3,8 +3,11 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/context/AuthContext";
+import AuthGuard from "@/components/AuthGuard";
 import Index from "./pages/Index.tsx";
 import Login from "./pages/Login.tsx";
+import AuthCallback from "./pages/AuthCallback.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import PPT from "./pages/PPT.tsx";
 import Assignments from "./pages/Assignments.tsx";
@@ -23,20 +26,34 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/dashboard" element={<DashboardLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="ppt" element={<PPT />} />
-            <Route path="assignments" element={<Assignments />} />
-            <Route path="notes" element={<Notes />} />
-            <Route path="timetable" element={<Timetable />} />
-            <Route path="checklist" element={<Checklist />} />
-            <Route path="profile" element={<Profile />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            {/* Public */}
+            <Route path="/" element={<Index />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+
+            {/* Protected — wrapped with AuthGuard */}
+            <Route
+              path="/dashboard"
+              element={
+                <AuthGuard>
+                  <DashboardLayout />
+                </AuthGuard>
+              }
+            >
+              <Route index element={<Dashboard />} />
+              <Route path="ppt" element={<PPT />} />
+              <Route path="assignments" element={<Assignments />} />
+              <Route path="notes" element={<Notes />} />
+              <Route path="timetable" element={<Timetable />} />
+              <Route path="checklist" element={<Checklist />} />
+              <Route path="profile" element={<Profile />} />
+            </Route>
+
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
