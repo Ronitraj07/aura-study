@@ -12,75 +12,57 @@ import {
   Clock,
   Shield,
   ChevronRight,
-  Pencil,
-  X,
-  Check,
   Sparkles,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useUserStats } from "@/hooks/useUserStats";
 
-// ─── Mock data (replaced by Supabase in C-phases) ─────────────────────────────
-const MOCK_USER = {
-  name: "Ronit Sinha",
-  email: "sinharonitraj@gmail.com",
-  joined: "April 2026",
-  plan: "Premium",
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function getInitials(nameOrEmail: string | null | undefined): string {
+  if (!nameOrEmail) return "?";
+  const parts = nameOrEmail.includes("@")
+    ? [nameOrEmail.split("@")[0]]
+    : nameOrEmail.trim().split(/\s+/);
+  return parts.slice(0, 2).map(p => p[0]?.toUpperCase() ?? "").join("");
+}
 
-const MOCK_STATS = [
-  {
-    id: "ppts",
-    label: "PPTs Created",
-    value: 12,
-    icon: Presentation,
-    gradient: "from-purple-500 to-blue-500",
-    bg: "rgba(139,92,246,0.12)",
-    border: "rgba(139,92,246,0.25)",
-  },
-  {
-    id: "assignments",
-    label: "Assignments Generated",
-    value: 8,
-    icon: FileText,
-    gradient: "from-blue-500 to-cyan-500",
-    bg: "rgba(59,130,246,0.12)",
-    border: "rgba(59,130,246,0.25)",
-  },
-  {
-    id: "notes",
-    label: "Notes Created",
-    value: 24,
-    icon: BookOpen,
-    gradient: "from-emerald-500 to-teal-500",
-    bg: "rgba(16,185,129,0.12)",
-    border: "rgba(16,185,129,0.25)",
-  },
-  {
-    id: "tasks",
-    label: "Tasks Completed",
-    value: 37,
-    icon: CheckSquare,
-    gradient: "from-orange-500 to-pink-500",
-    bg: "rgba(249,115,22,0.12)",
-    border: "rgba(249,115,22,0.25)",
-  },
-];
+function getDisplayName(user: ReturnType<typeof useAuth>["user"]): string {
+  if (!user) return "";
+  return user.user_metadata?.full_name ?? user.email?.split("@")[0] ?? "";
+}
 
-const ACTIVITY = [
-  { label: "Generated 'Quantum Physics' PPT", time: "2 hours ago", icon: Presentation, color: "text-purple-400" },
-  { label: "Created 'Organic Chemistry' Notes", time: "Yesterday", icon: BookOpen, color: "text-emerald-400" },
-  { label: "Wrote 'Climate Change' Assignment", time: "2 days ago", icon: FileText, color: "text-blue-400" },
-  { label: "Built weekly Timetable", time: "3 days ago", icon: Clock, color: "text-orange-400" },
-  { label: "Completed 5 checklist tasks", time: "4 days ago", icon: CheckSquare, color: "text-pink-400" },
-];
+function formatJoinDate(dateStr: string | undefined): string {
+  if (!dateStr) return "";
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
-function Avatar({ name, size = 96 }: { name: string; size?: number }) {
-  const initials = name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+function Avatar({
+  name,
+  avatarUrl,
+  size = 80,
+}: {
+  name: string;
+  avatarUrl?: string;
+  size?: number;
+}) {
+  const initials = getInitials(name);
+
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={name}
+        referrerPolicy="no-referrer"
+        className="rounded-full object-cover flex-shrink-0"
+        style={{
+          width: size,
+          height: size,
+          boxShadow: "0 0 0 3px rgba(139,92,246,0.35), 0 0 32px rgba(139,92,246,0.3)",
+        }}
+      />
+    );
+  }
 
   return (
     <div
@@ -98,7 +80,6 @@ function Avatar({ name, size = 96 }: { name: string; size?: number }) {
       >
         {initials}
       </span>
-      {/* online dot */}
       <span
         className="absolute bottom-1 right-1 rounded-full bg-emerald-400"
         style={{ width: size * 0.16, height: size * 0.16, border: "2px solid hsl(220,17%,10%)" }}
@@ -107,113 +88,16 @@ function Avatar({ name, size = 96 }: { name: string; size?: number }) {
   );
 }
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-function StatCard({ stat, animDelay }: { stat: (typeof MOCK_STATS)[0]; animDelay: number }) {
-  const Icon = stat.icon;
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <div
-      className="rounded-2xl p-5 flex flex-col gap-3 transition-all duration-300 cursor-default"
-      style={{
-        background: hovered ? stat.bg : "rgba(255,255,255,0.03)",
-        border: `1px solid ${hovered ? stat.border : "rgba(255,255,255,0.07)"}`,
-        transform: hovered ? "translateY(-2px)" : "translateY(0)",
-        boxShadow: hovered ? `0 8px 32px ${stat.bg}` : "none",
-        animationDelay: `${animDelay}ms`,
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center"
-        style={{ background: stat.bg, border: `1px solid ${stat.border}` }}
-      >
-        <Icon
-          size={18}
-          className={`bg-gradient-to-br ${stat.gradient} bg-clip-text`}
-          style={{ color: "transparent", stroke: `url(#grad-${stat.id})` }}
-        />
-        {/* fallback plain icon */}
-        <Icon size={18} className="absolute opacity-0" />
-      </div>
-      <div>
-        <p
-          className="font-display font-bold text-3xl"
-          style={{
-            background: `linear-gradient(135deg, ${stat.gradient.replace("from-", "").replace(" to-", ",")})`,
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
-          {stat.value}
-        </p>
-        <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Inline editable name ─────────────────────────────────────────────────────
-function EditableName({ initial }: { initial: string }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(initial);
-  const [draft, setDraft] = useState(initial);
-
-  const commit = () => {
-    if (draft.trim()) setValue(draft.trim());
-    setEditing(false);
-  };
-  const cancel = () => {
-    setDraft(value);
-    setEditing(false);
-  };
-
-  return (
-    <div className="flex items-center gap-2">
-      {editing ? (
-        <>
-          <input
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commit();
-              if (e.key === "Escape") cancel();
-            }}
-            className="font-display font-bold text-2xl bg-transparent border-b border-purple-500/60 outline-none text-white pr-1 min-w-0"
-            style={{ width: Math.max(draft.length, 6) + "ch" }}
-          />
-          <button
-            onClick={commit}
-            className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 hover:bg-emerald-500/30 transition-all"
-          >
-            <Check size={12} />
-          </button>
-          <button
-            onClick={cancel}
-            className="w-6 h-6 rounded-lg bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400 hover:bg-red-500/30 transition-all"
-          >
-            <X size={12} />
-          </button>
-        </>
-      ) : (
-        <>
-          <h1 className="font-display font-bold text-2xl text-white">{value}</h1>
-          <button
-            onClick={() => { setDraft(value); setEditing(true); }}
-            className="w-6 h-6 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-muted-foreground hover:text-white hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100"
-          >
-            <Pencil size={11} />
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
-
 // ─── Logout Confirm Modal ─────────────────────────────────────────────────────
-function LogoutModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+function LogoutModal({
+  onConfirm,
+  onCancel,
+  isLoading,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+  isLoading: boolean;
+}) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
@@ -243,6 +127,7 @@ function LogoutModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel:
         <div className="flex gap-3">
           <button
             onClick={onCancel}
+            disabled={isLoading}
             className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
             style={{
               background: "rgba(255,255,255,0.05)",
@@ -254,14 +139,22 @@ function LogoutModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel:
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90"
+            disabled={isLoading}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 flex items-center justify-center gap-2"
             style={{
               background: "linear-gradient(135deg, #ef4444, #dc2626)",
               color: "white",
               boxShadow: "0 4px 16px rgba(239,68,68,0.35)",
+              opacity: isLoading ? 0.7 : 1,
             }}
           >
-            Sign out
+            {isLoading ? (
+              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" strokeDasharray="40" strokeDashoffset="10" />
+              </svg>
+            ) : (
+              "Sign out"
+            )}
           </button>
         </div>
       </div>
@@ -272,14 +165,73 @@ function LogoutModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel:
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Profile() {
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const { stats } = useUserStats();
   const [showLogout, setShowLogout] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
-  const handleLogout = () => {
-    setShowLogout(false);
-    navigate("/login");
+  const displayName = getDisplayName(user);
+  const avatarUrl: string | undefined = user?.user_metadata?.avatar_url;
+  const email = user?.email ?? "";
+  const joinDate = formatJoinDate(user?.created_at);
+
+  const STAT_CARDS = [
+    {
+      id: "ppts",
+      label: "PPTs Created",
+      value: stats?.ppt_count ?? 0,
+      icon: Presentation,
+      gradient: "from-purple-500 to-blue-500",
+      bg: "rgba(139,92,246,0.12)",
+      border: "rgba(139,92,246,0.25)",
+      gradientCSS: "hsl(262,80%,60%), hsl(220,85%,60%)",
+    },
+    {
+      id: "assignments",
+      label: "Assignments",
+      value: stats?.assignment_count ?? 0,
+      icon: FileText,
+      gradient: "from-blue-500 to-cyan-500",
+      bg: "rgba(59,130,246,0.12)",
+      border: "rgba(59,130,246,0.25)",
+      gradientCSS: "hsl(217,91%,60%), hsl(189,94%,53%)",
+    },
+    {
+      id: "notes",
+      label: "Notes Created",
+      value: stats?.note_count ?? 0,
+      icon: BookOpen,
+      gradient: "from-emerald-500 to-teal-500",
+      bg: "rgba(16,185,129,0.12)",
+      border: "rgba(16,185,129,0.25)",
+      gradientCSS: "hsl(160,84%,39%), hsl(174,62%,47%)",
+    },
+    {
+      id: "tasks",
+      label: "Tasks Completed",
+      value: stats?.checklist_completed ?? 0,
+      icon: CheckSquare,
+      gradient: "from-orange-500 to-pink-500",
+      bg: "rgba(249,115,22,0.12)",
+      border: "rgba(249,115,22,0.25)",
+      gradientCSS: "hsl(25,95%,53%), hsl(330,85%,60%)",
+    },
+  ];
+
+  const totalActions = STAT_CARDS.reduce((s, x) => s + x.value, 0);
+
+  const handleLogout = async () => {
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      navigate("/login", { replace: true });
+    } catch (err) {
+      console.error("[Profile] signOut error:", err);
+    } finally {
+      setIsSigningOut(false);
+      setShowLogout(false);
+    }
   };
-
-  const totalActions = MOCK_STATS.reduce((s, x) => s + x.value, 0);
 
   return (
     <>
@@ -296,11 +248,15 @@ export default function Profile() {
       `}</style>
 
       {showLogout && (
-        <LogoutModal onConfirm={handleLogout} onCancel={() => setShowLogout(false)} />
+        <LogoutModal
+          onConfirm={handleLogout}
+          onCancel={() => !isSigningOut && setShowLogout(false)}
+          isLoading={isSigningOut}
+        />
       )}
 
       <div className="min-h-full p-6 md:p-8 space-y-6 max-w-4xl mx-auto">
-        {/* ── Hero card ────────────────────────────────────────────────── */}
+        {/* Hero card */}
         <div
           className="rounded-2xl overflow-hidden fade-up"
           style={{
@@ -317,7 +273,6 @@ export default function Profile() {
                 "linear-gradient(135deg, rgba(139,92,246,0.35) 0%, rgba(59,130,246,0.25) 50%, rgba(16,185,129,0.15) 100%)",
             }}
           >
-            {/* subtle grid pattern */}
             <div
               className="absolute inset-0 opacity-20"
               style={{
@@ -326,7 +281,6 @@ export default function Profile() {
                 backgroundSize: "32px 32px",
               }}
             />
-            {/* plan badge */}
             <div
               className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
               style={{
@@ -337,29 +291,30 @@ export default function Profile() {
               }}
             >
               <Sparkles size={11} />
-              {MOCK_USER.plan}
+              Premium
             </div>
           </div>
 
           {/* Profile row */}
           <div className="px-6 pb-6">
-            {/* Avatar overlapping banner */}
-            <div className="-mt-12 mb-4 group">
-              <Avatar name={MOCK_USER.name} size={80} />
+            <div className="-mt-12 mb-4">
+              <Avatar name={displayName || email} avatarUrl={avatarUrl} size={80} />
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <div className="space-y-1 group">
-                <EditableName initial={MOCK_USER.name} />
+              <div className="space-y-1">
+                <h1 className="font-display font-bold text-2xl text-white">{displayName}</h1>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <Mail size={13} className="text-purple-400" />
-                    {MOCK_USER.email}
+                    {email}
                   </span>
-                  <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <Calendar size={13} className="text-blue-400" />
-                    Joined {MOCK_USER.joined}
-                  </span>
+                  {joinDate && (
+                    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <Calendar size={13} className="text-blue-400" />
+                      Joined {joinDate}
+                    </span>
+                  )}
                   <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <Shield size={13} className="text-emerald-400" />
                     {totalActions} total actions
@@ -392,26 +347,50 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* ── Stats grid ───────────────────────────────────────────────── */}
-        <div
-          className="fade-up"
-          style={{ animationDelay: "80ms" }}
-        >
+        {/* Stats grid */}
+        <div className="fade-up" style={{ animationDelay: "80ms" }}>
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
             Activity Stats
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {MOCK_STATS.map((stat, i) => (
-              <StatCard key={stat.id} stat={stat} animDelay={i * 40} />
-            ))}
+            {STAT_CARDS.map((stat) => {
+              const Icon = stat.icon;
+              return (
+                <div
+                  key={stat.id}
+                  className="rounded-2xl p-5 flex flex-col gap-3 transition-all duration-300 cursor-default hover:-translate-y-0.5"
+                  style={{
+                    background: stat.bg,
+                    border: `1px solid ${stat.border}`,
+                  }}
+                >
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${stat.border}` }}
+                  >
+                    <Icon size={18} className="text-white opacity-80" />
+                  </div>
+                  <div>
+                    <p
+                      className="font-display font-bold text-3xl"
+                      style={{
+                        background: `linear-gradient(135deg, ${stat.gradientCSS})`,
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                      }}
+                    >
+                      {stat.value}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* ── Two column: Account info + Recent activity ────────────── */}
-        <div
-          className="grid md:grid-cols-2 gap-5 fade-up"
-          style={{ animationDelay: "160ms" }}
-        >
+        {/* Account info + Recent activity */}
+        <div className="grid md:grid-cols-2 gap-5 fade-up" style={{ animationDelay: "160ms" }}>
           {/* Account details */}
           <div
             className="rounded-2xl p-5 space-y-4"
@@ -423,12 +402,11 @@ export default function Profile() {
             <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Account Details
             </h2>
-
             {[
-              { icon: User, label: "Display Name", value: MOCK_USER.name, color: "text-purple-400" },
-              { icon: Mail, label: "Email", value: MOCK_USER.email, color: "text-blue-400" },
-              { icon: Calendar, label: "Member Since", value: MOCK_USER.joined, color: "text-orange-400" },
-              { icon: Shield, label: "Plan", value: MOCK_USER.plan, color: "text-emerald-400" },
+              { icon: User,     label: "Display Name",  value: displayName,  color: "text-purple-400" },
+              { icon: Mail,     label: "Email",          value: email,        color: "text-blue-400" },
+              { icon: Calendar, label: "Member Since",   value: joinDate,     color: "text-orange-400" },
+              { icon: Shield,   label: "Plan",           value: "Premium",    color: "text-emerald-400" },
             ].map(({ icon: Icon, label, value, color }) => (
               <div
                 key={label}
@@ -449,7 +427,7 @@ export default function Profile() {
             ))}
           </div>
 
-          {/* Recent activity */}
+          {/* Recent activity — placeholder until activity feed is built */}
           <div
             className="rounded-2xl p-5 space-y-4"
             style={{
@@ -461,47 +439,11 @@ export default function Profile() {
               <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Recent Activity
               </h2>
-              <span
-                className="text-xs px-2 py-0.5 rounded-full"
-                style={{
-                  background: "rgba(139,92,246,0.15)",
-                  color: "hsl(262,80%,70%)",
-                  border: "1px solid rgba(139,92,246,0.25)",
-                }}
-              >
-                {ACTIVITY.length} entries
-              </span>
             </div>
-
-            <div className="space-y-1">
-              {ACTIVITY.map((item, i) => {
-                const Icon = item.icon;
-                return (
-                  <div
-                    key={i}
-                    className="group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-default"
-                    style={{ background: "transparent" }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.background = "transparent";
-                    }}
-                  >
-                    <div
-                      className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: "rgba(255,255,255,0.05)" }}
-                    >
-                      <Icon size={13} className={item.color} />
-                    </div>
-                    <span className="text-sm text-foreground flex-1 min-w-0 truncate">{item.label}</span>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap ml-2 opacity-70 group-hover:opacity-100 transition-opacity">
-                      {item.time}
-                    </span>
-                    <ChevronRight size={13} className="text-muted-foreground opacity-0 group-hover:opacity-50 transition-opacity flex-shrink-0" />
-                  </div>
-                );
-              })}
+            <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+              <Clock size={28} className="text-muted-foreground opacity-40" />
+              <p className="text-sm text-muted-foreground">Activity feed coming soon</p>
+              <p className="text-xs text-muted-foreground opacity-60">Your recent actions will appear here</p>
             </div>
           </div>
         </div>
