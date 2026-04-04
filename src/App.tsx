@@ -9,6 +9,8 @@ import Dashboard from "./pages/Dashboard.tsx";
 import PPT from "./pages/PPT.tsx";
 import Assignments from "./pages/Assignments.tsx";
 import Notes from "./pages/Notes.tsx";
+import Timetable from "./pages/Timetable.tsx";
+import Checklist from "./pages/Checklist.tsx";
 import DashboardLayout from "./components/DashboardLayout.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -37,8 +39,8 @@ const App = () => (
             <Route path="ppt" element={<PPT />} />
             <Route path="assignments" element={<Assignments />} />
             <Route path="notes" element={<Notes />} />
-            <Route path="timetable" element={<PlaceholderPage title="Timetable" />} />
-            <Route path="checklist" element={<PlaceholderPage title="Checklist" />} />
+            <Route path="timetable" element={<Timetable />} />
+            <Route path="checklist" element={<Checklist />} />
             <Route path="profile" element={<PlaceholderPage title="Profile" />} />
           </Route>
           <Route path="*" element={<NotFound />} />
