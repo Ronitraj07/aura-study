@@ -6,9 +6,19 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
 import Login from "./pages/Login.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
+import DashboardLayout from "./components/DashboardLayout.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
+
+const PlaceholderPage = ({ title }: { title: string }) => (
+  <div className="flex items-center justify-center h-full">
+    <div className="glass-card rounded-2xl p-10 text-center">
+      <h1 className="font-display text-2xl font-bold gradient-text mb-2">{title}</h1>
+      <p className="text-muted-foreground text-sm">Coming soon.</p>
+    </div>
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -19,8 +29,15 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/dashboard" element={<DashboardLayout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="ppt" element={<PlaceholderPage title="PPT Generator" />} />
+            <Route path="assignments" element={<PlaceholderPage title="Assignments" />} />
+            <Route path="notes" element={<PlaceholderPage title="Notes" />} />
+            <Route path="timetable" element={<PlaceholderPage title="Timetable" />} />
+            <Route path="checklist" element={<PlaceholderPage title="Checklist" />} />
+            <Route path="profile" element={<PlaceholderPage title="Profile" />} />
+          </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
