@@ -232,6 +232,17 @@
     transform: translateY(-2px);
   }
 
+  /* ── Hero ambient glow blobs ─────────────────────────────────────────── */
+  /* FIX: was missing — caused large visible colored rectangles on landing */
+  .hero-glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    pointer-events: none;
+    z-index: 0;
+    will-change: opacity;
+  }
+
   /* Shimmer skeleton */
   .skeleton {
     background: linear-gradient(
@@ -322,6 +333,40 @@
     cursor: not-allowed;
   }
 
+  /* Secondary button — glass outline style */
+  /* FIX: was missing — caused unstyled button in HeroSection CTA row */
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-5);
+    border-radius: var(--radius);
+    background: hsla(240, 13%, 100%, 0.05);
+    border: 1px solid hsla(240, 10%, 100%, 0.12);
+    color: hsl(var(--foreground));
+    font-weight: 600;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: background var(--t-fast) var(--ease-out-expo),
+                border-color var(--t-fast) var(--ease-out-expo),
+                transform var(--t-fast) var(--ease-out-expo);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: hsla(240, 13%, 100%, 0.09);
+    border-color: hsla(262, 80%, 62%, 0.35);
+    transform: translateY(-1px);
+  }
+  .btn-secondary:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  .btn-secondary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
   /* Ghost button */
   .btn-ghost {
     display: inline-flex;
@@ -409,5 +454,20 @@
   .empty-state p {
     font-size: var(--text-sm);
     max-width: 36ch;
+  }
+
+  /* Fade-up entrance animation */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .fade-up {
+    animation: fadeUp 0.5s var(--ease-out-expo) both;
+  }
+
+  /* Scale-in for mobile menu */
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scaleY(0.95); transform-origin: top; }
+    to   { opacity: 1; transform: scaleY(1); }
   }
 }
