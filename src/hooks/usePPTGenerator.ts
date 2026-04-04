@@ -4,6 +4,8 @@
 // ✔ Groq generates all content directly — better quality
 // ✔ Bulletproof save: INSERT with race-condition guard
 // ✔ Version snapshot: taken BEFORE every overwrite
+// FIX: 409 stale-closure — debounce reads ref at fire-time,
+//      generate() clears pending timer after first save
 // ============================================================
 
 import { useState, useCallback, useRef } from 'react';
@@ -31,7 +33,7 @@ export interface PPTInput {
 
 const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama3-8b-8192'];
 
-// ── Prompt builder ────────────────────────────────────────────
+// ── Prompt builder ───────────────────────────────────────────────
 function buildPrompt(input: PPTInput): string {
   const toneMap: Record<PresentationType, string> = {
     academic: 'structured, formal, citation-worthy, data-driven with clear evidence',
@@ -180,7 +182,7 @@ async function callGroq(prompt: string): Promise<GeneratedPPT> {
   throw new Error('All Groq models failed. Please check your API key and try again.');
 }
 
-// ── Hook ──────────────────────────────────────────────────────
+// ── Hook ───────────────────────────────────────────────────────────
 export function usePPTGenerator() {
   const { user } = useAuth();
   const [ppt, setPPT] = useState<GeneratedPPT | null>(null);
@@ -224,7 +226,7 @@ export function usePPTGenerator() {
       };
 
       if (existingId) {
-        // ── UPDATE: snapshot first, then overwrite ───────────
+        // ── UPDATE: snapshot first, then overwrite ───────────────────
         const { data: current } = await supabase
           .from('ppts')
           .select('slides, topic, mode, presentation_type, design_theme')
@@ -297,7 +299,7 @@ export function usePPTGenerator() {
     }
   }, [user]);
 
-  // ── Generate ──────────────────────────────────────────────────
+  // ── Generate ──────────────────────────────────────────────────────
   const generate = useCallback(async (input: PPTInput) => {
     if (!input.topic.trim()) {
       setError('Please enter a topic to generate a presentation.');
@@ -313,11 +315,27 @@ export function usePPTGenerator() {
     setActiveSlide(0);
     currentInputRef.current = input;
 
+    // FIX: clear any pending autosave debounce from a previous session
+    // before generating, so it can't fire mid-generation with a stale ID.
+    if (autosaveTimer.current) {
+      clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
+    }
+
     try {
       const prompt = buildPrompt(input);
       const result = await callGroq(prompt);
       setPPT(result);
+      // First save — sets savedPPTIdRef.current to the new DB row ID
       await saveToSupabase(result, null, input.mode, input.presentation_type);
+
+      // FIX: clear any debounce that may have queued during generation
+      // (e.g. if the user somehow typed while generating).
+      // The initial save already wrote the canonical state — no need to re-save.
+      if (autosaveTimer.current) {
+        clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = null;
+      }
     } catch (e: any) {
       setError(e?.message ?? 'Generation failed. Please try again.');
     } finally {
@@ -325,7 +343,7 @@ export function usePPTGenerator() {
     }
   }, [saveToSupabase]);
 
-  // ── Update slide + debounced autosave ─────────────────────────
+  // ── Update slide + debounced autosave ─────────────────────────────
   const updateSlide = useCallback((
     idx: number,
     field: keyof GeneratedSlide,
@@ -339,10 +357,18 @@ export function usePPTGenerator() {
 
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
       autosaveTimer.current = setTimeout(() => {
+        // FIX: read savedPPTIdRef.current INSIDE the callback (at fire-time),
+        // not outside (at schedule-time). This ensures we always get the
+        // ID that was written by the initial generate() save, even though
+        // that save is async and completes after this timer is scheduled.
+        const latestId = savedPPTIdRef.current;
+        // Safety: if the first save hasn't finished yet, skip —
+        // the generate() will clear this timer anyway when it resolves.
+        if (!latestId) return;
         const inp = currentInputRef.current;
         saveToSupabase(
           updated,
-          savedPPTIdRef.current,
+          latestId,
           inp?.mode ?? 'basic',
           inp?.presentation_type ?? 'academic',
         );
@@ -352,7 +378,7 @@ export function usePPTGenerator() {
     });
   }, [saveToSupabase]);
 
-  // ── Regenerate single slide ───────────────────────────────────
+  // ── Regenerate single slide ────────────────────────────────────────
   const regenerateSlide = useCallback(async (idx: number, input: PPTInput) => {
     if (!ppt) return;
     setError(null);
@@ -373,7 +399,10 @@ export function usePPTGenerator() {
 
         if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
         autosaveTimer.current = setTimeout(() => {
-          saveToSupabase(updated, savedPPTIdRef.current, input.mode, input.presentation_type);
+          // FIX: same pattern — read ref at fire-time
+          const latestId = savedPPTIdRef.current;
+          if (!latestId) return;
+          saveToSupabase(updated, latestId, input.mode, input.presentation_type);
         }, 1500);
 
         return updated;
@@ -383,7 +412,7 @@ export function usePPTGenerator() {
     }
   }, [ppt, saveToSupabase]);
 
-  // ── Load version history ──────────────────────────────────────
+  // ── Load version history ──────────────────────────────────────────
   const loadVersions = useCallback(async (pptId: string) => {
     const { data } = await supabase
       .from('ppt_versions')
@@ -393,7 +422,7 @@ export function usePPTGenerator() {
     setVersions(data ?? []);
   }, []);
 
-  // ── Restore version ───────────────────────────────────────────
+  // ── Restore version ───────────────────────────────────────────────
   const restoreVersion = useCallback(async (version: any) => {
     if (!ppt || !savedPPTIdRef.current) return;
     setPPT(prev => prev ? { ...prev, slides: version.slides } : prev);
