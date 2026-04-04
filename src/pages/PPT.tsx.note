@@ -1,0 +1,12 @@
+IMPORTANT — Before this works, do 2 things:
+
+1. Install pptxgenjs:
+   npm install pptxgenjs
+
+2. Add VITE_GROQ_API_KEY to your .env file and Vercel environment variables:
+   VITE_GROQ_API_KEY=gsk_your_key_here
+   Get it from: https://console.groq.com/keys
+
+3. Run the SQL migration:
+   supabase/migrations/002_ppt_versions.sql
+   in Supabase SQL Editor
