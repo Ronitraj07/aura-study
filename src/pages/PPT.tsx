@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Download, Save, RefreshCw, ChevronLeft, ChevronRight,
+  Sparkles, Download, RefreshCw, ChevronLeft, ChevronRight,
   History, RotateCcw, Copy, Check, AlertCircle, Loader2,
   Presentation, Lightbulb, StickyNote, LayoutGrid,
 } from 'lucide-react';
@@ -29,8 +29,8 @@ import {
   usePPTGenerator,
   type PPTMode,
   type PresentationType,
-  type GeneratedSlide,
 } from '@/hooks/usePPTGenerator';
+import type { GeneratedSlide } from '@/types/database';
 import { exportToPPTX } from '@/lib/pptExport';
 
 const LAYOUT_COLORS: Record<string, string> = {
@@ -49,14 +49,25 @@ function SaveIndicator({ status }: { status: string }) {
       exit={{ opacity: 0 }}
       className="flex items-center gap-1.5 text-xs"
     >
-      {status === 'saving' && <><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" /><span className="text-muted-foreground">Saving…</span></>}
-      {status === 'saved' && <><Check className="w-3 h-3 text-emerald-400" /><span className="text-emerald-400">Saved</span></>}
-      {status === 'error' && <><AlertCircle className="w-3 h-3 text-red-400" /><span className="text-red-400">Save failed</span></>}
+      {status === 'saving' && (
+        <><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+        <span className="text-muted-foreground">Saving…</span></>
+      )}
+      {status === 'saved' && (
+        <><Check className="w-3 h-3 text-emerald-400" />
+        <span className="text-emerald-400">Saved</span></>
+      )}
+      {status === 'error' && (
+        <><AlertCircle className="w-3 h-3 text-red-400" />
+        <span className="text-red-400">Save failed</span></>
+      )}
     </motion.div>
   );
 }
 
-function SlideCard({ slide, index, isActive, onClick }: {
+function SlideCard({
+  slide, index, isActive, onClick,
+}: {
   slide: GeneratedSlide; index: number; isActive: boolean; onClick: () => void;
 }) {
   return (
@@ -69,7 +80,9 @@ function SlideCard({ slide, index, isActive, onClick }: {
       }`}
     >
       <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-[10px] font-mono text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
+        <span className="text-[10px] font-mono text-muted-foreground">
+          {String(index + 1).padStart(2, '0')}
+        </span>
         {slide.layout_type && (
           <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-medium uppercase tracking-wide ${LAYOUT_COLORS[slide.layout_type] ?? ''}`}>
             {slide.layout_type}
@@ -81,7 +94,9 @@ function SlideCard({ slide, index, isActive, onClick }: {
   );
 }
 
-function SlidePreview({ slide, index, total, mode, onUpdate, onRegenerate, isRegenerating }: {
+function SlidePreview({
+  slide, index, total, mode, onUpdate, onRegenerate, isRegenerating,
+}: {
   slide: GeneratedSlide;
   index: number;
   total: number;
@@ -95,6 +110,13 @@ function SlidePreview({ slide, index, total, mode, onUpdate, onRegenerate, isReg
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingBullet, setEditingBullet] = useState<number | null>(null);
 
+  // Reset local edit states when slide changes
+  useEffect(() => {
+    setEditingTitle(false);
+    setEditingBullet(null);
+    setShowNotes(false);
+  }, [index]);
+
   const copyContent = () => {
     const text = [slide.title, '', ...slide.content].join('\n');
     navigator.clipboard.writeText(text);
@@ -106,19 +128,25 @@ function SlidePreview({ slide, index, total, mode, onUpdate, onRegenerate, isReg
     <div className="flex flex-col h-full">
       {/* Slide canvas */}
       <div className="glass-card rounded-2xl p-8 flex-1 flex flex-col gap-4 relative overflow-hidden">
-        {/* Slide header */}
+        {/* Header row */}
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-mono text-muted-foreground">
             Slide {index + 1} / {total}
           </span>
           <div className="flex items-center gap-2">
             {slide.layout_type && (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full border ${LAYOUT_COLORS[slide.layout_type] ?? ''}` }>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full border ${LAYOUT_COLORS[slide.layout_type] ?? ''}`}>
                 {slide.layout_type}
               </span>
             )}
-            <button onClick={copyContent} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
+            <button
+              onClick={copyContent}
+              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+              aria-label="Copy slide content"
+            >
+              {copied
+                ? <Check className="w-3.5 h-3.5 text-emerald-400" />
+                : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
             </button>
           </div>
         </div>
@@ -126,7 +154,7 @@ function SlidePreview({ slide, index, total, mode, onUpdate, onRegenerate, isReg
         {/* Accent bar */}
         <div className="h-0.5 w-12 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" />
 
-        {/* Title — editable */}
+        {/* Title — click to edit */}
         {editingTitle ? (
           <Input
             autoFocus
@@ -140,6 +168,7 @@ function SlidePreview({ slide, index, total, mode, onUpdate, onRegenerate, isReg
           <h2
             onClick={() => setEditingTitle(true)}
             className="text-2xl font-bold text-foreground cursor-text hover:text-purple-300 transition-colors leading-tight"
+            title="Click to edit"
           >
             {slide.title}
           </h2>
@@ -150,7 +179,7 @@ function SlidePreview({ slide, index, total, mode, onUpdate, onRegenerate, isReg
           <p className="text-sm text-muted-foreground italic -mt-2">{slide.subtitle}</p>
         )}
 
-        {/* Bullets — editable */}
+        {/* Bullets — click to edit */}
         <ul className="space-y-2 flex-1">
           {slide.content.map((point, i) => (
             <li key={i} className="flex items-start gap-2.5">
@@ -172,6 +201,7 @@ function SlidePreview({ slide, index, total, mode, onUpdate, onRegenerate, isReg
                 <span
                   onClick={() => setEditingBullet(i)}
                   className="text-sm text-foreground/90 cursor-text hover:text-purple-300 transition-colors leading-relaxed flex-1"
+                  title="Click to edit"
                 >
                   {point}
                 </span>
@@ -180,7 +210,7 @@ function SlidePreview({ slide, index, total, mode, onUpdate, onRegenerate, isReg
           ))}
         </ul>
 
-        {/* Visual suggestion */}
+        {/* Visual suggestion — only in high_quality mode */}
         {slide.visual_suggestion && mode === 'high_quality' && (
           <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/8 border border-amber-500/15">
             <Lightbulb className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
@@ -192,11 +222,11 @@ function SlidePreview({ slide, index, total, mode, onUpdate, onRegenerate, isReg
         <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-purple-600/10 rounded-full blur-2xl pointer-events-none" />
       </div>
 
-      {/* Speaker notes toggle */}
+      {/* Speaker notes — collapsible */}
       {slide.speaker_notes && mode === 'high_quality' && (
         <div className="mt-3">
           <button
-            onClick={() => setShowNotes(!showNotes)}
+            onClick={() => setShowNotes(n => !n)}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             <StickyNote className="w-3.5 h-3.5" />
@@ -220,7 +250,7 @@ function SlidePreview({ slide, index, total, mode, onUpdate, onRegenerate, isReg
         </div>
       )}
 
-      {/* Actions */}
+      {/* Regenerate action */}
       <div className="flex gap-2 mt-3">
         <Button
           variant="outline"
@@ -230,8 +260,8 @@ function SlidePreview({ slide, index, total, mode, onUpdate, onRegenerate, isReg
           className="flex-1 border-white/10 hover:bg-white/5 text-xs"
         >
           {isRegenerating
-            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            : <RefreshCw className="w-3.5 h-3.5" />}
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+            : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
           Regenerate Slide
         </Button>
       </div>
@@ -241,9 +271,19 @@ function SlidePreview({ slide, index, total, mode, onUpdate, onRegenerate, isReg
 
 export default function PPTPage() {
   const {
-    ppt, isGenerating, saveStatus, error, versions,
-    activeSlide, setActiveSlide,
-    generate, updateSlide, regenerateSlide, loadVersions, restoreVersion, savedPPTId,
+    ppt,
+    isGenerating,
+    saveStatus,
+    error,
+    versions,
+    activeSlide,
+    setActiveSlide,
+    generate,
+    updateSlide,
+    regenerateSlide,
+    loadVersions,
+    restoreVersion,
+    savedPPTId,
   } = usePPTGenerator();
 
   const [topic, setTopic] = useState('');
@@ -252,22 +292,26 @@ export default function PPTPage() {
   const [presentationType, setPresentationType] = useState<PresentationType>('academic');
   const [isExporting, setIsExporting] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [showVersions, setShowVersions] = useState(false);
 
   useEffect(() => {
     if (savedPPTId && showVersions) loadVersions(savedPPTId);
   }, [savedPPTId, showVersions, loadVersions]);
 
-  const handleGenerate = () => generate({ topic, number_of_slides: slideCount, mode, presentation_type: presentationType });
+  const handleGenerate = () =>
+    generate({ topic, number_of_slides: slideCount, mode, presentation_type: presentationType });
 
+  // FIX: pass ppt directly — no fake DbPPT wrapper needed anymore
   const handleExport = async () => {
-    if (!ppt || !savedPPTId) return;
+    if (!ppt) return;
     setIsExporting(true);
+    setExportError(null);
     try {
-      const fullPPT = { id: savedPPTId, user_id: '', ...ppt, slide_count: ppt.slides.length, created_at: '', updated_at: '' };
-      await exportToPPTX(fullPPT as any);
+      await exportToPPTX(ppt);
     } catch (e: any) {
       console.error('Export failed:', e);
+      setExportError(e?.message ?? 'Export failed');
     } finally {
       setIsExporting(false);
     }
@@ -275,7 +319,9 @@ export default function PPTPage() {
 
   const handleRegenSlide = async () => {
     setIsRegenerating(true);
-    await regenerateSlide(activeSlide, { topic, number_of_slides: slideCount, mode, presentation_type: presentationType });
+    await regenerateSlide(activeSlide, {
+      topic, number_of_slides: slideCount, mode, presentation_type: presentationType,
+    });
     setIsRegenerating(false);
   };
 
@@ -283,7 +329,7 @@ export default function PPTPage() {
 
   return (
     <div className="flex h-full gap-0">
-      {/* LEFT PANEL — Input */}
+      {/* ── LEFT PANEL — Inputs ─────────────────────────────────── */}
       <div className="w-80 shrink-0 flex flex-col gap-5 p-6 border-r border-white/5 overflow-y-auto">
         <div>
           <h1 className="text-lg font-semibold gradient-text">PPT Generator</h1>
@@ -297,6 +343,9 @@ export default function PPTPage() {
             placeholder="e.g. The Impact of AI on Modern Education"
             value={topic}
             onChange={e => setTopic(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleGenerate();
+            }}
             className="resize-none bg-white/5 border-white/10 focus:border-purple-500/60 text-sm h-20"
           />
         </div>
@@ -318,7 +367,7 @@ export default function PPTPage() {
           </div>
         </div>
 
-        {/* Mode */}
+        {/* Mode toggle */}
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground uppercase tracking-wider">Quality Mode</Label>
           <div className="grid grid-cols-2 gap-2">
@@ -343,10 +392,13 @@ export default function PPTPage() {
           )}
         </div>
 
-        {/* Presentation Type */}
+        {/* Presentation type */}
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground uppercase tracking-wider">Type</Label>
-          <Select value={presentationType} onValueChange={v => setPresentationType(v as PresentationType)}>
+          <Select
+            value={presentationType}
+            onValueChange={v => setPresentationType(v as PresentationType)}
+          >
             <SelectTrigger className="bg-white/5 border-white/10 text-sm">
               <SelectValue />
             </SelectTrigger>
@@ -365,11 +417,11 @@ export default function PPTPage() {
           className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold"
         >
           {isGenerating
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
-            : <><Sparkles className="w-4 h-4" /> Generate PPT</>}
+            ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Generating…</>
+            : <><Sparkles className="w-4 h-4 mr-2" /> Generate PPT</>}
         </Button>
 
-        {/* Error */}
+        {/* Generation error */}
         {error && (
           <motion.div
             initial={{ opacity: 0, y: 4 }}
@@ -381,17 +433,33 @@ export default function PPTPage() {
           </motion.div>
         )}
 
-        {/* Slide thumbnails */}
+        {/* Export error */}
+        {exportError && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-start gap-2 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20"
+          >
+            <AlertCircle className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-orange-400">{exportError}</p>
+          </motion.div>
+        )}
+
+        {/* Slide thumbnail list */}
         {ppt && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">{ppt.slides.length} slides</span>
-              <Badge variant="outline" className="text-[10px] border-white/10">{ppt.design_theme}</Badge>
+              <Badge variant="outline" className="text-[10px] border-white/10">
+                {ppt.design_theme}
+              </Badge>
             </div>
             <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
               {ppt.slides.map((s, i) => (
                 <SlideCard
-                  key={i} slide={s} index={i}
+                  key={i}
+                  slide={s}
+                  index={i}
                   isActive={activeSlide === i}
                   onClick={() => setActiveSlide(i)}
                 />
@@ -401,9 +469,10 @@ export default function PPTPage() {
         )}
       </div>
 
-      {/* RIGHT PANEL — Preview */}
+      {/* ── RIGHT PANEL — Preview ──────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top bar */}
+
+        {/* Top bar (only when ppt exists) */}
         {ppt && (
           <div className="flex items-center justify-between px-6 py-3 border-b border-white/5">
             <div className="flex items-center gap-3">
@@ -412,10 +481,14 @@ export default function PPTPage() {
               <SaveIndicator status={saveStatus} />
             </div>
             <div className="flex items-center gap-2">
-              {/* Version history */}
+
+              {/* Version history sheet */}
               <Sheet open={showVersions} onOpenChange={setShowVersions}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-muted-foreground hover:text-foreground">
+                  <Button
+                    variant="ghost" size="sm"
+                    className="text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                  >
                     <History className="w-3.5 h-3.5" /> History
                   </Button>
                 </SheetTrigger>
@@ -425,18 +498,29 @@ export default function PPTPage() {
                   </SheetHeader>
                   <div className="mt-4 space-y-2">
                     {versions.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-8">No versions saved yet.</p>
+                      <p className="text-xs text-muted-foreground text-center py-8">
+                        No versions saved yet.
+                      </p>
                     ) : (
-                      versions.map((v, i) => (
-                        <div key={v.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/8">
+                      versions.map(v => (
+                        <div
+                          key={v.id}
+                          className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/8"
+                        >
                           <div>
                             <p className="text-xs font-medium">Version {v.version}</p>
                             <p className="text-[10px] text-muted-foreground">
                               {new Date(v.created_at).toLocaleString()}
                             </p>
+                            <p className="text-[10px] text-muted-foreground/60">
+                              {v.slides?.length ?? 0} slides
+                            </p>
                           </div>
-                          <Button size="sm" variant="ghost" onClick={() => restoreVersion(v)}
-                            className="text-xs gap-1 h-7">
+                          <Button
+                            size="sm" variant="ghost"
+                            onClick={() => restoreVersion(v)}
+                            className="text-xs gap-1 h-7"
+                          >
                             <RotateCcw className="w-3 h-3" /> Restore
                           </Button>
                         </div>
@@ -446,7 +530,7 @@ export default function PPTPage() {
                 </SheetContent>
               </Sheet>
 
-              {/* Export */}
+              {/* Download PPTX */}
               <Button
                 size="sm"
                 onClick={handleExport}
@@ -462,8 +546,9 @@ export default function PPTPage() {
           </div>
         )}
 
-        {/* Main content area */}
+        {/* Main content */}
         <div className="flex-1 overflow-hidden p-6">
+
           {/* Empty state */}
           {!ppt && !isGenerating && (
             <motion.div
@@ -489,13 +574,19 @@ export default function PPTPage() {
                 <div className="h-8 bg-white/8 rounded-xl w-3/4" />
                 <div className="h-4 bg-white/5 rounded-xl w-1/2" />
                 <div className="space-y-2 flex-1">
-                  {[1,2,3,4].map(i => (
-                    <div key={i} className={`h-4 bg-white/5 rounded-xl w-${['full','5/6','4/5','3/4'][i-1]}`} />
+                  {[1, 2, 3, 4].map(i => (
+                    <div
+                      key={i}
+                      className={`h-4 bg-white/5 rounded-xl ${
+                        ['w-full', 'w-5/6', 'w-4/5', 'w-3/4'][i - 1]
+                      }`}
+                    />
                   ))}
                 </div>
               </div>
               <p className="text-center text-xs text-muted-foreground">
-                Generating {slideCount} slides with {mode === 'high_quality' ? 'Gamma-level' : 'basic'} quality…
+                Generating {slideCount} slides with{' '}
+                {mode === 'high_quality' ? 'Gamma-level' : 'basic'} quality…
               </p>
             </div>
           )}
@@ -525,12 +616,13 @@ export default function PPTPage() {
           )}
         </div>
 
-        {/* Slide nav arrows */}
+        {/* Slide navigation arrows */}
         {ppt && (
           <div className="flex items-center justify-center gap-4 py-3 border-t border-white/5">
             <button
               onClick={() => setActiveSlide(i => Math.max(0, i - 1))}
               disabled={activeSlide === 0}
+              aria-label="Previous slide"
               className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -541,6 +633,7 @@ export default function PPTPage() {
             <button
               onClick={() => setActiveSlide(i => Math.min(ppt.slides.length - 1, i + 1))}
               disabled={activeSlide === ppt.slides.length - 1}
+              aria-label="Next slide"
               className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
               <ChevronRight className="w-4 h-4" />
