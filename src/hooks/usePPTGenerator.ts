@@ -1,5 +1,6 @@
 // ============================================================
 // usePPTGenerator — AI generation + autosave + version history
+// ✔ Research-enhanced: Groq double-pass (8b research → 70b generate)
 // ✔ 409 fix: upsert-on-conflict instead of bare INSERT
 // ✔ isSavingRef guard prevents concurrent saves
 // ✔ Version snapshot taken BEFORE every overwrite
@@ -8,6 +9,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { fetchResearch, buildResearchPreamble } from '@/lib/research';
 import type { GeneratedSlide } from '@/types/database';
 
 export type PPTMode = 'basic' | 'high_quality';
@@ -19,6 +21,7 @@ export interface GeneratedPPT {
   title: string;
   design_theme: DesignTheme;
   slides: GeneratedSlide[];
+  researchSource?: 'groq' | 'gemini' | 'none'; // tracked for UI badge
 }
 
 export interface PPTInput {
@@ -30,8 +33,8 @@ export interface PPTInput {
 
 const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama3-8b-8192'];
 
-// ── Prompt builder ────────────────────────────────────────────
-function buildPrompt(input: PPTInput): string {
+// ── Prompt builder ──────────────────────────────────────────────
+function buildPrompt(input: PPTInput, researchPreamble: string): string {
   const toneMap: Record<PresentationType, string> = {
     academic: 'structured, formal, citation-worthy, data-driven with clear evidence',
     business: 'concise, impact-driven, executive-level, ROI-focused with metrics',
@@ -70,7 +73,12 @@ Keep slides clean and educational:
 - speaker_notes: brief presenter note
 `;
 
-  return `You are a world-class presentation designer and subject matter expert. You have deep knowledge of "${input.topic}" and will create a compelling, factually rich, visually structured presentation entirely from your own knowledge.
+  // Inject the research preamble at the top if available
+  const researchSection = researchPreamble
+    ? `${researchPreamble}create a compelling, research-backed presentation.\n\n`
+    : '';
+
+  return `${researchSection}You are a world-class presentation designer and subject matter expert. Create a compelling, factually rich, visually structured presentation.
 
 Create a ${input.number_of_slides}-slide presentation.
 
@@ -112,7 +120,7 @@ RETURN ONLY VALID JSON. No markdown, no code blocks, no explanation. Pure JSON o
 Generate EXACTLY ${input.number_of_slides} slides. Every slide MUST have exactly 4 bullets in the content array. This is mandatory.`;
 }
 
-// ── Groq caller ───────────────────────────────────────────────
+// ── Groq generation caller (70b) ───────────────────────────────
 async function callGroq(prompt: string): Promise<GeneratedPPT> {
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
   if (!apiKey) throw new Error('VITE_GROQ_API_KEY not set in environment variables.');
@@ -154,14 +162,15 @@ async function callGroq(prompt: string): Promise<GeneratedPPT> {
       }
 
       parsed.slides = parsed.slides.map((slide, i) => ({
-        slide_number:     i + 1,
-        title:            slide.title || `Slide ${i + 1}`,
-        subtitle:         slide.subtitle || '',
+        slide_number:      i + 1,
+        title:             slide.title || `Slide ${i + 1}`,
+        subtitle:          slide.subtitle || '',
         content: Array.isArray(slide.content) && slide.content.length >= 3
           ? slide.content
-          : [...(slide.content || []),
-             'Key insight about this topic that deserves careful attention.',
-             'Supporting evidence strengthens the core concept significantly.'
+          : [
+              ...(slide.content || []),
+              'Key insight about this topic that deserves careful attention.',
+              'Supporting evidence strengthens the core concept significantly.',
             ].slice(0, 4),
         visual_suggestion: slide.visual_suggestion || 'image-placeholder',
         image_query:       (slide as any).image_query || slide.title,
@@ -179,12 +188,13 @@ async function callGroq(prompt: string): Promise<GeneratedPPT> {
   throw new Error('All Groq models failed. Please check your API key and try again.');
 }
 
-// ── Hook ──────────────────────────────────────────────────────
+// ── Hook ───────────────────────────────────────────────────────────
 export function usePPTGenerator() {
   const { user } = useAuth();
   const [ppt, setPPT] = useState<GeneratedPPT | null>(null);
   const [savedPPTId, setSavedPPTId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isResearching, setIsResearching] = useState(false); // research pass indicator
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [versions, setVersions] = useState<any[]>([]);
@@ -192,7 +202,6 @@ export function usePPTGenerator() {
   const autosaveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedPPTIdRef   = useRef<string | null>(null);
   const currentInputRef = useRef<PPTInput | null>(null);
-  // Prevent concurrent saves — second call would 409 against the first INSERT
   const isSavingRef     = useRef(false);
   savedPPTIdRef.current = savedPPTId;
 
@@ -204,7 +213,6 @@ export function usePPTGenerator() {
     presentation_type: PresentationType,
   ) => {
     if (!user) return;
-    // Drop duplicate concurrent saves — they are the primary 409 cause
     if (isSavingRef.current) {
       console.log('[PPT] Save skipped — another save already in progress');
       return;
@@ -226,7 +234,6 @@ export function usePPTGenerator() {
       };
 
       if (existingId) {
-        // ── UPDATE path: snapshot current version first ──────
         const { data: current } = await supabase
           .from('ppts')
           .select('slides, topic, mode, presentation_type, design_theme')
@@ -264,28 +271,13 @@ export function usePPTGenerator() {
         savedPPTIdRef.current = existingId;
 
       } else {
-        // ── INSERT path: use upsert so a race-condition duplicate
-        //    never triggers a 409. If this user already has an in-
-        //    progress record (user_id uniqueness violation), the DB
-        //    will update instead of reject.
         const { data: newPPT, error: upsertErr } = await supabase
           .from('ppts')
-          .upsert(
-            { ...payload },
-            {
-              // onConflict targets the real unique constraint on your table.
-              // If you have a unique index on (user_id, title) change this
-              // accordingly. A bare primary-key conflict on `id` is handled
-              // automatically since we omit `id` (Supabase generates a new one).
-              ignoreDuplicates: false,
-            }
-          )
+          .upsert({ ...payload }, { ignoreDuplicates: false })
           .select('id')
           .single();
 
         if (upsertErr) {
-          // Final safety net: if constraint fires despite upsert,
-          // it means savedPPTIdRef was set by a concurrent path — update that row.
           if (
             (upsertErr.code === '23505' || upsertErr.message?.includes('409')) &&
             savedPPTIdRef.current
@@ -316,7 +308,7 @@ export function usePPTGenerator() {
     }
   }, [user]);
 
-  // ── Generate ──────────────────────────────────────────────────
+  // ── Generate (research pass → generation pass) ────────────────
   const generate = useCallback(async (input: PPTInput) => {
     if (!input.topic.trim()) {
       setError('Please enter a topic to generate a presentation.');
@@ -324,6 +316,7 @@ export function usePPTGenerator() {
     }
 
     setIsGenerating(true);
+    setIsResearching(true);
     setError(null);
     setPPT(null);
     setSavedPPTId(null);
@@ -333,18 +326,29 @@ export function usePPTGenerator() {
     currentInputRef.current = input;
 
     try {
-      const prompt = buildPrompt(input);
+      // ── Pass 1: Research (llama-3.1-8b-instant, low temp) ──
+      const research = await fetchResearch(input.topic);
+      setIsResearching(false);
+
+      // ── Pass 2: Generation (llama-3.3-70b, research as context) ──
+      const preamble = buildResearchPreamble(research);
+      const prompt = buildPrompt(input, preamble);
       const result = await callGroq(prompt);
+
+      // Attach research source to the result for UI badge
+      result.researchSource = research.source;
+
       setPPT(result);
       await saveToSupabase(result, null, input.mode, input.presentation_type);
     } catch (e: any) {
       setError(e?.message ?? 'Generation failed. Please try again.');
     } finally {
       setIsGenerating(false);
+      setIsResearching(false);
     }
   }, [saveToSupabase]);
 
-  // ── Update slide + debounced autosave ─────────────────────────
+  // ── Update slide + debounced autosave ───────────────────────
   const updateSlide = useCallback((
     idx: number,
     field: keyof GeneratedSlide,
@@ -371,13 +375,13 @@ export function usePPTGenerator() {
     });
   }, [saveToSupabase]);
 
-  // ── Regenerate single slide ───────────────────────────────────
+  // ── Regenerate single slide ────────────────────────────────
   const regenerateSlide = useCallback(async (idx: number, input: PPTInput) => {
     if (!ppt) return;
     setError(null);
     try {
       const singlePrompt =
-        buildPrompt({ ...input, number_of_slides: 1 }) +
+        buildPrompt({ ...input, number_of_slides: 1 }, '') +
         `\n\nThis is slide ${idx + 1} of ${ppt.slides.length} in the deck titled "${ppt.title}". Generate ONLY this one replacement slide. Output a JSON object with a "slides" array containing exactly 1 slide.`;
 
       const result = await callGroq(singlePrompt);
@@ -402,7 +406,7 @@ export function usePPTGenerator() {
     }
   }, [ppt, saveToSupabase]);
 
-  // ── Load version history ──────────────────────────────────────
+  // ── Load version history ────────────────────────────────────
   const loadVersions = useCallback(async (pptId: string) => {
     const { data } = await supabase
       .from('ppt_versions')
@@ -412,7 +416,7 @@ export function usePPTGenerator() {
     setVersions(data ?? []);
   }, []);
 
-  // ── Restore version ───────────────────────────────────────────
+  // ── Restore version ───────────────────────────────────────
   const restoreVersion = useCallback(async (version: any) => {
     if (!ppt || !savedPPTIdRef.current) return;
     setPPT(prev => prev ? { ...prev, slides: version.slides } : prev);
@@ -433,6 +437,7 @@ export function usePPTGenerator() {
     ppt,
     savedPPTId,
     isGenerating,
+    isResearching,   // expose for UI — show "Researching..." vs "Generating..."
     saveStatus,
     error,
     versions,
