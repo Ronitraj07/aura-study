@@ -5,19 +5,12 @@
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import type { Slide, DbPPT } from '@/types/database';
+import type { GeneratedSlide } from '@/types/database';
 
 export type PPTMode = 'basic' | 'high_quality';
 export type PresentationType = 'academic' | 'business' | 'creative';
 export type DesignTheme = 'modern' | 'minimal' | 'corporate';
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
-
-export interface GeneratedSlide extends Slide {
-  subtitle?: string;
-  visual_suggestion?: string;
-  layout_type?: 'title' | 'content' | 'two-column' | 'image-focus';
-  speaker_notes?: string;
-}
 
 export interface GeneratedPPT {
   title: string;
@@ -144,38 +137,21 @@ export function usePPTGenerator() {
   const [activeSlide, setActiveSlide] = useState(0);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Generate ────────────────────────────────────────────────
-  const generate = useCallback(async (input: PPTInput) => {
-    if (!input.topic.trim()) {
-      setError('Please enter a topic.');
-      return;
-    }
-    setIsGenerating(true);
-    setError(null);
-    setPPT(null);
-    setSavedPPTId(null);
-    setVersions([]);
-    setActiveSlide(0);
+  // FIX: use refs so autosave closure always sees latest values without
+  // needing them in dependency arrays (avoids stale closure bug #5)
+  const savedPPTIdRef = useRef<string | null>(null);
+  const currentInputRef = useRef<PPTInput | null>(null);
 
-    try {
-      const prompt = buildPrompt(input);
-      const result = await callGroq(prompt);
-      setPPT(result);
-      // Auto-save after generation
-      await saveToSupabase(result, null, input.mode, input.presentation_type);
-    } catch (e: any) {
-      setError(e?.message ?? 'Generation failed. Please try again.');
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [user]); // eslint-disable-line
+  // Keep ref in sync
+  savedPPTIdRef.current = savedPPTId;
 
-  // ── Save to Supabase ────────────────────────────────────────
+  // ── Save to Supabase ─────────────────────────────────────
+  // Defined first so generate() can call it without stale closure (bug #5)
   const saveToSupabase = useCallback(async (
     data: GeneratedPPT,
     existingId: string | null,
     mode: PPTMode,
-    _type: PresentationType,
+    presentation_type: PresentationType,
   ) => {
     if (!user) return;
     setSaveStatus('saving');
@@ -184,16 +160,21 @@ export function usePPTGenerator() {
       const payload = {
         user_id: user.id,
         topic: data.title,
+        title: data.title,
         mode,
+        presentation_type,
+        design_theme: data.design_theme,
         slide_count: data.slides.length,
         slides: data.slides as any,
-        design_theme: data.design_theme,
       };
 
       if (existingId) {
-        // Save current as version before updating
+        // Snapshot current state as a version before overwriting
         const { data: current } = await supabase
-          .from('ppts').select('slides, topic, mode').eq('id', existingId).single();
+          .from('ppts')
+          .select('slides, topic, mode, presentation_type, design_theme')
+          .eq('id', existingId)
+          .single();
 
         if (current) {
           const { data: lastVersion } = await supabase
@@ -211,16 +192,20 @@ export function usePPTGenerator() {
             slides: current.slides,
             topic: current.topic,
             mode: current.mode,
+            presentation_type: current.presentation_type ?? 'academic',
+            design_theme: current.design_theme ?? 'minimal',
           });
         }
 
         await supabase.from('ppts').update(payload).eq('id', existingId);
         setSavedPPTId(existingId);
+        savedPPTIdRef.current = existingId;
       } else {
-        const { data: newPPT, error } = await supabase
+        const { data: newPPT, error: insertErr } = await supabase
           .from('ppts').insert(payload).select().single();
-        if (error) throw error;
+        if (insertErr) throw insertErr;
         setSavedPPTId(newPPT.id);
+        savedPPTIdRef.current = newPPT.id;
       }
 
       setSaveStatus('saved');
@@ -231,42 +216,105 @@ export function usePPTGenerator() {
     }
   }, [user]);
 
-  // ── Autosave on slide edit ───────────────────────────────────
-  const updateSlide = useCallback((idx: number, field: keyof GeneratedSlide, value: string | string[]) => {
+  // ── Generate ─────────────────────────────────────────────
+  const generate = useCallback(async (input: PPTInput) => {
+    if (!input.topic.trim()) {
+      setError('Please enter a topic.');
+      return;
+    }
+    setIsGenerating(true);
+    setError(null);
+    setPPT(null);
+    setSavedPPTId(null);
+    savedPPTIdRef.current = null;
+    setVersions([]);
+    setActiveSlide(0);
+    currentInputRef.current = input;
+
+    try {
+      const prompt = buildPrompt(input);
+      const result = await callGroq(prompt);
+      setPPT(result);
+      // saveToSupabase is defined above — no stale closure issue here
+      await saveToSupabase(result, null, input.mode, input.presentation_type);
+    } catch (e: any) {
+      setError(e?.message ?? 'Generation failed. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [saveToSupabase]);
+
+  // ── Update a slide field + debounced autosave ──────────────────
+  // FIX bug #2: autosave now reads mode/type from currentInputRef, not hardcoded strings
+  const updateSlide = useCallback((
+    idx: number,
+    field: keyof GeneratedSlide,
+    value: string | string[],
+  ) => {
     setPPT(prev => {
       if (!prev) return prev;
       const slides = [...prev.slides];
       slides[idx] = { ...slides[idx], [field]: value };
       const updated = { ...prev, slides };
 
-      // Debounced autosave
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
       autosaveTimer.current = setTimeout(() => {
-        saveToSupabase(updated, savedPPTId, slides[idx] ? 'basic' : 'basic', 'academic');
+        const input = currentInputRef.current;
+        saveToSupabase(
+          updated,
+          savedPPTIdRef.current,
+          input?.mode ?? 'basic',
+          input?.presentation_type ?? 'academic',
+        );
       }, 1500);
 
       return updated;
     });
-  }, [savedPPTId, saveToSupabase]);
+  }, [saveToSupabase]);
 
-  // ── Regenerate single slide ─────────────────────────────────
+  // ── Regenerate a single slide ──────────────────────────────
+  // FIX bug #3: replace the full slide object in one atomic setPPT call,
+  // preserving all fields (visual_suggestion, speaker_notes, layout_type)
   const regenerateSlide = useCallback(async (idx: number, input: PPTInput) => {
     if (!ppt) return;
     setError(null);
     try {
-      const singlePrompt = buildPrompt({ ...input, number_of_slides: 1 }) +
+      const singlePrompt =
+        buildPrompt({ ...input, number_of_slides: 1 }) +
         `\n\nThis is slide ${idx + 1} of ${ppt.slides.length} in the presentation "${ppt.title}". Generate only this one slide.`;
+
       const result = await callGroq(singlePrompt);
-      if (result.slides[0]) {
-        updateSlide(idx, 'title', result.slides[0].title);
-        updateSlide(idx, 'content', result.slides[0].content);
-      }
+      const regenerated = result.slides[0];
+      if (!regenerated) return;
+
+      // Replace whole slide atomically — no partial updateSlide calls
+      setPPT(prev => {
+        if (!prev) return prev;
+        const slides = [...prev.slides];
+        slides[idx] = {
+          ...regenerated,
+          slide_number: idx + 1, // preserve correct ordering
+        };
+        const updated = { ...prev, slides };
+
+        if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = setTimeout(() => {
+          saveToSupabase(
+            updated,
+            savedPPTIdRef.current,
+            input.mode,
+            input.presentation_type,
+          );
+        }, 1500);
+
+        return updated;
+      });
     } catch (e: any) {
       setError(`Slide regeneration failed: ${e?.message}`);
     }
-  }, [ppt, updateSlide]);
+  }, [ppt, saveToSupabase]);
 
-  // ── Load version history ────────────────────────────────────
+  // ── Load version history ──────────────────────────────────
   const loadVersions = useCallback(async (pptId: string) => {
     const { data } = await supabase
       .from('ppt_versions')
@@ -276,15 +324,18 @@ export function usePPTGenerator() {
     setVersions(data ?? []);
   }, []);
 
-  // ── Restore version ─────────────────────────────────────────
+  // ── Restore a version ────────────────────────────────────
   const restoreVersion = useCallback(async (version: any) => {
-    if (!ppt) return;
+    if (!ppt || !savedPPTIdRef.current) return;
     setPPT(prev => prev ? { ...prev, slides: version.slides } : prev);
     setSaveStatus('saving');
-    await supabase.from('ppts').update({ slides: version.slides }).eq('id', savedPPTId);
+    await supabase
+      .from('ppts')
+      .update({ slides: version.slides })
+      .eq('id', savedPPTIdRef.current);
     setSaveStatus('saved');
     setTimeout(() => setSaveStatus('idle'), 2000);
-  }, [ppt, savedPPTId]);
+  }, [ppt]);
 
   return {
     ppt,
@@ -300,5 +351,6 @@ export function usePPTGenerator() {
     regenerateSlide,
     loadVersions,
     restoreVersion,
+    currentInputRef,
   };
 }
