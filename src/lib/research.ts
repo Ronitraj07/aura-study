@@ -1,140 +1,204 @@
 // ============================================================
-// research.ts — Free research layer for all AI generators
-// Sources: Wikipedia REST API + DuckDuckGo Instant Answer API
-// Zero API keys needed. Falls back gracefully if both fail.
+// research.ts — Groq-only double-pass research layer
+// Pass 1: llama-3.1-8b-instant (14,400 RPD) → fast structured facts
+// Pass 2: Caller injects preamble into their main generation prompt
+// Fallback: Gemini 2.5 Flash if Groq rate-limited (429)
+// Falls back to empty string if both fail — generators work without it
 // ============================================================
 
 export interface ResearchResult {
-  content: string;       // formatted string to inject into prompts
-  source: 'wikipedia' | 'duckduckgo' | 'both' | 'none';
-  wikiTitle?: string;    // actual Wikipedia article title matched
-  wikiUrl?: string;
+  content: string;         // formatted preamble to inject into prompts
+  source: 'groq' | 'gemini' | 'none';
+  facts: string[];         // extracted fact list (useful for UI badge)
+  keyTerms: string[];      // key vocabulary extracted
 }
 
-// ── Wikipedia REST API ────────────────────────────────────────
-async function fetchWikipedia(topic: string): Promise<string> {
-  // First try exact match, then search for best article
-  const slug = encodeURIComponent(topic.trim().replace(/\s+/g, '_'));
+// ── Groq research pass (llama-3.1-8b-instant — 14,400 RPD) ───
+async function fetchFromGroq(topic: string): Promise<ResearchResult> {
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+  if (!apiKey) throw new Error('VITE_GROQ_API_KEY not set');
 
-  try {
-    // Direct summary endpoint
-    const res = await fetch(
-      `https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`,
-      { headers: { 'Accept': 'application/json' } }
-    );
+  const prompt = `You are a factual research assistant. Your job is to produce a structured research brief about the topic below.
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.extract && data.extract.length > 100) {
-        return `[Wikipedia: ${data.title}]\n${data.extract}`;
-      }
-    }
+Topic: "${topic}"
 
-    // Fallback: search Wikipedia for the best matching article
-    const searchRes = await fetch(
-      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&origin=*&srlimit=1`
-    );
-    const searchData = await searchRes.json();
-    const firstResult = searchData?.query?.search?.[0];
-
-    if (!firstResult) return '';
-
-    // Fetch that article's summary
-    const articleSlug = encodeURIComponent(firstResult.title.replace(/\s+/g, '_'));
-    const articleRes = await fetch(
-      `https://en.wikipedia.org/api/rest_v1/page/summary/${articleSlug}`,
-      { headers: { 'Accept': 'application/json' } }
-    );
-
-    if (articleRes.ok) {
-      const articleData = await articleRes.json();
-      if (articleData.extract && articleData.extract.length > 100) {
-        return `[Wikipedia: ${articleData.title}]\n${articleData.extract}`;
-      }
-    }
-
-    return '';
-  } catch {
-    return '';
-  }
+Return ONLY valid JSON — no markdown, no code blocks, no explanation. Strict format:
+{
+  "facts": [
+    "<verified factual statement — 1 sentence each>",
+    "<verified factual statement>",
+    "<verified factual statement>",
+    "<verified factual statement>",
+    "<verified factual statement>",
+    "<verified factual statement>",
+    "<verified factual statement>",
+    "<verified factual statement>"
+  ],
+  "definitions": {
+    "<key term 1>": "<clear definition>",
+    "<key term 2>": "<clear definition>",
+    "<key term 3>": "<clear definition>"
+  },
+  "keyStats": [
+    "<specific statistic or data point with context>",
+    "<specific statistic or data point with context>",
+    "<specific statistic or data point with context>"
+  ],
+  "keyTerms": ["<term1>", "<term2>", "<term3>", "<term4>", "<term5>"],
+  "context": "<2-3 sentence summary of why this topic matters and its broader significance>"
 }
 
-// ── DuckDuckGo Instant Answer API ────────────────────────────
-async function fetchDuckDuckGo(topic: string): Promise<string> {
-  try {
-    const res = await fetch(
-      `https://api.duckduckgo.com/?q=${encodeURIComponent(topic)}&format=json&no_html=1&skip_disambig=1`
-    );
-    if (!res.ok) return '';
+Rules:
+- facts must be accurate, specific, and non-trivial — not vague generalisations
+- keyStats should include numbers, dates, percentages, or quantities where possible
+- If the topic is technical, include foundational concepts in definitions
+- If the topic is historical, include timeline context in facts
+- If the topic is current/niche and you are uncertain, still provide your best structured knowledge`;
 
-    const data = await res.json();
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a research assistant. Output ONLY valid JSON. No markdown. No explanation. No code blocks.',
+        },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.15,
+      max_tokens: 1500,
+      response_format: { type: 'json_object' },
+    }),
+  });
 
-    const parts: string[] = [];
-
-    if (data.AbstractText && data.AbstractText.length > 80) {
-      parts.push(`[Overview]\n${data.AbstractText}`);
-    }
-
-    // Related topics — extract text snippets
-    if (Array.isArray(data.RelatedTopics)) {
-      const snippets = data.RelatedTopics
-        .filter((t: any) => t.Text && t.Text.length > 30)
-        .slice(0, 4)
-        .map((t: any) => `• ${t.Text}`);
-      if (snippets.length > 0) {
-        parts.push(`[Related Points]\n${snippets.join('\n')}`);
-      }
-    }
-
-    return parts.join('\n\n');
-  } catch {
-    return '';
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const status = res.status;
+    throw Object.assign(new Error(err.error?.message ?? `Groq HTTP ${status}`), { status });
   }
+
+  const data = await res.json();
+  const raw = data.choices[0]?.message?.content ?? '';
+  const parsed = JSON.parse(raw);
+
+  const facts: string[] = Array.isArray(parsed.facts) ? parsed.facts : [];
+  const keyTerms: string[] = Array.isArray(parsed.keyTerms) ? parsed.keyTerms : [];
+  const keyStats: string[] = Array.isArray(parsed.keyStats) ? parsed.keyStats : [];
+  const definitions: Record<string, string> = parsed.definitions ?? {};
+  const context: string = parsed.context ?? '';
+
+  const defLines = Object.entries(definitions)
+    .map(([term, def]) => `• ${term}: ${def}`)
+    .join('\n');
+
+  const content = [
+    context ? `[Context]\n${context}` : '',
+    facts.length > 0 ? `[Key Facts]\n${facts.map(f => `• ${f}`).join('\n')}` : '',
+    keyStats.length > 0 ? `[Statistics & Data]\n${keyStats.map(s => `• ${s}`).join('\n')}` : '',
+    defLines ? `[Key Definitions]\n${defLines}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
+  return { content, source: 'groq', facts, keyTerms };
+}
+
+// ── Gemini fallback (gemini-2.5-flash — 500 RPD, 1M context) ──
+async function fetchFromGemini(topic: string): Promise<ResearchResult> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) throw new Error('VITE_GEMINI_API_KEY not set — Gemini fallback unavailable');
+
+  const prompt = `You are a factual research assistant. Produce a structured research brief about: "${topic}"
+
+Return ONLY valid JSON:
+{
+  "facts": ["<fact>", "<fact>", "<fact>", "<fact>", "<fact>", "<fact>"],
+  "keyStats": ["<stat>", "<stat>", "<stat>"],
+  "keyTerms": ["<term>", "<term>", "<term>", "<term>"],
+  "context": "<2-3 sentence summary>"
+}`;
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.15,
+          maxOutputTokens: 1200,
+          responseMimeType: 'application/json',
+        },
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message ?? `Gemini HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  const parsed = JSON.parse(raw);
+
+  const facts: string[] = Array.isArray(parsed.facts) ? parsed.facts : [];
+  const keyTerms: string[] = Array.isArray(parsed.keyTerms) ? parsed.keyTerms : [];
+  const keyStats: string[] = Array.isArray(parsed.keyStats) ? parsed.keyStats : [];
+  const context: string = parsed.context ?? '';
+
+  const content = [
+    context ? `[Context]\n${context}` : '',
+    facts.length > 0 ? `[Key Facts]\n${facts.map(f => `• ${f}`).join('\n')}` : '',
+    keyStats.length > 0 ? `[Statistics & Data]\n${keyStats.map(s => `• ${s}`).join('\n')}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
+  return { content, source: 'gemini', facts, keyTerms };
 }
 
 // ── Main export ───────────────────────────────────────────────
 export async function fetchResearch(topic: string): Promise<ResearchResult> {
-  if (!topic || topic.trim().length < 3) {
-    return { content: '', source: 'none' };
+  const empty: ResearchResult = { content: '', source: 'none', facts: [], keyTerms: [] };
+
+  if (!topic || topic.trim().length < 3) return empty;
+
+  try {
+    return await fetchFromGroq(topic);
+  } catch (e: any) {
+    // On rate-limit (429) try Gemini fallback
+    if (e?.status === 429 || e?.message?.includes('429')) {
+      console.warn('[research] Groq rate-limited — falling back to Gemini');
+      try {
+        return await fetchFromGemini(topic);
+      } catch (geminiErr) {
+        console.warn('[research] Gemini fallback also failed:', geminiErr);
+        return empty;
+      }
+    }
+    // Any other error — fail silently so generators still work
+    console.warn('[research] fetchResearch failed:', e?.message);
+    return empty;
   }
-
-  // Run both in parallel — don't wait for one before starting the other
-  const [wikiResult, ddgResult] = await Promise.allSettled([
-    fetchWikipedia(topic),
-    fetchDuckDuckGo(topic),
-  ]);
-
-  const wiki = wikiResult.status === 'fulfilled' ? wikiResult.value : '';
-  const ddg = ddgResult.status === 'fulfilled' ? ddgResult.value : '';
-
-  // Determine which sources returned useful content
-  const hasWiki = wiki.length > 100;
-  const hasDdg = ddg.length > 80;
-
-  if (!hasWiki && !hasDdg) {
-    return { content: '', source: 'none' };
-  }
-
-  const parts: string[] = [];
-  if (hasWiki) parts.push(wiki);
-  if (hasDdg) parts.push(ddg);
-
-  const content = parts.join('\n\n---\n\n');
-  const source = hasWiki && hasDdg ? 'both' : hasWiki ? 'wikipedia' : 'duckduckgo';
-
-  return { content, source };
 }
 
 // ── Prompt injection helper ───────────────────────────────────
-// Call this to wrap research into a prompt preamble.
-// Returns empty string if no research found (prompt stays clean).
+// Wraps research into a system-level preamble for the generation prompt.
+// Returns empty string if no research found — prompt stays clean.
 export function buildResearchPreamble(research: ResearchResult): string {
   if (!research.content || research.source === 'none') return '';
 
-  return `RESEARCH DATA (use this as your factual basis — do not contradict it):
+  return `VERIFIED RESEARCH DATA (treat this as your factual foundation — do not contradict these facts):
 ${research.content}
 
 ---
 
-Based on the above research, `;
+Using the above research as your factual basis, `;
 }
