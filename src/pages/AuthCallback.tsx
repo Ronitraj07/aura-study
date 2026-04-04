@@ -1,9 +1,25 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { isAllowedEmail } from "@/context/AuthContext";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
+
+async function checkAllowed(email: string | undefined | null): Promise<boolean> {
+  if (!email) return false;
+  try {
+    const { data, error } = await supabase.rpc("is_allowed_user", {
+      lookup_email: email,
+    });
+    if (error) {
+      console.error("[auth-callback] allowlist RPC error:", error.message);
+      return false;
+    }
+    return data === true;
+  } catch (err) {
+    console.error("[auth-callback] allowlist check threw:", err);
+    return false;
+  }
+}
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -12,7 +28,8 @@ export default function AuthCallback() {
     // Handle both hash (#access_token) and code (?code=) flows
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
-        if (isAllowedEmail(session.user.email)) {
+        const allowed = await checkAllowed(session.user.email);
+        if (allowed) {
           navigate("/dashboard", { replace: true });
         } else {
           await supabase.auth.signOut();
@@ -23,21 +40,22 @@ export default function AuthCallback() {
         const hash = window.location.hash;
         if (hash && hash.includes("access_token")) {
           // Supabase JS v2 auto-parses hash on init — wait for onAuthStateChange
-          const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (_event, newSession) => {
-              subscription.unsubscribe();
-              if (newSession) {
-                if (isAllowedEmail(newSession.user.email)) {
-                  navigate("/dashboard", { replace: true });
-                } else {
-                  await supabase.auth.signOut();
-                  navigate("/login?restricted=true", { replace: true });
-                }
+          const {
+            data: { subscription },
+          } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+            subscription.unsubscribe();
+            if (newSession) {
+              const allowed = await checkAllowed(newSession.user.email);
+              if (allowed) {
+                navigate("/dashboard", { replace: true });
               } else {
-                navigate("/login", { replace: true });
+                await supabase.auth.signOut();
+                navigate("/login?restricted=true", { replace: true });
               }
+            } else {
+              navigate("/login", { replace: true });
             }
-          );
+          });
         } else {
           navigate("/login", { replace: true });
         }
