@@ -1,88 +1,139 @@
-import { motion } from "framer-motion";
-import {
-  Presentation,
-  FileText,
-  BookOpen,
-  CalendarDays,
-  CheckSquare,
-  Zap,
-} from "lucide-react";
+import { Presentation, FileText, BookOpen, CalendarDays, CheckSquare, Sparkles } from "lucide-react";
 
 const features = [
   {
     icon: Presentation,
     title: "PPT Generator",
-    description: "Create stunning presentations instantly — basic or high-quality, your choice.",
-  },
-  {
-    icon: Zap,
-    title: "HQ Presentations",
-    description: "Premium slide decks with polished layouts, charts, and professional design.",
+    description: "Basic or Gamma-quality slides generated from any topic. Structured, professional, export-ready.",
+    gradient: "linear-gradient(135deg, hsl(262,80%,62%), hsl(280,70%,52%))",
+    glow: "hsla(262,80%,62%,0.2)",
   },
   {
     icon: FileText,
     title: "Assignment Generator",
-    description: "Auto-generate well-structured assignments from topics or prompts.",
+    description: "Structured academic writing in any tone — formal, academic, or persuasive — in seconds.",
+    gradient: "linear-gradient(135deg, hsl(220,85%,62%), hsl(200,80%,52%))",
+    glow: "hsla(220,85%,62%,0.2)",
   },
   {
     icon: BookOpen,
     title: "Notes Generator",
-    description: "Turn lectures and topics into concise, study-ready notes in seconds.",
+    description: "Turn any topic into headings, bullet-points, and a clean summary — perfect for exam prep.",
+    gradient: "linear-gradient(135deg, hsl(160,70%,46%), hsl(175,65%,40%))",
+    glow: "hsla(160,70%,46%,0.2)",
   },
   {
     icon: CalendarDays,
     title: "Timetable Builder",
-    description: "Organize your week with a smart, drag-and-drop timetable planner.",
+    description: "Intelligent weekly schedule with color-coded subjects and balanced hour distribution.",
+    gradient: "linear-gradient(135deg, hsl(30,85%,58%), hsl(12,78%,52%))",
+    glow: "hsla(30,85%,58%,0.2)",
   },
   {
     icon: CheckSquare,
     title: "Checklist Manager",
-    description: "Track tasks, deadlines, and goals with an intuitive checklist system.",
+    description: "Prioritized task lists with pending / completed sections and satisfying micro-interactions.",
+    gradient: "linear-gradient(135deg, hsl(320,70%,58%), hsl(300,65%,52%))",
+    glow: "hsla(320,70%,58%,0.2)",
+  },
+  {
+    icon: Sparkles,
+    title: "AI-Powered Core",
+    description: "Every tool powered by state-of-the-art LLM APIs for consistent, high-quality academic output.",
+    gradient: "linear-gradient(135deg, hsl(50,85%,60%), hsl(35,80%,55%))",
+    glow: "hsla(50,85%,60%,0.2)",
   },
 ];
 
-const FeaturesSection = () => {
-  return (
-    <section id="features" className="relative py-32">
-      <div className="container mx-auto px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-16"
-        >
-          <h2 className="font-display text-4xl md:text-5xl font-bold mb-4">
-            Everything you <span className="gradient-text">need</span>
-          </h2>
-          <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-            Powerful AI tools designed to supercharge your academic workflow.
-          </p>
-        </motion.div>
+const FeaturesSection = () => (
+  <section
+    style={{
+      padding: "clamp(4rem,8vw,7rem) clamp(1rem,5vw,3rem)",
+      position: "relative",
+    }}
+  >
+    {/* Section label */}
+    <div className="text-center mb-12">
+      <p
+        className="section-label"
+        style={{ display: "inline-block", marginBottom: 12 }}
+      >
+        Features
+      </p>
+      <h2
+        className="font-display font-bold"
+        style={{
+          fontSize: "clamp(1.75rem, 4vw, 2.75rem)",
+          lineHeight: 1.2,
+          letterSpacing: "-0.015em",
+        }}
+      >
+        Everything you need to{" "}
+        <span className="gradient-text">excel academically</span>
+      </h2>
+      <p
+        style={{
+          fontSize: "var(--text-base)",
+          color: "hsl(var(--muted-foreground))",
+          marginTop: 12,
+          maxWidth: 480,
+          margin: "12px auto 0",
+          lineHeight: 1.65,
+        }}
+      >
+        Six powerful tools, one cohesive workspace. No tab-switching, no friction.
+      </p>
+    </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, index) => (
-            <motion.div
-              key={feature.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="glass-card rounded-2xl p-6 group glow-hover cursor-default"
+    {/* Feature grid */}
+    <div
+      className="grid gap-3"
+      style={{
+        maxWidth: 1100,
+        margin: "0 auto",
+        gridTemplateColumns: "repeat(auto-fill, minmax(min(320px, 100%), 1fr))",
+      }}
+    >
+      {features.map((f) => {
+        const Icon = f.icon;
+        return (
+          <div
+            key={f.title}
+            className="glass-card rounded-2xl card-interactive group"
+            style={{ padding: "22px 22px" }}
+          >
+            <div
+              className="flex items-center justify-center rounded-xl mb-4"
+              style={{
+                width: 42,
+                height: 42,
+                background: f.gradient,
+                boxShadow: `0 4px 16px ${f.glow}`,
+                transition: "transform 0.2s ease, box-shadow 0.2s ease",
+              }}
             >
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors duration-300"
-                style={{ background: "var(--gradient-subtle)" }}
-              >
-                <feature.icon className="w-6 h-6 text-primary group-hover:text-accent transition-colors duration-300" />
-              </div>
-              <h3 className="font-display text-lg font-semibold mb-2">{feature.title}</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-};
+              <Icon size={18} style={{ color: "#fff" }} />
+            </div>
+            <h3
+              className="font-display font-semibold"
+              style={{ fontSize: "var(--text-base)", marginBottom: 6, lineHeight: 1.3 }}
+            >
+              {f.title}
+            </h3>
+            <p
+              style={{
+                fontSize: "var(--text-sm)",
+                color: "hsl(var(--muted-foreground))",
+                lineHeight: 1.6,
+              }}
+            >
+              {f.description}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  </section>
+);
 
 export default FeaturesSection;

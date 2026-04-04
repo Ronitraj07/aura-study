@@ -1,38 +1,128 @@
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Menu, X } from "lucide-react";
+import { useState, useEffect } from "react";
 
 const Navbar = () => {
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <motion.nav
-      initial={{ y: -20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="fixed top-0 left-0 right-0 z-50 glass-card border-b border-border/50"
-    >
-      <div className="container mx-auto flex items-center justify-between h-16 px-6">
-        <Link to="/" className="flex items-center gap-2">
-          <Sparkles className="w-6 h-6 text-primary" />
-          <span className="font-display text-xl font-bold gradient-text">StudyAI</span>
+    <>
+      <nav
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 50,
+          height: 58,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 clamp(1rem, 4vw, 2.5rem)",
+          background: scrolled
+            ? "hsla(240,16%,5%,0.88)"
+            : "transparent",
+          backdropFilter: scrolled ? "blur(20px)" : "none",
+          WebkitBackdropFilter: scrolled ? "blur(20px)" : "none",
+          borderBottom: scrolled
+            ? "1px solid hsl(240,10%,14%)"
+            : "1px solid transparent",
+          transition: "background 0.3s ease, border-color 0.3s ease, backdrop-filter 0.3s ease",
+        }}
+      >
+        {/* Logo */}
+        <Link
+          to="/"
+          className="flex items-center gap-2"
+          style={{ textDecoration: "none" }}
+        >
+          <div
+            className="flex items-center justify-center rounded-xl"
+            style={{
+              width: 30,
+              height: 30,
+              background: "var(--gradient-primary)",
+              boxShadow: "0 2px 10px hsla(262,80%,62%,0.35)",
+            }}
+          >
+            <Sparkles size={14} style={{ color: "#fff" }} />
+          </div>
+          <span className="font-display font-bold text-base gradient-text">StudyAI</span>
         </Link>
 
-        <div className="hidden md:flex items-center gap-8">
-          <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            Features
-          </a>
-          <a href="#about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            About
-          </a>
+        {/* Desktop links */}
+        <div className="hidden sm:flex items-center gap-1">
+          {["Features", "About"].map((label) => (
+            <a
+              key={label}
+              href="#"
+              className="btn btn-ghost"
+              style={{ fontSize: "var(--text-sm)", padding: "6px 14px", borderRadius: "0.625rem" }}
+            >
+              {label}
+            </a>
+          ))}
         </div>
 
-        <Link
-          to="/login"
-          className="px-5 py-2 text-sm font-medium rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-all duration-300"
+        {/* CTA */}
+        <div className="flex items-center gap-2">
+          <Link
+            to="/login"
+            className="btn btn-primary hidden sm:inline-flex"
+            style={{ padding: "7px 18px", fontSize: "var(--text-sm)" }}
+          >
+            Sign In
+          </Link>
+          {/* Mobile hamburger */}
+          <button
+            className="sm:hidden btn btn-ghost p-2"
+            onClick={() => setMobileOpen((v) => !v)}
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
+      </nav>
+
+      {/* Mobile menu */}
+      {mobileOpen && (
+        <div
+          className="sm:hidden fixed inset-x-0 z-40 glass-elevated"
+          style={{
+            top: 58,
+            padding: "16px",
+            animation: "scaleIn 0.18s ease both",
+            borderRadius: "0 0 1rem 1rem",
+          }}
         >
-          Sign In
-        </Link>
-      </div>
-    </motion.nav>
+          {["Features", "About"].map((label) => (
+            <a
+              key={label}
+              href="#"
+              className="block px-3 py-2.5 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              onClick={() => setMobileOpen(false)}
+            >
+              {label}
+            </a>
+          ))}
+          <Link
+            to="/login"
+            className="btn btn-primary w-full justify-center mt-3"
+            style={{ fontSize: "var(--text-sm)" }}
+            onClick={() => setMobileOpen(false)}
+          >
+            Sign In
+          </Link>
+        </div>
+      )}
+    </>
   );
 };
 
