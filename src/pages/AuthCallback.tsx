@@ -1,29 +1,49 @@
-/**
- * /auth/callback  — Supabase redirects here after Google OAuth.
- * The Supabase client auto-handles the session from the URL hash/code.
- * We just wait for status to resolve then navigate accordingly.
- */
 import { useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import { isAllowedEmail } from "@/context/AuthContext";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
 
 export default function AuthCallback() {
-  const { status } = useAuth();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
 
   useEffect(() => {
-    if (status === "loading") return;
-    if (status === "allowed") {
-      navigate("/dashboard", { replace: true });
-    } else if (status === "restricted") {
-      navigate("/login?restricted=true", { replace: true });
-    } else {
-      navigate("/login", { replace: true });
-    }
-  }, [status, navigate, params]);
+    // Handle both hash (#access_token) and code (?code=) flows
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        if (isAllowedEmail(session.user.email)) {
+          navigate("/dashboard", { replace: true });
+        } else {
+          await supabase.auth.signOut();
+          navigate("/login?restricted=true", { replace: true });
+        }
+      } else {
+        // Try exchanging hash tokens manually
+        const hash = window.location.hash;
+        if (hash && hash.includes("access_token")) {
+          // Supabase JS v2 auto-parses hash on init — wait for onAuthStateChange
+          const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (_event, newSession) => {
+              subscription.unsubscribe();
+              if (newSession) {
+                if (isAllowedEmail(newSession.user.email)) {
+                  navigate("/dashboard", { replace: true });
+                } else {
+                  await supabase.auth.signOut();
+                  navigate("/login?restricted=true", { replace: true });
+                }
+              } else {
+                navigate("/login", { replace: true });
+              }
+            }
+          );
+        } else {
+          navigate("/login", { replace: true });
+        }
+      }
+    });
+  }, [navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
