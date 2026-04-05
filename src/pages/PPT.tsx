@@ -4,7 +4,7 @@ import {
   Sparkles, Download, RefreshCw, ChevronLeft, ChevronRight,
   History, RotateCcw, Copy, Check, AlertCircle, Loader2,
   Presentation, Lightbulb, StickyNote, LayoutGrid,
-  Maximize2, FileImage, X,
+  Maximize2, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,15 +34,20 @@ import {
 import type { GeneratedSlide } from '@/types/database';
 import { exportToPPTX } from '@/lib/pptExport';
 import { SlideCanvas } from '@/components/SlideCanvas';
+import { SlideThumbnail } from '@/components/SlideThumbnail';
 import { fetchSlideImages } from '@/lib/pexels';
 
+// Canvas render resolution (must match SlideCanvas internal width)
+const CANVAS_W = 800;
+const CANVAS_H = (CANVAS_W / 10) * 5.63; // 450.4 — 16:9 approx
+
 const LAYOUT_COLORS: Record<string, string> = {
-  title:        'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  content:      'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  'two-column': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-  'image-focus':'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  quote:        'bg-pink-500/20 text-pink-300 border-pink-500/30',
-  stats:        'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+  title:          'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  content:        'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  'two-column':   'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  'image-focus':  'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  quote:          'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  stats:          'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
 };
 
 function SaveIndicator({ status }: { status: string }) {
@@ -70,71 +75,21 @@ function SaveIndicator({ status }: { status: string }) {
   );
 }
 
-// ── Visual thumbnail for the left slide list ─────────────────────
-function SlideThumbnail({
-  slide, index, total, ppt, isActive, onClick, slideImage,
-}: {
-  slide: GeneratedSlide;
-  index: number;
-  total: number;
-  ppt: any;
-  isActive: boolean;
-  onClick: () => void;
-  slideImage?: string | null;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left rounded-xl border transition-all duration-200 overflow-hidden ${
-        isActive
-          ? 'border-purple-500/60 shadow-lg shadow-purple-500/10 ring-1 ring-purple-500/30'
-          : 'border-white/5 hover:border-white/20'
-      }`}
-    >
-      {/* Visual thumbnail at 240px width */}
-      <div style={{ transform: 'scale(1)', transformOrigin: 'top left', pointerEvents: 'none' }}>
-        <div style={{ width: 240, transform: `scale(${(240 / 800)})`, transformOrigin: 'top left',
-                      height: (240 / 800) * (800 / 10 * 5.63) }}>
-          <SlideCanvas
-            slide={slide} index={index} total={total} ppt={ppt}
-            slideImage={slideImage} width={800}
-          />
-        </div>
-      </div>
-      {/* Slide number + layout badge */}
-      <div className="flex items-center gap-2 px-2 py-1.5 bg-black/20">
-        <span className="text-[10px] font-mono text-muted-foreground">
-          {String(index + 1).padStart(2, '0')}
-        </span>
-        {slide.layout_type && (
-          <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-medium uppercase tracking-wide ${LAYOUT_COLORS[slide.layout_type] ?? ''}` }>
-            {slide.layout_type}
-          </span>
-        )}
-        <span className="text-[10px] text-muted-foreground truncate flex-1 text-right">
-          {slide.title.slice(0, 20)}{slide.title.length > 20 ? '…' : ''}
-        </span>
-      </div>
-    </button>
-  );
-}
-
 // ── Fullscreen preview modal ─────────────────────────────────
 function FullscreenModal({
-  ppt, activeIndex, onClose, onNavigate, slideImages, coverImage,
+  ppt, activeIndex, onClose, onNavigate, slideImages,
 }: {
   ppt: any;
   activeIndex: number;
   onClose: () => void;
   onNavigate: (dir: 1 | -1) => void;
   slideImages: (string | null)[];
-  coverImage: string | null;
 }) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowRight') onNavigate(1);
-      if (e.key === 'ArrowLeft')  onNavigate(-1);
+      if (e.key === 'Escape')      onClose();
+      if (e.key === 'ArrowRight')  onNavigate(1);
+      if (e.key === 'ArrowLeft')   onNavigate(-1);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -149,7 +104,6 @@ function FullscreenModal({
       className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm"
       onClick={onClose}
     >
-      {/* Close button */}
       <button
         className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
         onClick={onClose}
@@ -158,12 +112,10 @@ function FullscreenModal({
         <X className="w-5 h-5 text-white" />
       </button>
 
-      {/* Slide counter */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 text-sm text-white/70 font-mono">
         {activeIndex + 1} / {ppt.slides.length}
       </div>
 
-      {/* Canvas */}
       <div
         onClick={e => e.stopPropagation()}
         className="rounded-xl overflow-hidden shadow-2xl"
@@ -188,7 +140,6 @@ function FullscreenModal({
         </AnimatePresence>
       </div>
 
-      {/* Nav arrows */}
       <button
         onClick={e => { e.stopPropagation(); onNavigate(-1); }}
         disabled={activeIndex === 0}
@@ -206,7 +157,6 @@ function FullscreenModal({
         <ChevronRight className="w-6 h-6 text-white" />
       </button>
 
-      {/* Slide title below canvas */}
       <div className="mt-4 text-sm text-white/60 text-center max-w-lg">
         {slide.title}
       </div>
@@ -234,6 +184,20 @@ function SlideEditPanel({
   const [editingTitle, setEditingTitle]   = useState(false);
   const [editingBullet, setEditingBullet] = useState<number | null>(null);
 
+  // Responsive preview width via ResizeObserver
+  const previewRef  = useRef<HTMLDivElement>(null);
+  const [previewW, setPreviewW] = useState(640);
+
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) setPreviewW(Math.floor(entry.contentRect.width));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   useEffect(() => {
     setEditingTitle(false);
     setEditingBullet(null);
@@ -246,29 +210,34 @@ function SlideEditPanel({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Determine canvas preview width based on container
-  const PREVIEW_W = 680;
+  // Scale ratio: fit CANVAS_W into the measured previewW
+  const scale      = previewW > 0 ? previewW / CANVAS_W : 1;
+  const previewH   = CANVAS_H * scale;
 
   return (
     <div className="flex flex-col h-full gap-3">
 
       {/* ─ VISUAL CANVAS PREVIEW ─ */}
-      <div className="relative group rounded-xl overflow-hidden border border-white/8 shadow-lg flex-shrink-0">
-        <div
-          style={{
-            width: '100%',
-            aspectRatio: '16/9',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Scale SlideCanvas to fill container width */}
+      <div
+        ref={previewRef}
+        className="relative group rounded-xl border border-white/8 shadow-lg flex-shrink-0 overflow-hidden"
+        style={{ width: '100%' }}
+      >
+        {/*
+          Outer: takes up exactly the scaled height in the document flow.
+          Inner: sits at full CANVAS_W × CANVAS_H and is scaled down.
+        */}
+        <div style={{ width: previewW, height: previewH, position: 'relative', overflow: 'hidden' }}>
           <div
             style={{
-              position: 'absolute', top: 0, left: 0,
-              width: PREVIEW_W, height: (PREVIEW_W / 10) * 5.63,
-              transform: `scale(${100 / PREVIEW_W}%)`,
-              // Use CSS container width scaling
+              position:        'absolute',
+              top:             0,
+              left:            0,
+              width:           CANVAS_W,
+              height:          CANVAS_H,
+              transform:       `scale(${scale})`,
+              transformOrigin: 'top left',
+              pointerEvents:   'none',
             }}
           >
             <SlideCanvas
@@ -277,12 +246,12 @@ function SlideEditPanel({
               total={total}
               ppt={ppt}
               slideImage={slideImage}
-              width={PREVIEW_W}
+              width={CANVAS_W}
             />
           </div>
         </div>
 
-        {/* Fullscreen button overlay */}
+        {/* Fullscreen button */}
         <button
           onClick={onOpenFullscreen}
           className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm"
@@ -294,7 +263,9 @@ function SlideEditPanel({
         {/* Layout badge */}
         {slide.layout_type && (
           <div className="absolute top-2 left-2">
-            <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-medium uppercase tracking-wide ${LAYOUT_COLORS[slide.layout_type] ?? ''}`}>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-medium uppercase tracking-wide ${
+              LAYOUT_COLORS[slide.layout_type] ?? 'bg-white/10 text-white/60 border-white/20'
+            }`}>
               {slide.layout_type}
             </span>
           </div>
@@ -303,7 +274,6 @@ function SlideEditPanel({
 
       {/* ─ EDIT PANEL ─ */}
       <div className="glass-card rounded-xl p-4 flex flex-col gap-3 flex-1 overflow-y-auto">
-        {/* Title row */}
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-mono text-muted-foreground">Slide {index + 1} / {total}</span>
           <button onClick={copyContent} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
@@ -424,41 +394,32 @@ export default function PPTPage() {
     loadVersions, restoreVersion, savedPPTId,
   } = usePPTGenerator();
 
-  const [topic,            setTopic]           = useState('');
-  const [slideCount,       setSlideCount]      = useState(8);
-  const [mode,             setMode]            = useState<PPTMode>('high_quality');
-  const [presentationType, setPresentationType]= useState<PresentationType>('academic');
-  const [isExporting,      setIsExporting]     = useState(false);
-  const [isRegenerating,   setIsRegenerating]  = useState(false);
-  const [exportError,      setExportError]     = useState<string | null>(null);
-  const [showVersions,     setShowVersions]    = useState(false);
-  const [showFullscreen,   setShowFullscreen]  = useState(false);
-  const [fullscreenIdx,    setFullscreenIdx]   = useState(0);
+  const [topic,            setTopic]            = useState('');
+  const [slideCount,       setSlideCount]       = useState(8);
+  const [mode,             setMode]             = useState<PPTMode>('high_quality');
+  const [presentationType, setPresentationType] = useState<PresentationType>('academic');
+  const [isExporting,      setIsExporting]      = useState(false);
+  const [isRegenerating,   setIsRegenerating]   = useState(false);
+  const [exportError,      setExportError]      = useState<string | null>(null);
+  const [showVersions,     setShowVersions]     = useState(false);
+  const [showFullscreen,   setShowFullscreen]   = useState(false);
+  const [fullscreenIdx,    setFullscreenIdx]    = useState(0);
 
-  // Fetched images for visual preview
   const [slideImages,  setSlideImages]  = useState<(string | null)[]>([]);
-  const [coverImage,   setCoverImage]   = useState<string | null>(null);
   const [fetchingImgs, setFetchingImgs] = useState(false);
   const fetchedTopicRef = useRef('');
 
-  // Fetch preview images whenever a new PPT is generated
   useEffect(() => {
     if (!ppt) return;
     const key = ppt.title;
-    if (fetchedTopicRef.current === key) return; // already fetched for this ppt
+    if (fetchedTopicRef.current === key) return;
     fetchedTopicRef.current = key;
 
     setFetchingImgs(true);
-    const queries = [ppt.topic ?? ppt.title, ...ppt.slides.map(s => (s as any).image_query ?? s.title)];
+    const queries = ppt.slides.map(s => (s as any).image_query ?? s.title);
     fetchSlideImages(queries)
-      .then(imgs => {
-        setCoverImage(imgs[0] ?? null);
-        setSlideImages(imgs.slice(1));
-      })
-      .catch(() => {
-        setCoverImage(null);
-        setSlideImages([]);
-      })
+      .then(imgs => setSlideImages(imgs))
+      .catch(() => setSlideImages([]))
       .finally(() => setFetchingImgs(false));
   }, [ppt?.title]);
 
@@ -503,7 +464,7 @@ export default function PPTPage() {
   return (
     <div className="flex h-full gap-0">
 
-      {/* ── LEFT PANEL — Inputs + Thumbnails ────────────────────────── */}
+      {/* ── LEFT PANEL ─ Inputs + Thumbnails ───────────────────── */}
       <div className="w-72 shrink-0 flex flex-col gap-4 p-5 border-r border-white/5 overflow-y-auto">
         <div>
           <h1 className="text-lg font-semibold gradient-text">PPT Generator</h1>
@@ -606,7 +567,7 @@ export default function PPTPage() {
           )}
         </AnimatePresence>
 
-        {/* Visual thumbnail list */}
+        {/* Slide thumbnails */}
         {ppt && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -616,14 +577,19 @@ export default function PPTPage() {
                 <Badge variant="outline" className="text-[10px] border-white/10">{ppt.design_theme}</Badge>
               </div>
             </div>
+            {/* thumbWidth = left panel (288px) - 2×p-5 (40px) - scrollbar (~8px) = ~240px */}
             <div className="space-y-2 max-h-[32rem] overflow-y-auto pr-0.5">
               {ppt.slides.map((s, i) => (
                 <SlideThumbnail
                   key={i}
-                  slide={s} index={i} total={ppt.slides.length} ppt={ppt}
+                  slide={s}
+                  index={i}
+                  total={ppt.slides.length}
+                  ppt={ppt}
                   isActive={activeSlide === i}
                   onClick={() => setActiveSlide(i)}
                   slideImage={slideImages[i] ?? null}
+                  thumbWidth={240}
                 />
               ))}
             </div>
@@ -631,7 +597,7 @@ export default function PPTPage() {
         )}
       </div>
 
-      {/* ── RIGHT PANEL — Visual Preview + Edit ────────────────────── */}
+      {/* ── RIGHT PANEL ─ Visual Preview + Edit ─────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Top bar */}
@@ -643,7 +609,6 @@ export default function PPTPage() {
               <SaveIndicator status={saveStatus} />
             </div>
             <div className="flex items-center gap-2">
-              {/* Fullscreen preview */}
               <Button variant="ghost" size="sm"
                 onClick={() => openFullscreen(activeSlide)}
                 className="text-xs gap-1.5 text-muted-foreground hover:text-foreground"
@@ -651,7 +616,6 @@ export default function PPTPage() {
                 <Maximize2 className="w-3.5 h-3.5" /> Preview
               </Button>
 
-              {/* Version history */}
               <Sheet open={showVersions} onOpenChange={setShowVersions}>
                 <SheetTrigger asChild>
                   <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-muted-foreground hover:text-foreground">
@@ -681,7 +645,6 @@ export default function PPTPage() {
                 </SheetContent>
               </Sheet>
 
-              {/* Download PPTX */}
               <Button size="sm" onClick={handleExport} disabled={isExporting}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5">
                 {isExporting
@@ -696,7 +659,6 @@ export default function PPTPage() {
         {/* Main content */}
         <div className="flex-1 overflow-hidden p-5">
 
-          {/* Empty state */}
           {!ppt && !isGenerating && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               className="h-full flex flex-col items-center justify-center gap-4 text-center">
@@ -710,7 +672,6 @@ export default function PPTPage() {
             </motion.div>
           )}
 
-          {/* Generating skeleton */}
           {isGenerating && (
             <div className="h-full flex flex-col gap-4 animate-pulse">
               <div className="glass-card rounded-2xl" style={{ aspectRatio: '16/9' }}>
@@ -722,7 +683,6 @@ export default function PPTPage() {
             </div>
           )}
 
-          {/* Slide edit panel with visual preview */}
           {ppt && slide && !isGenerating && (
             <AnimatePresence mode="wait">
               <motion.div
@@ -777,16 +737,13 @@ export default function PPTPage() {
       {/* Fullscreen modal */}
       <AnimatePresence>
         {showFullscreen && ppt && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <FullscreenModal
               ppt={ppt}
               activeIndex={fullscreenIdx}
               onClose={() => setShowFullscreen(false)}
               onNavigate={navigateFullscreen}
               slideImages={slideImages}
-              coverImage={coverImage}
             />
           </motion.div>
         )}
