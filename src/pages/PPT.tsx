@@ -35,6 +35,7 @@ import type { GeneratedSlide } from '@/types/database';
 import { exportToPPTX } from '@/lib/pptExport';
 import { SlideCanvas } from '@/components/SlideCanvas';
 import { SlideThumbnail } from '@/components/SlideThumbnail';
+import { SlidePreviewGrid } from '@/components/SlidePreviewGrid';
 import { fetchSlideImages } from '@/lib/pexels';
 
 // Canvas render resolution (must match SlideCanvas internal width)
@@ -184,7 +185,6 @@ function SlideEditPanel({
   const [editingTitle, setEditingTitle]   = useState(false);
   const [editingBullet, setEditingBullet] = useState<number | null>(null);
 
-  // Responsive preview width via ResizeObserver
   const previewRef  = useRef<HTMLDivElement>(null);
   const [previewW, setPreviewW] = useState(640);
 
@@ -210,23 +210,18 @@ function SlideEditPanel({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Scale ratio: fit CANVAS_W into the measured previewW
-  const scale      = previewW > 0 ? previewW / CANVAS_W : 1;
-  const previewH   = CANVAS_H * scale;
+  const scale    = previewW > 0 ? previewW / CANVAS_W : 1;
+  const previewH = CANVAS_H * scale;
 
   return (
     <div className="flex flex-col h-full gap-3">
 
-      {/* ─ VISUAL CANVAS PREVIEW ─ */}
+      {/* VISUAL CANVAS PREVIEW */}
       <div
         ref={previewRef}
         className="relative group rounded-xl border border-white/8 shadow-lg flex-shrink-0 overflow-hidden"
         style={{ width: '100%' }}
       >
-        {/*
-          Outer: takes up exactly the scaled height in the document flow.
-          Inner: sits at full CANVAS_W × CANVAS_H and is scaled down.
-        */}
         <div style={{ width: previewW, height: previewH, position: 'relative', overflow: 'hidden' }}>
           <div
             style={{
@@ -251,7 +246,6 @@ function SlideEditPanel({
           </div>
         </div>
 
-        {/* Fullscreen button */}
         <button
           onClick={onOpenFullscreen}
           className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm"
@@ -260,7 +254,6 @@ function SlideEditPanel({
           <Maximize2 className="w-3.5 h-3.5" />
         </button>
 
-        {/* Layout badge */}
         {slide.layout_type && (
           <div className="absolute top-2 left-2">
             <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-medium uppercase tracking-wide ${
@@ -272,7 +265,7 @@ function SlideEditPanel({
         )}
       </div>
 
-      {/* ─ EDIT PANEL ─ */}
+      {/* EDIT PANEL */}
       <div className="glass-card rounded-xl p-4 flex flex-col gap-3 flex-1 overflow-y-auto">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-mono text-muted-foreground">Slide {index + 1} / {total}</span>
@@ -283,7 +276,6 @@ function SlideEditPanel({
           </button>
         </div>
 
-        {/* Editable title */}
         {editingTitle ? (
           <Input
             autoFocus
@@ -303,7 +295,6 @@ function SlideEditPanel({
           </h2>
         )}
 
-        {/* Editable bullets */}
         <ul className="space-y-1.5">
           {slide.content.map((point, i) => (
             <li key={i} className="flex items-start gap-2">
@@ -334,7 +325,6 @@ function SlideEditPanel({
           ))}
         </ul>
 
-        {/* Visual suggestion */}
         {slide.visual_suggestion && mode === 'high_quality' && (
           <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/8 border border-amber-500/15">
             <Lightbulb className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
@@ -342,7 +332,6 @@ function SlideEditPanel({
           </div>
         )}
 
-        {/* Speaker notes */}
         {slide.speaker_notes && mode === 'high_quality' && (
           <div>
             <button
@@ -370,7 +359,6 @@ function SlideEditPanel({
         )}
       </div>
 
-      {/* Regenerate */}
       <Button
         variant="outline" size="sm"
         onClick={onRegenerate} disabled={isRegenerating}
@@ -388,10 +376,11 @@ function SlideEditPanel({
 // ── Main PPT page ───────────────────────────────────────────────
 export default function PPTPage() {
   const {
-    ppt, isGenerating, saveStatus, error, versions,
+    ppt, setPPT, isGenerating, saveStatus, error, versions,
     activeSlide, setActiveSlide,
     generate, updateSlide, regenerateSlide,
     loadVersions, restoreVersion, savedPPTId,
+    currentInputRef,
   } = usePPTGenerator();
 
   const [topic,            setTopic]            = useState('');
@@ -404,6 +393,7 @@ export default function PPTPage() {
   const [showVersions,     setShowVersions]     = useState(false);
   const [showFullscreen,   setShowFullscreen]   = useState(false);
   const [fullscreenIdx,    setFullscreenIdx]    = useState(0);
+  const [showGridView,     setShowGridView]     = useState(false);
 
   const [slideImages,  setSlideImages]  = useState<(string | null)[]>([]);
   const [fetchingImgs, setFetchingImgs] = useState(false);
@@ -416,7 +406,15 @@ export default function PPTPage() {
     fetchedTopicRef.current = key;
 
     setFetchingImgs(true);
-    const queries = ppt.slides.map(s => (s as any).image_query ?? s.title);
+    // Prefer image_query (AI-written visual query), fall back to topic-prefixed title
+    const queries = ppt.slides.map(s => {
+      const iq = (s as any).image_query;
+      if (iq && iq.trim() && iq !== s.title) return iq;
+      // Smart fallback: strip question marks, append topic keyword for context
+      const clean = s.title.replace(/[?!]/g, '').replace(/^(how|why|what|when|where|who)\s+/i, '');
+      return clean.slice(0, 60);
+    });
+
     fetchSlideImages(queries)
       .then(imgs => setSlideImages(imgs))
       .catch(() => setSlideImages([]))
@@ -449,6 +447,31 @@ export default function PPTPage() {
     setIsRegenerating(false);
   };
 
+  // Reorder slides (swap from ↔ to)
+  const handleReorder = useCallback((from: number, to: number) => {
+    if (!ppt) return;
+    const slides = [...ppt.slides];
+    const [moved] = slides.splice(from, 1);
+    slides.splice(to, 0, moved);
+    // Renumber
+    const renumbered = slides.map((s, i) => ({ ...s, slide_number: i + 1 }));
+
+    // Also reorder images in sync
+    const imgs = [...slideImages];
+    const [movedImg] = imgs.splice(from, 1);
+    imgs.splice(to, 0, movedImg);
+    setSlideImages(imgs);
+
+    // Update ppt state via setPPT if exposed, else use updateSlide pattern
+    // We call setPPT directly since we need a full slides array replace
+    if (typeof setPPT === 'function') {
+      setPPT({ ...ppt, slides: renumbered });
+    }
+
+    // Keep activeSlide pointing at the moved slide
+    setActiveSlide(to);
+  }, [ppt, slideImages, setPPT, setActiveSlide]);
+
   const openFullscreen = useCallback((idx: number) => {
     setFullscreenIdx(idx);
     setShowFullscreen(true);
@@ -464,14 +487,13 @@ export default function PPTPage() {
   return (
     <div className="flex h-full gap-0">
 
-      {/* ── LEFT PANEL ─ Inputs + Thumbnails ───────────────────── */}
+      {/* ── LEFT PANEL ─────────────────────────────────────────── */}
       <div className="w-72 shrink-0 flex flex-col gap-4 p-5 border-r border-white/5 overflow-y-auto">
         <div>
           <h1 className="text-lg font-semibold gradient-text">PPT Generator</h1>
           <p className="text-xs text-muted-foreground mt-1">AI-powered Gamma-level presentations</p>
         </div>
 
-        {/* Topic */}
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground uppercase tracking-wider">Topic</Label>
           <Textarea
@@ -483,7 +505,6 @@ export default function PPTPage() {
           />
         </div>
 
-        {/* Slide count */}
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <Label className="text-xs text-muted-foreground uppercase tracking-wider">Slides</Label>
@@ -497,7 +518,6 @@ export default function PPTPage() {
           <div className="flex justify-between text-[10px] text-muted-foreground"><span>4</span><span>20</span></div>
         </div>
 
-        {/* Mode */}
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground uppercase tracking-wider">Quality Mode</Label>
           <div className="grid grid-cols-2 gap-2">
@@ -521,7 +541,6 @@ export default function PPTPage() {
           )}
         </div>
 
-        {/* Type */}
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground uppercase tracking-wider">Type</Label>
           <Select value={presentationType} onValueChange={v => setPresentationType(v as PresentationType)}>
@@ -534,7 +553,6 @@ export default function PPTPage() {
           </Select>
         </div>
 
-        {/* Generate */}
         <Button
           onClick={handleGenerate}
           disabled={isGenerating || !topic.trim()}
@@ -545,7 +563,6 @@ export default function PPTPage() {
             : <><Sparkles className="w-4 h-4 mr-2" /> Generate PPT</>}
         </Button>
 
-        {/* Errors */}
         <AnimatePresence>
           {error && (
             <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
@@ -577,7 +594,6 @@ export default function PPTPage() {
                 <Badge variant="outline" className="text-[10px] border-white/10">{ppt.design_theme}</Badge>
               </div>
             </div>
-            {/* thumbWidth = left panel (288px) - 2×p-5 (40px) - scrollbar (~8px) = ~240px */}
             <div className="space-y-2 max-h-[32rem] overflow-y-auto pr-0.5">
               {ppt.slides.map((s, i) => (
                 <SlideThumbnail
@@ -597,10 +613,9 @@ export default function PPTPage() {
         )}
       </div>
 
-      {/* ── RIGHT PANEL ─ Visual Preview + Edit ─────────────── */}
+      {/* ── RIGHT PANEL ─────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Top bar */}
         {ppt && (
           <div className="flex items-center justify-between px-6 py-3 border-b border-white/5 shrink-0">
             <div className="flex items-center gap-3">
@@ -609,6 +624,15 @@ export default function PPTPage() {
               <SaveIndicator status={saveStatus} />
             </div>
             <div className="flex items-center gap-2">
+
+              {/* Grid overview button */}
+              <Button variant="ghost" size="sm"
+                onClick={() => setShowGridView(true)}
+                className="text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" /> Overview
+              </Button>
+
               <Button variant="ghost" size="sm"
                 onClick={() => openFullscreen(activeSlide)}
                 className="text-xs gap-1.5 text-muted-foreground hover:text-foreground"
@@ -656,7 +680,6 @@ export default function PPTPage() {
           </div>
         )}
 
-        {/* Main content */}
         <div className="flex-1 overflow-hidden p-5">
 
           {!ppt && !isGenerating && (
@@ -710,7 +733,6 @@ export default function PPTPage() {
           )}
         </div>
 
-        {/* Navigation arrows */}
         {ppt && (
           <div className="flex items-center justify-center gap-4 py-3 border-t border-white/5 shrink-0">
             <button
@@ -746,6 +768,20 @@ export default function PPTPage() {
               slideImages={slideImages}
             />
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Grid overview */}
+      <AnimatePresence>
+        {showGridView && ppt && (
+          <SlidePreviewGrid
+            ppt={ppt}
+            activeSlide={activeSlide}
+            slideImages={slideImages}
+            onSelect={setActiveSlide}
+            onReorder={handleReorder}
+            onClose={() => setShowGridView(false)}
+          />
         )}
       </AnimatePresence>
     </div>
