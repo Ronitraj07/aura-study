@@ -1,10 +1,14 @@
 // ============================================================
 // useAssignmentGenerator — Groq AI + Supabase autosave
+// ✔ Research-enhanced: Groq double-pass (8b research → 70b generate)
+// ✔ isResearching state exposed for UI loading stages
+// ✔ researchSource attached to result for UI badge
 // ============================================================
 
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { fetchResearch, buildResearchPreamble } from '@/lib/research';
 
 export type AssignmentTone = 'formal' | 'academic' | 'casual';
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -19,6 +23,7 @@ export interface GeneratedAssignment {
   wordCount: number;
   blocks: AssignmentBlock[];
   rawContent: string;
+  researchSource?: 'groq' | 'gemini' | 'none';
 }
 
 export interface AssignmentInput {
@@ -29,14 +34,19 @@ export interface AssignmentInput {
 
 const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama3-8b-8192'];
 
-function buildPrompt(input: AssignmentInput): string {
+// ── Prompt builder ──────────────────────────────────────────────
+function buildPrompt(input: AssignmentInput, researchPreamble: string): string {
   const toneMap: Record<AssignmentTone, string> = {
     formal: 'Use formal, professional language. Third person perspective. No contractions.',
     academic: 'Use academic language with proper citations style (Author, Year). Include introduction, body paragraphs with topic sentences, and conclusion. Use hedging language where appropriate.',
     casual: 'Use approachable, clear language. First or second person is acceptable. Engaging tone.',
   };
 
-  return `You are an expert academic writer. Write a structured ${input.wordCount}-word assignment.
+  const researchSection = researchPreamble
+    ? `${researchPreamble}write a well-researched assignment grounded in the facts above.\n\n`
+    : '';
+
+  return `${researchSection}You are an expert academic writer. Write a structured ${input.wordCount}-word assignment.
 
 Topic: "${input.topic}"
 Tone: ${input.tone} — ${toneMap[input.tone]}
@@ -65,6 +75,7 @@ Ensure the assignment is well-structured with:
 - Approximately ${input.wordCount} words total in rawContent`;
 }
 
+// ── Groq generation caller ─────────────────────────────────────
 async function callGroq(prompt: string): Promise<GeneratedAssignment> {
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
   if (!apiKey) throw new Error('VITE_GROQ_API_KEY not set in .env');
@@ -79,7 +90,13 @@ async function callGroq(prompt: string): Promise<GeneratedAssignment> {
         },
         body: JSON.stringify({
           model,
-          messages: [{ role: 'user', content: prompt }],
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert academic writer. Output ONLY valid JSON. No markdown. No explanation. No code blocks.',
+            },
+            { role: 'user', content: prompt },
+          ],
           temperature: 0.6,
           max_tokens: 4096,
           response_format: { type: 'json_object' },
@@ -94,27 +111,30 @@ async function callGroq(prompt: string): Promise<GeneratedAssignment> {
       const data = await res.json();
       const raw = data.choices[0]?.message?.content ?? '';
       const parsed = JSON.parse(raw) as GeneratedAssignment;
-      if (!parsed.blocks || !Array.isArray(parsed.blocks)) throw new Error('Invalid response');
+      if (!parsed.blocks || !Array.isArray(parsed.blocks)) throw new Error('Invalid response: missing blocks');
       return parsed;
     } catch (e) {
       if (model === GROQ_MODELS[GROQ_MODELS.length - 1]) throw e;
-      console.warn(`Model ${model} failed, trying next...`, e);
+      console.warn(`[Assignment] Model ${model} failed, trying fallback...`, e);
     }
   }
-  throw new Error('All models failed');
+  throw new Error('All Groq models failed. Please check your API key and try again.');
 }
 
+// ── Hook ───────────────────────────────────────────────────────────
 export function useAssignmentGenerator() {
   const { user } = useAuth();
   const [assignment, setAssignment] = useState<GeneratedAssignment | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isResearching, setIsResearching] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedIdRef = useRef<string | null>(null);
   savedIdRef.current = savedId;
 
+  // ── Save ──────────────────────────────────────────────────────
   const saveToSupabase = useCallback(async (
     data: GeneratedAssignment,
     input: AssignmentInput,
@@ -124,11 +144,11 @@ export function useAssignmentGenerator() {
     setSaveStatus('saving');
     try {
       const payload = {
-        user_id: user.id,
-        topic: input.topic,
+        user_id:    user.id,
+        topic:      input.topic,
         word_count: data.wordCount,
-        tone: input.tone,
-        content: data.rawContent,
+        tone:       input.tone,
+        content:    data.rawContent,
       };
 
       if (existingId) {
@@ -141,38 +161,51 @@ export function useAssignmentGenerator() {
         if (err) throw err;
         setSavedId(row.id);
         savedIdRef.current = row.id;
-        // increment counter
         await supabase.rpc('increment_user_counter', { user_id: user.id, col: 'assignments_count' });
       }
 
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (e) {
-      console.error('saveAssignment:', e);
+      console.error('[Assignment] saveToSupabase:', e);
       setSaveStatus('error');
     }
   }, [user]);
 
+  // ── Generate (research pass → generation pass) ────────────────
   const generate = useCallback(async (input: AssignmentInput) => {
     if (!input.topic.trim()) { setError('Please enter a topic.'); return; }
+
     setIsGenerating(true);
+    setIsResearching(true);
     setError(null);
     setAssignment(null);
     setSavedId(null);
     savedIdRef.current = null;
 
     try {
-      const prompt = buildPrompt(input);
+      // Pass 1: Research (llama-3.1-8b-instant, low temp)
+      const research = await fetchResearch(input.topic);
+      setIsResearching(false);
+
+      // Pass 2: Generation (llama-3.3-70b, research as context)
+      const preamble = buildResearchPreamble(research);
+      const prompt = buildPrompt(input, preamble);
       const result = await callGroq(prompt);
+
+      result.researchSource = research.source;
+
       setAssignment(result);
       await saveToSupabase(result, input, null);
     } catch (e: any) {
       setError(e?.message ?? 'Generation failed. Please try again.');
     } finally {
       setIsGenerating(false);
+      setIsResearching(false);
     }
   }, [saveToSupabase]);
 
+  // ── Inline edit + debounced autosave ─────────────────────────
   const updateContent = useCallback((newRaw: string) => {
     setAssignment(prev => {
       if (!prev) return prev;
@@ -189,5 +222,14 @@ export function useAssignmentGenerator() {
     });
   }, []);
 
-  return { assignment, savedId, isGenerating, saveStatus, error, generate, updateContent };
+  return {
+    assignment,
+    savedId,
+    isGenerating,
+    isResearching,
+    saveStatus,
+    error,
+    generate,
+    updateContent,
+  };
 }
