@@ -3,6 +3,7 @@
 // ✔ Research-enhanced: Groq double-pass (8b research → 70b generate)
 // ✔ isResearching state exposed for UI loading stages
 // ✔ researchSource attached to result for UI badge
+// ✔ Groq calls proxied through /api/generate (key never exposed)
 // ============================================================
 
 import { useState, useCallback, useRef } from 'react';
@@ -31,8 +32,6 @@ export interface AssignmentInput {
   wordCount: number;
   tone: AssignmentTone;
 }
-
-const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama3-8b-8192'];
 
 // ── Prompt builder ──────────────────────────────────────────────
 function buildPrompt(input: AssignmentInput, researchPreamble: string): string {
@@ -75,50 +74,30 @@ Ensure the assignment is well-structured with:
 - Approximately ${input.wordCount} words total in rawContent`;
 }
 
-// ── Groq generation caller ─────────────────────────────────────
+// ── Groq generation caller — routes through /api/generate ──────
 async function callGroq(prompt: string): Promise<GeneratedAssignment> {
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-  if (!apiKey) throw new Error('VITE_GROQ_API_KEY not set in .env');
+  const res = await fetch('/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'assignment',
+      systemPrompt: 'You are an expert academic writer. Output ONLY valid JSON. No markdown. No explanation. No code blocks.',
+      userPrompt: prompt,
+      maxTokens: 4096,
+      temperature: 0.6,
+    }),
+  });
 
-  for (const model of GROQ_MODELS) {
-    try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert academic writer. Output ONLY valid JSON. No markdown. No explanation. No code blocks.',
-            },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.6,
-          max_tokens: 4096,
-          response_format: { type: 'json_object' },
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error?.message ?? `HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
-      const raw = data.choices[0]?.message?.content ?? '';
-      const parsed = JSON.parse(raw) as GeneratedAssignment;
-      if (!parsed.blocks || !Array.isArray(parsed.blocks)) throw new Error('Invalid response: missing blocks');
-      return parsed;
-    } catch (e) {
-      if (model === GROQ_MODELS[GROQ_MODELS.length - 1]) throw e;
-      console.warn(`[Assignment] Model ${model} failed, trying fallback...`, e);
-    }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error ?? `Generation failed (HTTP ${res.status})`);
   }
-  throw new Error('All Groq models failed. Please check your API key and try again.');
+
+  const parsed = await res.json() as GeneratedAssignment;
+  if (!parsed.blocks || !Array.isArray(parsed.blocks)) {
+    throw new Error('Invalid response: missing blocks');
+  }
+  return parsed;
 }
 
 // ── Hook ───────────────────────────────────────────────────────────
@@ -184,11 +163,9 @@ export function useAssignmentGenerator() {
     savedIdRef.current = null;
 
     try {
-      // Pass 1: Research (llama-3.1-8b-instant, low temp)
       const research = await fetchResearch(input.topic);
       setIsResearching(false);
 
-      // Pass 2: Generation (llama-3.3-70b, research as context)
       const preamble = buildResearchPreamble(research);
       const prompt = buildPrompt(input, preamble);
       const result = await callGroq(prompt);

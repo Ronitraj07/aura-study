@@ -1,5 +1,6 @@
 // ============================================================
 // useTimetable — Groq AI smart schedule + Supabase persistence
+// ✔ Groq calls proxied through /api/generate (key never exposed)
 // ============================================================
 
 import { useState, useCallback, useEffect } from 'react';
@@ -10,7 +11,6 @@ import type { Subject, Schedule, DayOfWeek } from '@/types/database';
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 const DAYS: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama3-8b-8192'];
 
 function buildSchedulePrompt(subjects: Subject[]): string {
   const subjectList = subjects.map(s => `${s.name}: ${s.hoursPerWeek} hours/week`).join(', ');
@@ -40,46 +40,30 @@ Return ONLY valid JSON. No markdown, no explanation:
 Only include days with sessions. Empty days should have [].`;
 }
 
+// ── Groq generation caller — routes through /api/generate ──────
 async function callGroq(prompt: string): Promise<Schedule> {
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-  if (!apiKey) throw new Error('VITE_GROQ_API_KEY not set');
+  const res = await fetch('/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'timetable',
+      systemPrompt: 'You are an academic schedule planner. Output ONLY valid JSON matching the exact schema. No markdown, no explanation.',
+      userPrompt: prompt,
+      maxTokens: 2000,
+      temperature: 0.3,
+    }),
+  });
 
-  for (const model of GROQ_MODELS) {
-    try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.3,
-          max_tokens: 2000,
-          response_format: { type: 'json_object' },
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error?.message ?? `HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
-      const raw = data.choices[0]?.message?.content ?? '';
-      const parsed = JSON.parse(raw) as Schedule;
-      // Ensure all 7 days exist
-      for (const day of DAYS) {
-        if (!parsed[day]) parsed[day] = [];
-      }
-      return parsed;
-    } catch (e) {
-      if (model === GROQ_MODELS[GROQ_MODELS.length - 1]) throw e;
-      console.warn(`Model ${model} failed, trying next...`, e);
-    }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error ?? `Generation failed (HTTP ${res.status})`);
   }
-  throw new Error('All models failed');
+
+  const parsed = await res.json() as Schedule;
+  for (const day of DAYS) {
+    if (!parsed[day]) parsed[day] = [];
+  }
+  return parsed;
 }
 
 export function useTimetable() {
@@ -95,8 +79,11 @@ export function useTimetable() {
   // ── Load persisted timetable ────────────────────────────
   useEffect(() => {
     if (!user) return;
-    supabase.from('timetables').select('*').eq('user_id', user.id)
-      .order('created_at', { ascending: false }).limit(1).single()
+    supabase
+      .from('timetables')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle()
       .then(({ data }) => {
         if (data) {
           setSavedId(data.id);
@@ -106,23 +93,6 @@ export function useTimetable() {
         setIsLoading(false);
       });
   }, [user]);
-
-  // ── Generate smart schedule via Groq ────────────────────
-  const generateSchedule = useCallback(async () => {
-    if (subjects.length === 0) { setError('Add at least one subject first.'); return; }
-    setIsGenerating(true);
-    setError(null);
-    try {
-      const prompt = buildSchedulePrompt(subjects);
-      const result = await callGroq(prompt);
-      setSchedule(result);
-      await saveToSupabase(subjects, result, savedId);
-    } catch (e: any) {
-      setError(e?.message ?? 'Schedule generation failed.');
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [subjects, savedId]);
 
   // ── Save ─────────────────────────────────────────────────
   const saveToSupabase = useCallback(async (
@@ -145,7 +115,10 @@ export function useTimetable() {
         setSavedId(existingId);
       } else {
         const { data: row, error: err } = await supabase
-          .from('timetables').insert(payload).select().single();
+          .from('timetables')
+          .upsert(payload, { onConflict: 'user_id' })
+          .select()
+          .single();
         if (err) throw err;
         setSavedId(row.id);
       }
@@ -156,6 +129,23 @@ export function useTimetable() {
       setSaveStatus('error');
     }
   }, [user]);
+
+  // ── Generate smart schedule via /api/generate ────────────
+  const generateSchedule = useCallback(async () => {
+    if (subjects.length === 0) { setError('Add at least one subject first.'); return; }
+    setIsGenerating(true);
+    setError(null);
+    try {
+      const prompt = buildSchedulePrompt(subjects);
+      const result = await callGroq(prompt);
+      setSchedule(result);
+      await saveToSupabase(subjects, result, savedId);
+    } catch (e: any) {
+      setError(e?.message ?? 'Schedule generation failed.');
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [subjects, savedId, saveToSupabase]);
 
   const addSubject = useCallback((subject: Subject) => {
     setSubjects(prev => [...prev, subject]);

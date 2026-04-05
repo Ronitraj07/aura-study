@@ -5,6 +5,7 @@
 // ✔ isSavingRef guard prevents concurrent autosave races
 // ✔ Version snapshot taken BEFORE every overwrite
 // ✔ Duplicate topics allowed — each generation is a fresh row
+// ✔ Groq calls proxied through /api/generate (key never exposed)
 // ============================================================
 
 import { useState, useCallback, useRef } from 'react';
@@ -120,72 +121,49 @@ RETURN ONLY VALID JSON. No markdown, no code blocks, no explanation. Pure JSON o
 Generate EXACTLY ${input.number_of_slides} slides. Every slide MUST have exactly 4 bullets in the content array. This is mandatory.`;
 }
 
-// ── Groq generation caller ──────────────────────────────────────
+// ── Groq generation caller — routes through /api/generate ──────
 async function callGroq(prompt: string): Promise<GeneratedPPT> {
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-  if (!apiKey) throw new Error('VITE_GROQ_API_KEY not set in environment variables.');
+  const res = await fetch('/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'ppt',
+      systemPrompt: 'You are a presentation designer and subject expert. You ONLY output valid JSON. Never output markdown, never output explanations. Only pure JSON matching the exact schema provided.',
+      userPrompt: prompt,
+      maxTokens: 6000,
+      temperature: 0.75,
+    }),
+  });
 
-  for (const model of GROQ_MODELS) {
-    try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a presentation designer and subject expert. You ONLY output valid JSON. Never output markdown, never output explanations. Only pure JSON matching the exact schema provided.',
-            },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.75,
-          max_tokens: 6000,
-          response_format: { type: 'json_object' },
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message ?? `HTTP ${res.status}`);
-      }
-
-      const data   = await res.json();
-      const raw    = data.choices[0]?.message?.content ?? '';
-      const parsed = JSON.parse(raw) as GeneratedPPT;
-
-      if (!parsed.slides || !Array.isArray(parsed.slides) || parsed.slides.length === 0) {
-        throw new Error('Invalid response: missing or empty slides array');
-      }
-
-      parsed.slides = parsed.slides.map((slide, i) => ({
-        slide_number:      i + 1,
-        title:             slide.title || `Slide ${i + 1}`,
-        subtitle:          slide.subtitle || '',
-        content: Array.isArray(slide.content) && slide.content.length >= 3
-          ? slide.content
-          : [
-              ...(slide.content || []),
-              'Key insight about this topic that deserves careful attention.',
-              'Supporting evidence strengthens the core concept significantly.',
-            ].slice(0, 4),
-        visual_suggestion: slide.visual_suggestion || 'image-placeholder',
-        image_query:       (slide as any).image_query || slide.title,
-        layout_type:       slide.layout_type || (i === 0 ? 'title' : 'content'),
-        speaker_notes:     slide.speaker_notes || '',
-      }));
-
-      return parsed;
-    } catch (e) {
-      if (model === GROQ_MODELS[GROQ_MODELS.length - 1]) throw e;
-      console.warn(`[PPT] Model ${model} failed, trying fallback...`, e);
-    }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error ?? `Generation failed (HTTP ${res.status})`);
   }
 
-  throw new Error('All Groq models failed. Please check your API key and try again.');
+  const parsed = await res.json() as GeneratedPPT;
+
+  if (!parsed.slides || !Array.isArray(parsed.slides) || parsed.slides.length === 0) {
+    throw new Error('Invalid response: missing or empty slides array');
+  }
+
+  parsed.slides = parsed.slides.map((slide, i) => ({
+    slide_number:      i + 1,
+    title:             slide.title || `Slide ${i + 1}`,
+    subtitle:          slide.subtitle || '',
+    content: Array.isArray(slide.content) && slide.content.length >= 3
+      ? slide.content
+      : [
+          ...(slide.content || []),
+          'Key insight about this topic that deserves careful attention.',
+          'Supporting evidence strengthens the core concept significantly.',
+        ].slice(0, 4),
+    visual_suggestion: slide.visual_suggestion || 'image-placeholder',
+    image_query:       (slide as any).image_query || slide.title,
+    layout_type:       slide.layout_type || (i === 0 ? 'title' : 'content'),
+    speaker_notes:     slide.speaker_notes || '',
+  }));
+
+  return parsed;
 }
 
 // ── Hook ────────────────────────────────────────────────────────
@@ -205,7 +183,6 @@ export function usePPTGenerator() {
   const currentInputRef = useRef<PPTInput | null>(null);
   const isSavingRef     = useRef(false);
 
-  // Keep ref in sync with state so autosave closures always read the latest id
   savedPPTIdRef.current = savedPPTId;
 
   // ── Save ──────────────────────────────────────────────────────
@@ -237,7 +214,6 @@ export function usePPTGenerator() {
       };
 
       if (existingId) {
-        // ── UPDATE existing row + snapshot current state as a version ──
         const { data: current } = await supabase
           .from('ppts')
           .select('slides, topic, mode, presentation_type, design_theme')
@@ -275,7 +251,6 @@ export function usePPTGenerator() {
         savedPPTIdRef.current = existingId;
 
       } else {
-        // ── INSERT new row — duplicate topics are fine, each generation is independent ──
         const { data: newPPT, error: insertErr } = await supabase
           .from('ppts')
           .insert(payload)
