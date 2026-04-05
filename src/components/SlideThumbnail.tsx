@@ -1,20 +1,11 @@
 // ============================================================
-// SlideThumbnail.tsx — Correctly scaled SlideCanvas thumbnail
+// SlideThumbnail.tsx — Scaled SlideCanvas thumbnail
 //
-// The core problem with transform: scale() is that it does NOT
-// reduce the element's layout box — the element still takes up
-// its original dimensions, pushing siblings down.
+// Outer div is sized to scaled dimensions so layout is correct.
+// Inner 800px canvas is absolutely positioned and scaled down.
 //
-// Fix: wrap the full-size SlideCanvas (800px) in an outer div
-// that is sized to the SCALED dimensions, then absolutely position
-// the inner 800px canvas inside it, scaled via transform.
-//
-// Formula:
-//   CANVAS_W = 800   (render resolution)
-//   CANVAS_H = 800 / (10/5.63) = 450.4
-//   THUMB_W  = target display width (e.g. 232px)
-//   SCALE    = THUMB_W / CANVAS_W
-//   THUMB_H  = CANVAS_H * SCALE
+//   SCALE    = thumbWidth / CANVAS_W
+//   thumbH   = CANVAS_H * SCALE
 // ============================================================
 
 import type { GeneratedPPT } from '@/hooks/usePPTGenerator';
@@ -22,24 +13,34 @@ import type { GeneratedSlide } from '@/types/database';
 import { SlideCanvas } from '@/components/SlideCanvas';
 
 const CANVAS_W = 800;
-const CANVAS_H = (CANVAS_W / 10) * 5.63; // 450.4
+const CANVAS_H = (CANVAS_W / 10) * 5.63; // 450.4 — 16:9
 
-const LAYOUT_COLORS: Record<string, string> = {
-  title:          'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  content:        'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  'two-column':   'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-  'image-focus':  'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  quote:          'bg-pink-500/20 text-pink-300 border-pink-500/30',
-  stats:          'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+// Layout dot color per layout type
+const LAYOUT_DOT: Record<string, string> = {
+  title:          '#A78BFA',
+  content:        '#60A5FA',
+  'two-column':   '#34D399',
+  'image-focus':  '#FBBF24',
+  quote:          '#F472B6',
+  stats:          '#22D3EE',
+};
+
+const LAYOUT_LABEL: Record<string, string> = {
+  title:          'TL',
+  content:        'CT',
+  'two-column':   '2C',
+  'image-focus':  'IM',
+  quote:          'QT',
+  stats:          'ST',
 };
 
 interface SlideThumbnailProps {
-  slide: GeneratedSlide;
-  index: number;
-  total: number;
-  ppt: GeneratedPPT & { topic?: string };
-  isActive: boolean;
-  onClick: () => void;
+  slide:      GeneratedSlide;
+  index:      number;
+  total:      number;
+  ppt:        GeneratedPPT & { topic?: string };
+  isActive:   boolean;
+  onClick:    () => void;
   slideImage?: string | null;
   /** Display width in px. Height is auto-computed at 16:9. Default: 232 */
   thumbWidth?: number;
@@ -55,30 +56,35 @@ export function SlideThumbnail({
   slideImage,
   thumbWidth = 232,
 }: SlideThumbnailProps) {
-  const scale   = thumbWidth / CANVAS_W;
-  const thumbH  = CANVAS_H * scale;
+  const scale  = thumbWidth / CANVAS_W;
+  const thumbH = CANVAS_H * scale;
+  const dot    = LAYOUT_DOT[slide.layout_type ?? ''] ?? '#7C8CA8';
+  const label  = LAYOUT_LABEL[slide.layout_type ?? ''] ?? '--';
 
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left rounded-xl border transition-all duration-200 overflow-hidden ${
-        isActive
-          ? 'border-purple-500/60 shadow-lg shadow-purple-500/10 ring-1 ring-purple-500/30'
-          : 'border-white/5 hover:border-white/20'
-      }`}
+      style={{ width: thumbWidth }}
+      className={`
+        group text-left rounded-xl border transition-all duration-200 overflow-hidden
+        ${
+          isActive
+            ? 'border-purple-500/50 shadow-[0_0_18px_rgba(139,92,246,0.22)] ring-1 ring-purple-500/25'
+            : 'border-white/6 hover:border-white/18 hover:shadow-[0_4px_12px_rgba(0,0,0,0.35)]'
+        }
+      `}
     >
-      {/* Outer: sized to scaled dimensions so layout is correct */}
+      {/* ── Canvas preview ──────────────────────────────── */}
       <div
         style={{
-          width:    thumbWidth,
-          height:   thumbH,
-          position: 'relative',
-          overflow: 'hidden',
-          flexShrink: 0,
+          width:         thumbWidth,
+          height:        thumbH,
+          position:      'relative',
+          overflow:      'hidden',
+          flexShrink:    0,
           pointerEvents: 'none',
         }}
       >
-        {/* Inner: full-size canvas, scaled down to fit */}
         <div
           style={{
             position:        'absolute',
@@ -99,24 +105,94 @@ export function SlideThumbnail({
             width={CANVAS_W}
           />
         </div>
+
+        {/* Active indicator — left glow bar */}
+        {isActive && (
+          <div
+            style={{
+              position:     'absolute',
+              left:         0,
+              top:          0,
+              width:        2,
+              height:       '100%',
+              background:   'linear-gradient(to bottom, transparent, #8B5CF6, #A78BFA, transparent)',
+              boxShadow:    '0 0 8px rgba(139,92,246,0.8)',
+            }}
+          />
+        )}
+
+        {/* Slide index overlay — top-left corner */}
+        <div
+          style={{
+            position:   'absolute',
+            top:        4,
+            left:       isActive ? 6 : 4,
+            padding:    '1px 5px',
+            borderRadius: 4,
+            background: 'rgba(0,0,0,0.55)',
+            backdropFilter: 'blur(4px)',
+            fontSize:   9,
+            fontWeight: 700,
+            fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+            color:      isActive ? '#C4B5FD' : 'rgba(255,255,255,0.5)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {String(index + 1).padStart(2, '0')}
+        </div>
       </div>
 
-      {/* Slide number + layout badge + title */}
-      <div className="flex items-center gap-2 px-2 py-1.5 bg-black/20">
-        <span className="text-[10px] font-mono text-muted-foreground shrink-0">
-          {String(index + 1).padStart(2, '0')}
-        </span>
-        {slide.layout_type && (
-          <span
-            className={`text-[9px] px-1.5 py-0.5 rounded-full border font-medium uppercase tracking-wide shrink-0 ${
-              LAYOUT_COLORS[slide.layout_type] ?? 'bg-white/10 text-white/60 border-white/20'
-            }`}
-          >
-            {slide.layout_type}
+      {/* ── Info bar ────────────────────────────────────── */}
+      <div
+        style={{
+          display:        'flex',
+          alignItems:     'center',
+          gap:            6,
+          padding:        '5px 8px',
+          background:     isActive
+            ? 'rgba(139,92,246,0.10)'
+            : 'rgba(0,0,0,0.28)',
+          borderTop:      `1px solid ${
+            isActive ? 'rgba(139,92,246,0.22)' : 'rgba(255,255,255,0.04)'
+          }`,
+          transition:     'background 200ms, border-color 200ms',
+        }}
+      >
+        {/* Layout type dot + label */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <div style={{
+            width:        5,
+            height:       5,
+            borderRadius: '50%',
+            background:   dot,
+            boxShadow:    `0 0 5px ${dot}99`,
+            flexShrink:   0,
+          }} />
+          <span style={{
+            fontSize:      8.5,
+            fontWeight:    700,
+            fontFamily:    "'Plus Jakarta Sans', system-ui, sans-serif",
+            color:         dot,
+            letterSpacing: '0.08em',
+            opacity:       0.9,
+          }}>
+            {label}
           </span>
-        )}
-        <span className="text-[10px] text-muted-foreground truncate flex-1 text-right">
-          {slide.title.slice(0, 22)}{slide.title.length > 22 ? '…' : ''}
+        </div>
+
+        {/* Title — truncated */}
+        <span style={{
+          flex:         1,
+          fontSize:     9.5,
+          fontFamily:   "'Plus Jakarta Sans', system-ui, sans-serif",
+          color:        isActive ? 'rgba(224,212,255,0.85)' : 'rgba(148,163,184,0.75)',
+          overflow:     'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace:   'nowrap',
+          fontWeight:   isActive ? 600 : 400,
+          transition:   'color 200ms',
+        }}>
+          {slide.title.slice(0, 28)}{slide.title.length > 28 ? '\u2026' : ''}
         </span>
       </div>
     </button>
