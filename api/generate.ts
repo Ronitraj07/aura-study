@@ -27,7 +27,7 @@ const FALLBACK_MODEL = 'llama3-8b-8192';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  process.env.VERCEL_ENV === 'production'
-    ? 'https://aura-study.vercel.app'
+    ? 'https://studyai-ronitraj.vercel.app'
     : 'http://localhost:5173',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
