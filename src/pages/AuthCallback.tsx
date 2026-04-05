@@ -25,42 +25,55 @@ export default function AuthCallback() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Handle both hash (#access_token) and code (?code=) flows
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    let cancelled = false;
+
+    const run = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (cancelled) return;
+
       if (session) {
         const allowed = await checkAllowed(session.user.email);
+        if (cancelled) return;
         if (allowed) {
           navigate("/dashboard", { replace: true });
         } else {
           await supabase.auth.signOut();
           navigate("/login?restricted=true", { replace: true });
         }
-      } else {
-        // Try exchanging hash tokens manually
-        const hash = window.location.hash;
-        if (hash && hash.includes("access_token")) {
-          // Supabase JS v2 auto-parses hash on init — wait for onAuthStateChange
-          const {
-            data: { subscription },
-          } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-            subscription.unsubscribe();
-            if (newSession) {
-              const allowed = await checkAllowed(newSession.user.email);
-              if (allowed) {
-                navigate("/dashboard", { replace: true });
-              } else {
-                await supabase.auth.signOut();
-                navigate("/login?restricted=true", { replace: true });
-              }
-            } else {
-              navigate("/login", { replace: true });
-            }
-          });
-        } else {
-          navigate("/login", { replace: true });
-        }
+        return;
       }
-    });
+
+      // No session yet — wait for hash token exchange via onAuthStateChange
+      const hash = window.location.hash;
+      if (hash && hash.includes("access_token")) {
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+          subscription.unsubscribe();
+          if (cancelled) return;
+          if (newSession) {
+            const allowed = await checkAllowed(newSession.user.email);
+            if (cancelled) return;
+            if (allowed) {
+              navigate("/dashboard", { replace: true });
+            } else {
+              await supabase.auth.signOut();
+              navigate("/login?restricted=true", { replace: true });
+            }
+          } else {
+            navigate("/login", { replace: true });
+          }
+        });
+      } else {
+        navigate("/login", { replace: true });
+      }
+    };
+
+    run();
+
+    // Cleanup: prevent any setState/navigate after unmount
+    return () => { cancelled = true; };
   }, [navigate]);
 
   return (

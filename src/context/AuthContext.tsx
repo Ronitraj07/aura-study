@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useRef,
   useCallback,
   type ReactNode,
 } from "react";
@@ -67,7 +68,6 @@ async function checkAllowedServer(email: string | undefined | null): Promise<boo
     });
     if (error) {
       console.error("[auth] allowlist RPC error:", error.message);
-      // Fail closed — deny access if the check itself errors
       return false;
     }
     return data === true;
@@ -82,7 +82,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
 
+  /**
+   * Track the last user ID we ran resolveStatus for.
+   * Prevents duplicate RPC calls when both getSession() and
+   * onAuthStateChange (INITIAL_SESSION) fire for the same user.
+   */
+  const resolvedForRef = useRef<string | null | undefined>(undefined);
+
   const resolveStatus = useCallback(async (u: User | null) => {
+    // Skip if we already resolved for this exact user ID (or null)
+    const key = u?.id ?? null;
+    if (resolvedForRef.current === key) return;
+    resolvedForRef.current = key;
+
     if (!u) {
       setStatus("unauthenticated");
       return;
@@ -92,14 +104,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Hydrate from persisted session
+    // onAuthStateChange fires INITIAL_SESSION immediately with the
+    // persisted session — that alone is enough. getSession() is
+    // kept as a belt-and-suspenders fallback but the resolvedForRef
+    // guard above ensures the RPC is only called once per user change.
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       resolveStatus(data.session?.user ?? null);
     });
 
-    // Live session listener
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -123,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    resolvedForRef.current = undefined; // reset so next sign-in resolves fresh
     await supabase.auth.signOut();
   }, []);
 
