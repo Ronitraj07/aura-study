@@ -1,27 +1,22 @@
 // ============================================================
 // Vercel Edge Function — /api/generate
-// Fix #13: Groq key stays server-side, never in client bundle
-//
-// Replaces all direct VITE_GROQ_API_KEY fetch() calls in the
-// browser. Client POSTs { type, payload } here; this function
-// calls Groq and returns the raw JSON result.
+// Handles all AI generation server-side — keys never reach client
 //
 // Supported types:
-//   'ppt'        — slide generation
-//   'assignment' — assignment generation
-//   'notes'      — notes generation
-//   'timetable'  — timetable generation
-//   'research'   — research pre-pass (8b model)
+//   'ppt'        — slide generation       (llama-3.3-70b)
+//   'assignment' — assignment generation  (llama-3.3-70b)
+//   'notes'      — notes generation       (llama-3.3-70b)
+//   'timetable'  — schedule generation    (llama-3.3-70b)
+//   'research'   — research pre-pass      (llama-3.1-8b-instant → Gemini 2.5 Flash on 429)
 // ============================================================
-
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const config = { runtime: 'edge' };
 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_URL    = 'https://api.groq.com/openai/v1/chat/completions';
+const GEMINI_URL  = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
 const MODEL_MAP: Record<string, string> = {
-  research:   'llama3-8b-8192',
+  research:   'llama-3.1-8b-instant',
   ppt:        'llama-3.3-70b-versatile',
   assignment: 'llama-3.3-70b-versatile',
   notes:      'llama-3.3-70b-versatile',
@@ -32,12 +27,13 @@ const FALLBACK_MODEL = 'llama3-8b-8192';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  process.env.VERCEL_ENV === 'production'
-    ? 'https://aura-study.vercel.app'   // tighten to your prod domain
+    ? 'https://aura-study.vercel.app'
     : 'http://localhost:5173',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+// ── Groq caller ────────────────────────────────────────────────
 async function callGroq(
   apiKey: string,
   model: string,
@@ -66,15 +62,45 @@ async function callGroq(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { error?: { message?: string } };
-    throw new Error(err.error?.message ?? `Groq HTTP ${res.status}`);
+    const status = res.status;
+    throw Object.assign(
+      new Error(err.error?.message ?? `Groq HTTP ${status}`),
+      { status },
+    );
   }
 
   const data = await res.json() as { choices: { message: { content: string } }[] };
   return data.choices[0]?.message?.content ?? '';
 }
 
+// ── Gemini fallback (research only — 429 rate-limit escape) ───
+async function callGeminiResearch(apiKey: string, userPrompt: string): Promise<string> {
+  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: userPrompt }] }],
+      generationConfig: {
+        temperature: 0.15,
+        maxOutputTokens: 1200,
+        responseMimeType: 'application/json',
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: { message?: string } };
+    throw new Error(err.error?.message ?? `Gemini HTTP ${res.status}`);
+  }
+
+  const data = await res.json() as {
+    candidates: { content: { parts: { text: string }[] } }[];
+  };
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
+}
+
+// ── Main handler ───────────────────────────────────────────────
 export default async function handler(req: Request): Promise<Response> {
-  // ── CORS preflight ──────────────────────────────────────────
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
@@ -85,14 +111,21 @@ export default async function handler(req: Request): Promise<Response> {
     });
   }
 
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) {
     return new Response(JSON.stringify({ error: 'GROQ_API_KEY not configured on server' }), {
       status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });
   }
 
-  let body: { type?: string; systemPrompt?: string; userPrompt?: string; maxTokens?: number; temperature?: number };
+  let body: {
+    type?: string;
+    systemPrompt?: string;
+    userPrompt?: string;
+    maxTokens?: number;
+    temperature?: number;
+  };
+
   try {
     body = await req.json() as typeof body;
   } catch {
@@ -111,23 +144,46 @@ export default async function handler(req: Request): Promise<Response> {
 
   const primaryModel = MODEL_MAP[type] ?? MODEL_MAP.ppt;
 
-  // ── Try primary model, fall back to 8b if it fails ──────────
   let raw: string;
-  try {
-    raw = await callGroq(apiKey, primaryModel, systemPrompt, userPrompt, maxTokens, temperature);
-  } catch (e) {
-    if (primaryModel === FALLBACK_MODEL) throw e;
-    console.warn(`[generate] Primary model ${primaryModel} failed, trying fallback...`, e);
-    raw = await callGroq(apiKey, FALLBACK_MODEL, systemPrompt, userPrompt, maxTokens, temperature);
-  }
 
-  // ── Validate it's parseable JSON before returning ───────────
   try {
+    // ── Primary Groq call ────────────────────────────────────
+    try {
+      raw = await callGroq(groqKey, primaryModel, systemPrompt, userPrompt, maxTokens, temperature);
+    } catch (e: any) {
+      // For non-research types: try fallback 8b model
+      if (type !== 'research') {
+        if (primaryModel === FALLBACK_MODEL) throw e;
+        console.warn(`[generate] ${primaryModel} failed, trying fallback...`);
+        raw = await callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, maxTokens, temperature);
+      } else {
+        // For research: on 429 try Gemini, otherwise try fallback 8b
+        const is429 = e?.status === 429 || String(e?.message).includes('429');
+        if (is429) {
+          const geminiKey = process.env.GEMINI_API_KEY;
+          if (!geminiKey) {
+            console.warn('[generate] Groq rate-limited but GEMINI_API_KEY not set — falling back to 8b');
+            raw = await callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, maxTokens, temperature);
+          } else {
+            console.warn('[generate] Groq rate-limited — falling back to Gemini');
+            raw = await callGeminiResearch(geminiKey, userPrompt);
+          }
+        } else {
+          // Non-429 research failure — try fallback 8b before giving up
+          if (primaryModel === FALLBACK_MODEL) throw e;
+          raw = await callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, maxTokens, temperature);
+        }
+      }
+    }
+
+    // ── Validate parseable JSON ──────────────────────────────
     JSON.parse(raw);
-  } catch {
-    return new Response(JSON.stringify({ error: 'Groq returned non-JSON response', raw }), {
-      status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-    });
+
+  } catch (e: any) {
+    return new Response(
+      JSON.stringify({ error: e?.message ?? 'AI generation failed' }),
+      { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+    );
   }
 
   return new Response(raw, {
