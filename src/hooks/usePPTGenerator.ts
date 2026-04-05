@@ -6,6 +6,7 @@
 // ✔ Version snapshot taken BEFORE every overwrite
 // ✔ Duplicate topics allowed — each generation is a fresh row
 // ✔ Groq calls proxied through /api/generate (key never exposed)
+// ✔ setPPT exposed for external slide reordering (SlidePreviewGrid)
 // ============================================================
 
 import { useState, useCallback, useRef } from 'react';
@@ -400,6 +401,7 @@ export function usePPTGenerator() {
 
   return {
     ppt,
+    setPPT,           // ← exposed for SlidePreviewGrid reorder
     savedPPTId,
     isGenerating,
     isResearching,
