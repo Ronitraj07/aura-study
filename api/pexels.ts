@@ -13,7 +13,7 @@ const PEXELS_BASE = 'https://api.pexels.com/v1';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  process.env.VERCEL_ENV === 'production'
-    ? 'https://aura-study.vercel.app'
+    ? 'https://studyai-ronitraj.vercel.app'
     : 'http://localhost:5173',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
