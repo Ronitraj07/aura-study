@@ -1,15 +1,13 @@
 // ============================================================
-// SlideCanvas.tsx — WYSIWYG visual slide renderer
-// Mirrors pptExport.ts layouts in HTML/CSS so what users see
-// in-app matches the exported PPTX exactly.
+// SlideCanvas.tsx — Premium WYSIWYG slide renderer
+// Gamma / Chronicle level visual quality.
 //
-// Coordinate system: pptx uses a 10" × 5.63" canvas.
-// We render at a scalable width (default 800px) and map:
+// Coordinate system: 10" × 5.63" pptx canvas.
 //   px = (inches / 10) * containerWidth
 //   py = (inches / 5.63) * containerHeight
 //
 // Layouts: cover, content, two-column, image-focus, quote, stats
-// Themes:  modern (dark), minimal (light), corporate (blue)
+// Themes:  modern (dark neon), minimal (editorial light), corporate (navy)
 // ============================================================
 
 import { useMemo } from 'react';
@@ -20,434 +18,571 @@ type DesignTheme = 'modern' | 'minimal' | 'corporate';
 type LayoutType  = 'title' | 'content' | 'two-column' | 'image-focus' | 'quote' | 'stats';
 
 interface ThemeTokens {
-  bg:         string;
-  bgAlt:      string;
-  titleColor: string;
-  textColor:  string;
-  mutedColor: string;
-  accent1:    string;
-  accent2:    string;
-  accent3:    string;
+  // Backgrounds
+  bg:           string;
+  bgAlt:        string;
+  bgGradient:   string;      // mesh gradient on top of bg
+  // Text
+  titleColor:   string;
+  textColor:    string;
+  mutedColor:   string;
+  faintColor:   string;
+  // Accents
+  accent1:      string;      // primary
+  accent2:      string;      // secondary / lighter
+  accent3:      string;      // tertiary / glow
+  accentRgb:    string;      // r,g,b of accent1 for rgba()
+  // Glass surface
+  glass:        string;
+  glassBorder:  string;
+  // Noise overlay opacity
+  noiseOpacity: number;
+  // Fonts
+  displayFont:  string;
+  bodyFont:     string;
 }
 
 const THEMES: Record<DesignTheme, ThemeTokens> = {
   modern: {
-    bg:         '#0D0D1A',
-    bgAlt:      '#12122A',
-    titleColor: '#C4B5FD',
-    textColor:  '#E2E8F0',
-    mutedColor: '#94A3B8',
-    accent1:    '#7C3AED',
-    accent2:    '#A855F7',
-    accent3:    '#4F46E5',
+    bg:           '#080B14',
+    bgAlt:        '#0C0F1E',
+    bgGradient:   'radial-gradient(ellipse 80% 60% at 20% 0%, rgba(124,58,237,0.22) 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 80% 100%, rgba(79,70,229,0.18) 0%, transparent 55%)',
+    titleColor:   '#F0ECFF',
+    textColor:    '#CBD5E1',
+    mutedColor:   '#7C8CA8',
+    faintColor:   '#3D4A60',
+    accent1:      '#8B5CF6',
+    accent2:      '#A78BFA',
+    accent3:      '#C4B5FD',
+    accentRgb:    '139,92,246',
+    glass:        'rgba(255,255,255,0.04)',
+    glassBorder:  'rgba(139,92,246,0.25)',
+    noiseOpacity: 0.025,
+    displayFont:  "'Syne', 'DM Sans', sans-serif",
+    bodyFont:     "'Plus Jakarta Sans', 'Inter', sans-serif",
   },
   minimal: {
-    bg:         '#FFFFFF',
-    bgAlt:      '#F8FAFC',
-    titleColor: '#0F172A',
-    textColor:  '#1E293B',
-    mutedColor: '#64748B',
-    accent1:    '#0EA5E9',
-    accent2:    '#0284C7',
-    accent3:    '#7DD3FC',
+    bg:           '#FAFAFA',
+    bgAlt:        '#F4F4F5',
+    bgGradient:   'radial-gradient(ellipse 70% 50% at 50% -10%, rgba(14,165,233,0.07) 0%, transparent 60%)',
+    titleColor:   '#09090B',
+    textColor:    '#27272A',
+    mutedColor:   '#71717A',
+    faintColor:   '#D4D4D8',
+    accent1:      '#0EA5E9',
+    accent2:      '#38BDF8',
+    accent3:      '#BAE6FD',
+    accentRgb:    '14,165,233',
+    glass:        'rgba(0,0,0,0.03)',
+    glassBorder:  'rgba(14,165,233,0.20)',
+    noiseOpacity: 0.015,
+    displayFont:  "'Instrument Serif', 'Georgia', serif",
+    bodyFont:     "'Plus Jakarta Sans', 'Inter', sans-serif",
   },
   corporate: {
-    bg:         '#F0F4F8',
-    bgAlt:      '#FFFFFF',
-    titleColor: '#0C2340',
-    textColor:  '#1E3A5F',
-    mutedColor: '#64748B',
-    accent1:    '#1D4ED8',
-    accent2:    '#2563EB',
-    accent3:    '#93C5FD',
+    bg:           '#05101F',
+    bgAlt:        '#071528',
+    bgGradient:   'radial-gradient(ellipse 90% 60% at 10% 50%, rgba(29,78,216,0.20) 0%, transparent 55%), radial-gradient(ellipse 50% 40% at 90% 10%, rgba(6,182,212,0.12) 0%, transparent 50%)',
+    titleColor:   '#E0EFFF',
+    textColor:    '#BFCFE0',
+    mutedColor:   '#5B7A9A',
+    faintColor:   '#1E3450',
+    accent1:      '#1D4ED8',
+    accent2:      '#3B82F6',
+    accent3:      '#93C5FD',
+    accentRgb:    '29,78,216',
+    glass:        'rgba(255,255,255,0.04)',
+    glassBorder:  'rgba(59,130,246,0.28)',
+    noiseOpacity: 0.02,
+    displayFont:  "'Syne', 'DM Sans', sans-serif",
+    bodyFont:     "'Plus Jakarta Sans', 'Inter', sans-serif",
   },
 };
 
 interface SlideCanvasProps {
-  /** The individual slide data */
-  slide: GeneratedSlide;
-  /** Index in the presentation (0-based) */
-  index: number;
-  /** Total slide count (for footer) */
-  total: number;
-  /** The overall PPT for theme + cover info */
-  ppt: GeneratedPPT & { topic?: string };
-  /** Optional fetched Pexels image as base64 data URL */
+  slide:       GeneratedSlide;
+  index:       number;
+  total:       number;
+  ppt:         GeneratedPPT & { topic?: string };
   slideImage?: string | null;
-  /** Render width in px. Height is auto-computed at 16:9. Default: 800 */
-  width?: number;
-  /** Whether this is a cover slide render */
-  isCover?: boolean;
-  /** Cover image for cover slide */
+  width?:      number;
+  isCover?:    boolean;
   coverImage?: string | null;
 }
 
-/** Convert pptx inches to px at the given canvas width (10" wide) */
+/** inches → px at canvas width (10") */
 function ix(inches: number, w: number) { return (inches / 10) * w; }
-/** Convert pptx inches to px at the given canvas height (5.63" tall) */
+/** inches → px at canvas height (5.63") */
 function iy(inches: number, h: number) { return (inches / 5.63) * h; }
+/** font size: (ptSize / 10) * (w / 80) */
+function fs(pt: number, w: number) { return (pt / 10) * (w / 80); }
 
-// ── Shared: top accent stripe + left bar + title ──────────────
-function SlideHeader({
-  slide, t, w, h, titleFontSize = 28,
-}: {
-  slide: GeneratedSlide; t: ThemeTokens; w: number; h: number; titleFontSize?: number;
-}) {
+// ── Noise texture overlay (SVG feTurbulence) ──────────────────
+function NoiseOverlay({ opacity }: { opacity: number }) {
   return (
-    <>
-      {/* Top accent stripe */}
-      <div style={{
-        position: 'absolute', left: 0, top: 0, width: '100%',
-        height: iy(0.09, h), background: t.accent2,
-      }} />
-      {/* Left vertical bar */}
-      <div style={{
-        position: 'absolute',
-        left: ix(0.38, w), top: iy(0.25, h),
-        width: ix(0.07, w), height: iy(0.85, h),
-        background: t.accent2,
-      }} />
-      {/* Title */}
-      <div style={{
-        position: 'absolute',
-        left: ix(0.58, w), top: iy(0.22, h),
-        width: ix(8.8, w), height: iy(0.9, h),
-        fontSize: (titleFontSize / 10) * (w / 80),
-        fontWeight: 700, color: t.titleColor,
-        display: 'flex', alignItems: 'center',
-        lineHeight: 1.2, overflow: 'hidden',
-      }}>
-        {slide.title}
-      </div>
-      {/* Subtitle */}
-      {slide.subtitle && (
-        <div style={{
-          position: 'absolute',
-          left: ix(0.58, w), top: iy(1.1, h),
-          width: ix(8.8, w), height: iy(0.38, h),
-          fontSize: (13 / 10) * (w / 80),
-          fontWeight: 600, color: t.mutedColor,
-          fontStyle: 'italic', overflow: 'hidden',
-        }}>
-          {slide.subtitle}
-        </div>
-      )}
-      {/* Divider line */}
-      <div style={{
-        position: 'absolute',
-        left: ix(0.58, w), top: iy(1.46, h),
-        width: ix(8.9, w), height: iy(0.028, h),
-        background: t.accent1, opacity: 0.35,
-      }} />
-    </>
+    <svg
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', opacity }}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <filter id="noise">
+        <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+        <feColorMatrix type="saturate" values="0" />
+      </filter>
+      <rect width="100%" height="100%" filter="url(#noise)" />
+    </svg>
   );
 }
 
-// ── Shared: slide footer counter ──────────────────────────────
-function SlideFooter({
-  index, total, t, w, h,
-}: { index: number; total: number; t: ThemeTokens; w: number; h: number; }) {
+// ── Slide number pill ─────────────────────────────────────────
+function SlideNumber({ index, total, t, w, h }: { index: number; total: number; t: ThemeTokens; w: number; h: number }) {
   return (
     <div style={{
-      position: 'absolute',
-      right: ix(0.2, w), bottom: iy(0.12, h),
-      fontSize: (9 / 10) * (w / 80), color: t.mutedColor,
+      position:   'absolute',
+      right:      ix(0.28, w),
+      bottom:     iy(0.16, h),
+      display:    'flex', alignItems: 'center', gap: ix(0.06, w),
+      fontSize:   fs(8.5, w),
+      fontFamily: t.bodyFont,
+      color:      t.faintColor,
+      letterSpacing: '0.06em',
     }}>
-      {index + 1} / {total}
+      <span style={{ color: t.mutedColor, fontWeight: 600 }}>{index + 1}</span>
+      <span>/{total}</span>
     </div>
   );
 }
 
-// ── Bullet list renderer ──────────────────────────────────────
-function BulletList({
-  items, t, fontSize = 16, maxItems = 5,
-}: { items: string[]; t: ThemeTokens; fontSize?: number; maxItems?: number; }) {
-  const scale = fontSize / 16;
+// ── Gradient accent dot (bullet marker) ──────────────────────
+function AccentDot({ t, size }: { t: ThemeTokens; size: number }) {
   return (
-    <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5em' }}>
-      {items.slice(0, maxItems).map((item, i) => (
-        <li key={i} style={{ display: 'flex', gap: '0.5em', alignItems: 'flex-start', lineHeight: 1.35 }}>
-          <span style={{ color: t.accent1, fontSize: `${0.55 * scale}em`, marginTop: '0.35em', flexShrink: 0 }}>▪</span>
-          <span style={{ color: t.textColor, fontSize: `${scale}em` }}>{item}</span>
-        </li>
-      ))}
-    </ul>
+    <div style={{
+      flexShrink: 0,
+      width:      size,
+      height:     size,
+      borderRadius: '50%',
+      background: `radial-gradient(circle, ${t.accent2} 0%, ${t.accent1} 100%)`,
+      boxShadow:  `0 0 ${size * 1.5}px rgba(${t.accentRgb},0.55)`,
+      marginTop:  size * 0.55,
+    }}
+    />
   );
 }
 
-// ── Cover slide ───────────────────────────────────────────────
+// ── Bullet list — premium version ────────────────────────────
+function BulletList({
+  items, t, w, fontSize = 15, maxItems = 5, gap = 0.46,
+}: { items: string[]; t: ThemeTokens; w: number; fontSize?: number; maxItems?: number; gap?: number }) {
+  const dotSize = fs(5, w);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: `${gap}em` }}>
+      {items.slice(0, maxItems).map((item, i) => (
+        <div key={i} style={{ display: 'flex', gap: `${fs(8, w)}px`, alignItems: 'flex-start', lineHeight: 1.45 }}>
+          <AccentDot t={t} size={dotSize} />
+          <span style={{
+            color:      t.textColor,
+            fontSize:   fs(fontSize, w),
+            fontFamily: t.bodyFont,
+            fontWeight: 400,
+            flex:       1,
+          }}>{item}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Glass card surface ────────────────────────────────────────
+function GlassCard({
+  left, top, width, height, t, radius, children, style = {},
+}: {
+  left: number; top: number; width: number; height: number;
+  t: ThemeTokens; radius?: number; children?: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div style={{
+      position:    'absolute',
+      left, top, width, height,
+      background:  t.glass,
+      border:      `1px solid ${t.glassBorder}`,
+      borderRadius: radius ?? 8,
+      backdropFilter: 'blur(8px)',
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+// ── Section label chip ────────────────────────────────────────
+function Chip({
+  label, left, top, t, w, h,
+}: { label: string; left: number; top: number; t: ThemeTokens; w: number; h: number }) {
+  return (
+    <div style={{
+      position:   'absolute',
+      left, top,
+      padding:    `${iy(0.06, h)}px ${ix(0.18, w)}px`,
+      background: `rgba(${t.accentRgb},0.12)`,
+      border:     `1px solid rgba(${t.accentRgb},0.35)`,
+      borderRadius: ix(0.5, w),
+      fontSize:   fs(7.5, w),
+      fontWeight: 700,
+      fontFamily: t.bodyFont,
+      color:      t.accent2,
+      letterSpacing: '0.1em',
+      textTransform: 'uppercase' as const,
+    }}>
+      {label}
+    </div>
+  );
+}
+
+// ── COVER SLIDE ───────────────────────────────────────────────
 function CoverSlide({
   ppt, t, w, h, coverImage,
 }: {
   ppt: GeneratedPPT & { topic?: string };
-  t: ThemeTokens; w: number; h: number; coverImage?: string | null;
+  t: ThemeTokens; w: number; h: number;
+  coverImage?: string | null;
 }) {
+  const hasImg = !!coverImage;
   return (
     <>
-      {/* Full background */}
-      {coverImage ? (
-        <img
-          src={coverImage}
-          alt="cover"
-          style={{
-            position: 'absolute', left: 0, top: 0,
-            width: '100%', height: '100%', objectFit: 'cover',
-          }}
-        />
-      ) : null}
-      {/* Left scrim */}
-      <div style={{
-        position: 'absolute', left: 0, top: 0,
-        width: ix(6.8, w), height: '100%',
-        background: coverImage
-          ? `linear-gradient(to right, ${t.bg}f0, ${t.bg}88)`
-          : `linear-gradient(135deg, ${t.accent1}28 0%, ${t.bg} 70%)`,
-      }} />
-      {/* Right vignette when image present */}
-      {coverImage && (
-        <div style={{
-          position: 'absolute', left: ix(6.0, w), top: 0,
-          width: ix(4.0, w), height: '100%',
-          background: `linear-gradient(to right, transparent, ${t.bg}90)`,
-        }} />
+      {/* Hero image — right 55% */}
+      {hasImg && (
+        <>
+          <img
+            src={coverImage!}
+            alt="cover"
+            style={{
+              position: 'absolute',
+              left: ix(4.5, w), top: 0,
+              width: ix(5.5, w), height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+          {/* Gradient feather left edge of image */}
+          <div style={{
+            position: 'absolute',
+            left: ix(4.0, w), top: 0,
+            width: ix(2.5, w), height: '100%',
+            background: `linear-gradient(to right, ${t.bg} 0%, transparent 100%)`,
+          }} />
+          {/* Subtle vignette top/bottom on image */}
+          <div style={{
+            position: 'absolute',
+            left: ix(4.5, w), top: 0,
+            width: ix(5.5, w), height: '100%',
+            background: `linear-gradient(to bottom, ${t.bg}55 0%, transparent 30%, transparent 70%, ${t.bg}55 100%)`,
+          }} />
+        </>
       )}
-      {/* Decorative right block when no image */}
-      {!coverImage && (
+
+      {/* Left half — no image fallback grad */}
+      {!hasImg && (
         <div style={{
           position: 'absolute', right: 0, top: 0,
-          width: ix(2.2, w), height: '100%',
-          background: t.accent2, opacity: 0.22,
+          width: ix(4.5, w), height: '100%',
+          background: `linear-gradient(135deg, rgba(${t.accentRgb},0.18) 0%, transparent 60%)`,
         }} />
       )}
-      {/* Left accent bar */}
+
+      {/* Decorative corner grid lines */}
+      <svg style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none', opacity: 0.06 }}>
+        {[0.2, 0.4, 0.6, 0.8].map(x => (
+          <line key={x} x1={`${x * 100}%`} y1="0" x2={`${x * 100}%`} y2="100%" stroke={t.accent1} strokeWidth="0.5" />
+        ))}
+        {[0.25, 0.5, 0.75].map(y => (
+          <line key={y} x1="0" y1={`${y * 100}%`} x2="100%" y2={`${y * 100}%`} stroke={t.accent1} strokeWidth="0.5" />
+        ))}
+      </svg>
+
+      {/* Left accent bar — glowing */}
       <div style={{
         position: 'absolute',
-        left: ix(0.5, w), top: iy(0.35, h),
-        width: ix(0.08, w), height: iy(2.6, h),
-        background: t.accent3,
+        left: ix(0.42, w), top: iy(0.55, h),
+        width: ix(0.055, w), height: iy(3.0, h),
+        background: `linear-gradient(to bottom, transparent, ${t.accent1}, ${t.accent2}, transparent)`,
+        boxShadow: `0 0 ${ix(0.35, w)}px rgba(${t.accentRgb},0.6)`,
+        borderRadius: ix(0.1, w),
       }} />
+
+      {/* Topic chip */}
+      <Chip
+        label={(ppt.topic ?? ppt.title).slice(0, 28).toUpperCase()}
+        left={ix(0.65, w)} top={iy(0.55, h)}
+        t={t} w={w} h={h}
+      />
+
       {/* Main title */}
       <div style={{
-        position: 'absolute',
-        left: ix(0.72, w), top: iy(0.5, h),
-        width: ix(6.6, w), maxHeight: iy(2.4, h),
-        fontSize: (36 / 10) * (w / 80), fontWeight: 700,
-        color: t.titleColor, lineHeight: 1.15,
-        overflow: 'hidden',
+        position:   'absolute',
+        left:       ix(0.65, w),
+        top:        iy(1.05, h),
+        width:      ix(hasImg ? 4.2 : 7.5, w),
+        maxHeight:  iy(2.55, h),
+        fontSize:   fs(38, w),
+        fontWeight: 700,
+        fontFamily: t.displayFont,
+        color:      t.titleColor,
+        lineHeight: 1.12,
+        letterSpacing: '-0.01em',
+        overflow:   'hidden',
       }}>
         {ppt.title}
       </div>
-      {/* Subtitle / topic */}
+
+      {/* Divider */}
       <div style={{
         position: 'absolute',
-        left: ix(0.72, w), top: iy(3.05, h),
-        width: ix(6.6, w), height: iy(0.5, h),
-        fontSize: (15 / 10) * (w / 80), color: t.mutedColor,
-        fontStyle: 'italic', overflow: 'hidden',
-      }}>
-        {(ppt.topic ?? ppt.title).toLowerCase()}
-      </div>
-      {/* Divider line */}
-      <div style={{
-        position: 'absolute',
-        left: ix(0.72, w), top: iy(3.65, h),
-        width: ix(5.0, w), height: iy(0.045, h),
-        background: t.accent1, opacity: 0.65,
+        left: ix(0.65, w), top: iy(3.68, h),
+        width: ix(3.8, w), height: iy(0.028, h),
+        background: `linear-gradient(to right, ${t.accent1}, transparent)`,
       }} />
-      {/* Byline */}
+
+      {/* Byline row */}
       <div style={{
-        position: 'absolute',
-        left: ix(0.72, w), top: iy(4.1, h),
-        fontSize: (11 / 10) * (w / 80), color: t.mutedColor,
+        position:   'absolute',
+        left:       ix(0.65, w),
+        top:        iy(3.86, h),
+        fontSize:   fs(10, w),
+        fontFamily: t.bodyFont,
+        color:      t.mutedColor,
+        display:    'flex', alignItems: 'center', gap: ix(0.2, w),
       }}>
-        Generated by Aura Study · AI-Powered Learning
+        <span style={{
+          display: 'inline-block',
+          width: ix(0.12, w), height: ix(0.12, w),
+          borderRadius: '50%',
+          background: `radial-gradient(circle, ${t.accent2}, ${t.accent1})`,
+          boxShadow: `0 0 ${ix(0.18, w)}px rgba(${t.accentRgb},0.7)`,
+          flexShrink: 0,
+        }} />
+        Aura Study · AI-Powered Learning
       </div>
+
       {/* Slide count badge */}
       <div style={{
-        position: 'absolute',
-        right: ix(0.4, w), bottom: iy(0.25, h),
-        background: t.accent1 + '44',
-        border: `1px solid ${t.accent1}`,
-        borderRadius: ix(0.1, w),
-        padding: `${iy(0.04, h)}px ${ix(0.18, w)}px`,
-        fontSize: (11 / 10) * (w / 80), fontWeight: 700,
-        color: t.titleColor,
+        position:   'absolute',
+        left:       ix(0.65, w),
+        top:        iy(4.45, h),
+        padding:    `${iy(0.07, h)}px ${ix(0.22, w)}px`,
+        background: `rgba(${t.accentRgb},0.10)`,
+        border:     `1px solid rgba(${t.accentRgb},0.30)`,
+        borderRadius: ix(0.5, w),
+        fontSize:   fs(9, w),
+        fontWeight: 700,
+        fontFamily: t.bodyFont,
+        color:      t.accent3,
+        letterSpacing: '0.04em',
       }}>
-        {ppt.slides.length} Slides
+        {ppt.slides.length} SLIDES
       </div>
     </>
   );
 }
 
-// ── Content slide ─────────────────────────────────────────────
+// ── CONTENT SLIDE ─────────────────────────────────────────────
 function ContentSlide({
   slide, index, total, t, w, h, slideImage,
 }: {
   slide: GeneratedSlide; index: number; total: number;
   t: ThemeTokens; w: number; h: number; slideImage?: string | null;
 }) {
-  const bulletW  = slideImage ? ix(5.4, w) : ix(9.0, w);
-  const fontSize = (16 / 10) * (w / 80);
+  const hasImg = !!slideImage;
+  const contentW = hasImg ? ix(5.3, w) : ix(8.9, w);
+
   return (
     <>
-      <SlideHeader slide={slide} t={t} w={w} h={h} titleFontSize={28} />
-      {/* Bullets */}
+      {/* Title area glass card */}
+      <GlassCard
+        left={ix(0.38, w)} top={iy(0.22, h)}
+        width={ix(9.24, w)} height={iy(1.12, h)}
+        t={t} radius={ix(0.1, w)}
+        style={{
+          display: 'flex', flexDirection: 'column',
+          justifyContent: 'center',
+          padding: `0 ${ix(0.35, w)}px`,
+          borderLeft: `${ix(0.055, w)}px solid ${t.accent1}`,
+          boxShadow: `inset ${ix(0.055, w)}px 0 ${ix(0.3, w)}px rgba(${t.accentRgb},0.3)`,
+        }}
+      >
+        <div style={{
+          fontSize:   fs(26, w),
+          fontWeight: 700,
+          fontFamily: t.displayFont,
+          color:      t.titleColor,
+          lineHeight: 1.15,
+          letterSpacing: '-0.01em',
+        }}>
+          {slide.title}
+        </div>
+        {slide.subtitle && (
+          <div style={{
+            fontSize:   fs(11, w),
+            fontFamily: t.bodyFont,
+            color:      t.mutedColor,
+            fontWeight: 500,
+            marginTop:  iy(0.05, h),
+            fontStyle:  'italic',
+          }}>
+            {slide.subtitle}
+          </div>
+        )}
+      </GlassCard>
+
+      {/* Glowing divider line */}
       <div style={{
         position: 'absolute',
-        left: ix(0.55, w), top: iy(1.58, h),
-        width: bulletW, maxHeight: iy(3.7, h),
-        fontSize, overflow: 'hidden',
-      }}>
-        <BulletList items={slide.content} t={t} fontSize={16} maxItems={5} />
-      </div>
-      {/* Optional image */}
-      {slideImage && (
-        <>
+        left: ix(0.38, w), top: iy(1.46, h),
+        width: ix(9.24, w), height: 1,
+        background: `linear-gradient(to right, ${t.accent1}, rgba(${t.accentRgb},0.15), transparent)`,
+      }} />
+
+      {/* Bullet content card */}
+      <GlassCard
+        left={ix(0.38, w)} top={iy(1.56, h)}
+        width={contentW} height={iy(3.65, h)}
+        t={t} radius={ix(0.1, w)}
+        style={{ padding: `${iy(0.28, h)}px ${ix(0.32, w)}px` }}
+      >
+        <BulletList
+          items={slide.content} t={t} w={w}
+          fontSize={15} maxItems={5}
+        />
+      </GlassCard>
+
+      {/* Image — right side */}
+      {hasImg && (
+        <div style={{
+          position: 'absolute',
+          left: ix(5.88, w), top: iy(1.56, h),
+          width: ix(3.74, w), height: iy(3.65, h),
+          borderRadius: ix(0.1, w),
+          overflow: 'hidden',
+          border: `1px solid rgba(${t.accentRgb},0.2)`,
+          boxShadow: `0 0 ${ix(0.6, w)}px rgba(${t.accentRgb},0.12)`,
+        }}>
           <img
-            src={slideImage} alt={slide.title}
-            style={{
-              position: 'absolute',
-              left: ix(6.1, w), top: iy(1.45, h),
-              width: ix(3.6, w), height: iy(3.75, h),
-              objectFit: 'cover', borderRadius: ix(0.06, w),
-            }}
+            src={slideImage!} alt={slide.title}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
+          {/* Soft overlay to blend with theme */}
           <div style={{
-            position: 'absolute',
-            left: ix(6.1, w), top: iy(1.45, h),
-            width: ix(3.6, w), height: iy(3.75, h),
-            background: t.bg, opacity: 0.40,
-            borderRadius: ix(0.06, w),
-            border: `1px solid ${t.accent1}55`,
+            position: 'absolute', inset: 0,
+            background: `linear-gradient(to bottom right, rgba(${t.accentRgb},0.18) 0%, transparent 50%)`,
           }} />
-        </>
+        </div>
       )}
-      <SlideFooter index={index} total={total} t={t} w={w} h={h} />
+
+      <SlideNumber index={index} total={total} t={t} w={w} h={h} />
     </>
   );
 }
 
-// ── Two-column slide ──────────────────────────────────────────
+// ── TWO-COLUMN SLIDE ──────────────────────────────────────────
 function TwoColumnSlide({
   slide, index, total, t, w, h, slideImage,
 }: {
   slide: GeneratedSlide; index: number; total: number;
   t: ThemeTokens; w: number; h: number; slideImage?: string | null;
 }) {
-  const COL_DIV  = ix(4.7, w);
-  const RIGHT_X  = ix(4.86, w);
-  const RIGHT_W  = ix(4.86, w);
-  const half     = Math.ceil(slide.content.length / 2);
+  const half       = Math.ceil(slide.content.length / 2);
   const leftItems  = slide.content.slice(0, half);
-  const rightItems = slideImage ? [] : slide.content.slice(half);
-  const fs = (14 / 10) * (w / 80);
+  const rightItems = slide.content.slice(half);
+  const COL_W      = ix(4.48, w);
+  const COL_GAP    = ix(0.24, w);
+  const COL2_LEFT  = ix(0.38, w) + COL_W + COL_GAP;
 
   return (
     <>
-      {/* Top accent */}
-      <div style={{
-        position: 'absolute', left: 0, top: 0, width: '100%',
-        height: iy(0.09, h), background: t.accent2,
-      }} />
       {/* Title */}
       <div style={{
-        position: 'absolute',
-        left: ix(0.42, w), top: iy(0.18, h),
-        width: ix(9.2, w), height: iy(0.76, h),
-        fontSize: (26 / 10) * (w / 80), fontWeight: 700,
-        color: t.titleColor, display: 'flex', alignItems: 'center',
-        overflow: 'hidden',
-      }}>{slide.title}</div>
+        position:   'absolute',
+        left:       ix(0.38, w), top: iy(0.2, h),
+        width:      ix(9.24, w), height: iy(0.96, h),
+        fontSize:   fs(24, w),
+        fontWeight: 700,
+        fontFamily: t.displayFont,
+        color:      t.titleColor,
+        display:    'flex', alignItems: 'center',
+        letterSpacing: '-0.01em',
+      }}>
+        {slide.title}
+      </div>
+
       {slide.subtitle && (
         <div style={{
-          position: 'absolute',
-          left: ix(0.42, w), top: iy(0.92, h),
-          width: ix(9.2, w), height: iy(0.36, h),
-          fontSize: (12 / 10) * (w / 80), color: t.mutedColor,
-          fontStyle: 'italic', fontWeight: 600, overflow: 'hidden',
+          position:   'absolute',
+          left:       ix(0.38, w), top: iy(1.12, h),
+          fontSize:   fs(10.5, w),
+          fontFamily: t.bodyFont,
+          color:      t.mutedColor,
+          fontStyle:  'italic',
         }}>{slide.subtitle}</div>
       )}
+
       {/* Divider */}
       <div style={{
         position: 'absolute',
-        left: ix(0.42, w), top: iy(1.26, h),
-        width: ix(9.2, w), height: iy(0.028, h),
-        background: t.accent1, opacity: 0.35,
+        left: ix(0.38, w), top: iy(1.35, h),
+        width: ix(9.24, w), height: 1,
+        background: `linear-gradient(to right, ${t.accent1}, rgba(${t.accentRgb},0.1), transparent)`,
       }} />
-      {/* Column divider */}
-      <div style={{
-        position: 'absolute',
-        left: COL_DIV, top: iy(1.34, h),
-        width: ix(0.028, w), height: iy(3.85, h),
-        background: t.accent1, opacity: 0.28,
-      }} />
-      {/* Left header chip */}
-      <div style={{
-        position: 'absolute',
-        left: ix(0.42, w), top: iy(1.34, h),
-        width: ix(1.4, w), height: iy(0.32, h),
-        background: t.accent1 + '2e', borderRadius: ix(0.06, w),
-        border: `1px solid ${t.accent1}55`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: (9 / 10) * (w / 80), fontWeight: 700, color: t.titleColor,
-      }}>KEY POINTS</div>
-      {/* Left bullets */}
-      <div style={{
-        position: 'absolute',
-        left: ix(0.42, w), top: iy(1.72, h),
-        width: ix(4.3, w), maxHeight: iy(3.3, h),
-        fontSize: fs, overflow: 'hidden',
-      }}>
-        <BulletList items={leftItems} t={t} fontSize={14} maxItems={4} />
-      </div>
-      {/* Right side */}
+
+      {/* Left column card */}
+      <GlassCard
+        left={ix(0.38, w)} top={iy(1.46, h)}
+        width={COL_W} height={iy(3.75, h)}
+        t={t} radius={ix(0.1, w)}
+        style={{ padding: `${iy(0.24, h)}px ${ix(0.28, w)}px` }}
+      >
+        <Chip label="Key Points" left={0} top={0} t={t} w={w} h={h} />
+        <div style={{ marginTop: iy(0.46, h) }}>
+          <BulletList items={leftItems} t={t} w={w} fontSize={13.5} maxItems={4} gap={0.42} />
+        </div>
+      </GlassCard>
+
+      {/* Right column — image or second bullet card */}
       {slideImage ? (
-        <>
-          <img
-            src={slideImage} alt={slide.title}
-            style={{
-              position: 'absolute',
-              left: RIGHT_X, top: iy(1.34, h),
-              width: RIGHT_W, height: iy(3.85, h),
-              objectFit: 'cover', borderRadius: ix(0.06, w),
-            }}
+        <div style={{
+          position: 'absolute',
+          left: COL2_LEFT, top: iy(1.46, h),
+          width: COL_W, height: iy(3.75, h),
+          borderRadius: ix(0.1, w),
+          overflow: 'hidden',
+          border: `1px solid rgba(${t.accentRgb},0.22)`,
+          boxShadow: `0 0 ${ix(0.5, w)}px rgba(${t.accentRgb},0.12)`,
+        }}>
+          <img src={slideImage} alt={slide.title}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
           <div style={{
-            position: 'absolute',
-            left: RIGHT_X, top: iy(1.34, h),
-            width: RIGHT_W, height: iy(3.85, h),
-            background: t.bg, opacity: 0.40,
-            borderRadius: ix(0.06, w),
-            border: `1px solid ${t.accent1}55`,
+            position: 'absolute', inset: 0,
+            background: `linear-gradient(160deg, rgba(${t.accentRgb},0.20) 0%, transparent 60%)`,
           }} />
-        </>
+        </div>
       ) : (
-        <>
-          <div style={{
-            position: 'absolute',
-            left: RIGHT_X, top: iy(1.34, h),
-            width: ix(1.4, w), height: iy(0.32, h),
-            background: t.accent2 + '2e', borderRadius: ix(0.06, w),
-            border: `1px solid ${t.accent2}55`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: (9 / 10) * (w / 80), fontWeight: 700, color: t.titleColor,
-          }}>DETAILS</div>
-          <div style={{
-            position: 'absolute',
-            left: RIGHT_X, top: iy(1.72, h),
-            width: RIGHT_W, maxHeight: iy(3.3, h),
-            fontSize: fs, overflow: 'hidden',
-          }}>
-            <BulletList items={rightItems} t={t} fontSize={14} maxItems={4} />
+        <GlassCard
+          left={COL2_LEFT} top={iy(1.46, h)}
+          width={COL_W} height={iy(3.75, h)}
+          t={t} radius={ix(0.1, w)}
+          style={{ padding: `${iy(0.24, h)}px ${ix(0.28, w)}px` }}
+        >
+          <Chip label="Details" left={0} top={0} t={t} w={w} h={h} />
+          <div style={{ marginTop: iy(0.46, h) }}>
+            <BulletList items={rightItems} t={t} w={w} fontSize={13.5} maxItems={4} gap={0.42} />
           </div>
-        </>
+        </GlassCard>
       )}
-      <SlideFooter index={index} total={total} t={t} w={w} h={h} />
+
+      <SlideNumber index={index} total={total} t={t} w={w} h={h} />
     </>
   );
 }
 
-// ── Image-focus slide ─────────────────────────────────────────
+// ── IMAGE-FOCUS SLIDE ─────────────────────────────────────────
 function ImageFocusSlide({
   slide, index, total, t, w, h, slideImage,
 }: {
@@ -456,64 +591,102 @@ function ImageFocusSlide({
 }) {
   return (
     <>
-      <SlideHeader slide={slide} t={t} w={w} h={h} titleFontSize={28} />
-      {/* Left bullets (up to 4) */}
-      <div style={{
-        position: 'absolute',
-        left: ix(0.42, w), top: iy(1.58, h),
-        width: ix(5.35, w), maxHeight: iy(3.55, h),
-        fontSize: (16 / 10) * (w / 80), overflow: 'hidden',
-      }}>
-        <BulletList items={slide.content} t={t} fontSize={16} maxItems={4} />
-      </div>
-      {/* Right image or placeholder */}
-      {slideImage ? (
+      {/* Full-bleed background image */}
+      {slideImage && (
         <>
           <img
             src={slideImage} alt={slide.title}
-            style={{
-              position: 'absolute',
-              left: ix(6.0, w), top: iy(0.25, h),
-              width: ix(3.7, w), height: iy(4.95, h),
-              objectFit: 'cover', borderRadius: ix(0.1, w),
-            }}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
           />
+          {/* Gradient overlay — strong on left for text legibility */}
           <div style={{
-            position: 'absolute',
-            left: ix(6.0, w), top: iy(0.25, h),
-            width: ix(3.7, w), height: iy(4.95, h),
-            background: t.bg, opacity: 0.35,
-            borderRadius: ix(0.1, w),
-            border: `1px solid ${t.accent1}44`,
+            position: 'absolute', inset: 0,
+            background: `linear-gradient(to right, ${t.bg}F2 0%, ${t.bg}CC 38%, ${t.bg}44 65%, transparent 100%)`,
+          }} />
+          {/* Bottom vignette */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: `linear-gradient(to top, ${t.bg}88 0%, transparent 40%)`,
           }} />
         </>
-      ) : (
+      )}
+
+      {/* Accent glow bar left edge */}
+      <div style={{
+        position: 'absolute',
+        left: ix(0.38, w), top: iy(0.5, h),
+        width: ix(0.055, w), height: iy(4.5, h),
+        background: `linear-gradient(to bottom, transparent, ${t.accent1}, ${t.accent2}, transparent)`,
+        boxShadow: `0 0 ${ix(0.3, w)}px rgba(${t.accentRgb},0.6)`,
+        borderRadius: ix(0.1, w),
+      }} />
+
+      {/* Title */}
+      <div style={{
+        position:   'absolute',
+        left:       ix(0.62, w), top: iy(0.5, h),
+        width:      slideImage ? ix(5.5, w) : ix(9.0, w),
+        fontSize:   fs(28, w),
+        fontWeight: 700,
+        fontFamily: t.displayFont,
+        color:      t.titleColor,
+        lineHeight: 1.15,
+        letterSpacing: '-0.01em',
+      }}>
+        {slide.title}
+      </div>
+
+      {slide.subtitle && (
+        <div style={{
+          position:   'absolute',
+          left:       ix(0.62, w), top: iy(1.4, h),
+          width:      ix(5.2, w),
+          fontSize:   fs(11, w),
+          fontFamily: t.bodyFont,
+          color:      t.mutedColor,
+          fontStyle:  'italic',
+        }}>{slide.subtitle}</div>
+      )}
+
+      {/* Content card — bottom left */}
+      <GlassCard
+        left={ix(0.38, w)} top={iy(1.72, h)}
+        width={ix(5.4, w)} height={iy(3.4, h)}
+        t={t} radius={ix(0.1, w)}
+        style={{ padding: `${iy(0.26, h)}px ${ix(0.3, w)}px` }}
+      >
+        <BulletList items={slide.content} t={t} w={w} fontSize={14} maxItems={5} />
+      </GlassCard>
+
+      {!slideImage && (
         <div style={{
           position: 'absolute',
-          left: ix(6.0, w), top: iy(0.25, h),
-          width: ix(3.7, w), height: iy(4.95, h),
-          background: t.accent1 + '22',
-          border: `1px solid ${t.accent1}55`,
-          borderRadius: ix(0.15, w),
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: '0.5em',
+          right: ix(0.38, w), top: iy(0.22, h),
+          width: ix(3.5, w), height: iy(4.9, h),
+          borderRadius: ix(0.12, w),
+          background: `rgba(${t.accentRgb},0.06)`,
+          border: `1px solid rgba(${t.accentRgb},0.18)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexDirection: 'column', gap: iy(0.3, h),
         }}>
           <div style={{
-            width: ix(1.6, w), height: ix(1.6, w),
-            borderRadius: '50%', background: t.accent2 + '44',
-            border: `1px solid ${t.accent2}88`,
+            width: ix(1.2, w), height: ix(1.2, w),
+            borderRadius: '50%',
+            background: `radial-gradient(circle, rgba(${t.accentRgb},0.35) 0%, transparent 70%)`,
+            border: `1px solid rgba(${t.accentRgb},0.4)`,
           }} />
-          <span style={{ color: t.titleColor, fontWeight: 700, fontSize: (14 / 10) * (w / 80) }}>
-            {slide.visual_suggestion ?? '🖼️ Visual'}
+          <span style={{ fontSize: fs(11, w), color: t.mutedColor, fontFamily: t.bodyFont }}>
+            {slide.visual_suggestion ?? 'Visual'}
           </span>
         </div>
       )}
-      <SlideFooter index={index} total={total} t={t} w={w} h={h} />
+
+      <SlideNumber index={index} total={total} t={t} w={w} h={h} />
     </>
   );
 }
 
-// ── Quote slide ───────────────────────────────────────────────
+// ── QUOTE SLIDE ───────────────────────────────────────────────
 function QuoteSlide({
   slide, index, total, t, w, h, slideImage,
 }: {
@@ -522,77 +695,122 @@ function QuoteSlide({
 }) {
   return (
     <>
+      {/* Background */}
       {slideImage ? (
         <>
           <img
             src={slideImage} alt=""
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
           />
-          <div style={{ position: 'absolute', inset: 0, background: t.accent1, opacity: 0.5 }} />
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: `linear-gradient(135deg, ${t.bg}E8 0%, ${t.bg}B0 60%, ${t.bg}55 100%)`,
+          }} />
         </>
       ) : (
         <>
-          <div style={{ position: 'absolute', inset: 0, background: t.accent1 }} />
+          {/* Radial glow centers */}
           <div style={{
-            position: 'absolute', left: 0, top: 0,
-            width: ix(1.5, w), height: iy(1.5, h),
-            background: t.accent2, opacity: 0.35,
+            position: 'absolute',
+            left: ix(-0.5, w), top: iy(-0.5, h),
+            width: ix(5, w), height: iy(4, h),
+            background: `radial-gradient(ellipse, rgba(${t.accentRgb},0.28) 0%, transparent 70%)`,
           }} />
           <div style={{
-            position: 'absolute', right: 0, bottom: 0,
-            width: ix(1.5, w), height: iy(1.5, h),
-            background: t.accent2, opacity: 0.35,
+            position: 'absolute',
+            right: ix(-0.5, w), bottom: iy(-0.5, h),
+            width: ix(4, w), height: iy(3.5, h),
+            background: `radial-gradient(ellipse, rgba(${t.accentRgb},0.18) 0%, transparent 70%)`,
           }} />
         </>
       )}
-      {/* Large quote mark */}
+
+      {/* Giant decorative quote mark */}
       <div style={{
-        position: 'absolute',
-        left: ix(0.5, w), top: iy(0.2, h),
-        fontSize: (90 / 10) * (w / 80),
-        fontWeight: 700, color: t.titleColor,
-        opacity: 0.38, lineHeight: 1,
+        position:   'absolute',
+        left:       ix(0.3, w), top: iy(-0.05, h),
+        fontSize:   fs(160, w),
+        fontFamily: t.displayFont,
+        fontWeight: 700,
+        color:      t.accent1,
+        opacity:    0.12,
+        lineHeight: 1,
+        userSelect: 'none',
       }}>“</div>
-      {/* Quote text */}
+
+      {/* Quote text — large centered */}
       <div style={{
-        position: 'absolute',
-        left: ix(1.1, w), top: iy(0.95, h),
-        width: ix(7.8, w), maxHeight: iy(2.4, h),
-        fontSize: (32 / 10) * (w / 80), fontWeight: 700,
-        color: t.titleColor, textAlign: 'center',
-        lineHeight: 1.25, overflow: 'hidden',
+        position:   'absolute',
+        left:       ix(0.9, w), top: iy(0.85, h),
+        width:      ix(8.2, w), maxHeight: iy(2.6, h),
+        fontSize:   fs(30, w),
+        fontWeight: 700,
+        fontFamily: t.displayFont,
+        color:      t.titleColor,
+        textAlign:  'center',
+        lineHeight: 1.25,
+        letterSpacing: '-0.01em',
+        overflow:   'hidden',
       }}>
         {slide.title}
       </div>
+
+      {/* Attribution line */}
       {slide.subtitle && (
-        <div style={{
-          position: 'absolute',
-          left: ix(1.1, w), top: iy(3.35, h),
-          width: ix(7.8, w),
-          fontSize: (14 / 10) * (w / 80),
-          color: t.mutedColor, textAlign: 'center',
-          fontStyle: 'italic',
-        }}>
-          — {slide.subtitle}
-        </div>
+        <>
+          {/* Short decorative dash */}
+          <div style={{
+            position: 'absolute',
+            left: '50%', transform: 'translateX(-50%)',
+            top: iy(3.58, h),
+            width: ix(0.55, w), height: 1,
+            background: t.accent1,
+          }} />
+          <div style={{
+            position:   'absolute',
+            left:       ix(0.9, w), top: iy(3.75, h),
+            width:      ix(8.2, w),
+            fontSize:   fs(12, w),
+            fontFamily: t.bodyFont,
+            color:      t.accent2,
+            textAlign:  'center',
+            fontStyle:  'italic',
+            fontWeight: 500,
+          }}>
+            — {slide.subtitle}
+          </div>
+        </>
       )}
+
+      {/* Content tags at bottom */}
       {slide.content.length > 0 && (
         <div style={{
           position: 'absolute',
-          left: ix(0.5, w), top: iy(4.1, h),
-          width: ix(9.0, w),
-          fontSize: (11 / 10) * (w / 80),
-          color: t.mutedColor, textAlign: 'center',
+          left: ix(0.9, w), top: iy(4.3, h),
+          width: ix(8.2, w),
+          display: 'flex', justifyContent: 'center',
+          gap: ix(0.18, w), flexWrap: 'wrap',
         }}>
-          {slide.content.slice(0, 3).join('  •  ')}
+          {slide.content.slice(0, 4).map((tag, i) => (
+            <span key={i} style={{
+              padding:    `${iy(0.04, h)}px ${ix(0.18, w)}px`,
+              background: `rgba(${t.accentRgb},0.10)`,
+              border:     `1px solid rgba(${t.accentRgb},0.25)`,
+              borderRadius: ix(0.5, w),
+              fontSize:   fs(9, w),
+              fontFamily: t.bodyFont,
+              color:      t.mutedColor,
+            }}>{tag}</span>
+          ))}
         </div>
       )}
-      <SlideFooter index={index} total={total} t={t} w={w} h={h} />
+
+      <SlideNumber index={index} total={total} t={t} w={w} h={h} />
     </>
   );
 }
 
-// ── Stats slide ───────────────────────────────────────────────
+// ── STATS SLIDE ───────────────────────────────────────────────
 function StatsSlide({
   slide, index, total, t, w, h,
 }: {
@@ -600,84 +818,114 @@ function StatsSlide({
   t: ThemeTokens; w: number; h: number;
 }) {
   const items   = slide.content.slice(0, 4);
-  const cardW   = ix(2.15, w);
-  const cardGap = ix(0.12, w);
+  const count   = items.length || 1;
+  const gap     = ix(0.18, w);
+  const totalGap = gap * (count - 1);
+  const cardW   = (ix(9.24, w) - totalGap) / count;
+  const startX  = ix(0.38, w);
+
   return (
     <>
-      {/* Header */}
+      {/* Title */}
       <div style={{
-        position: 'absolute', left: 0, top: 0, width: '100%',
-        height: iy(0.09, h), background: t.accent2,
-      }} />
-      <div style={{
-        position: 'absolute',
-        left: ix(0.42, w), top: iy(0.18, h),
-        width: ix(9.2, w), height: iy(0.76, h),
-        fontSize: (26 / 10) * (w / 80), fontWeight: 700,
-        color: t.titleColor, display: 'flex', alignItems: 'center',
-        overflow: 'hidden',
-      }}>{slide.title}</div>
+        position:   'absolute',
+        left:       ix(0.38, w), top: iy(0.2, h),
+        width:      ix(9.24, w), height: iy(0.9, h),
+        fontSize:   fs(24, w),
+        fontWeight: 700,
+        fontFamily: t.displayFont,
+        color:      t.titleColor,
+        display:    'flex', alignItems: 'center',
+        letterSpacing: '-0.01em',
+      }}>
+        {slide.title}
+      </div>
+
       {slide.subtitle && (
         <div style={{
-          position: 'absolute',
-          left: ix(0.42, w), top: iy(0.92, h),
-          fontSize: (12 / 10) * (w / 80), color: t.mutedColor,
-          fontStyle: 'italic', fontWeight: 600,
+          position:   'absolute',
+          left:       ix(0.38, w), top: iy(1.1, h),
+          fontSize:   fs(10.5, w),
+          fontFamily: t.bodyFont,
+          color:      t.mutedColor,
+          fontStyle:  'italic',
         }}>{slide.subtitle}</div>
       )}
+
+      {/* Divider */}
       <div style={{
         position: 'absolute',
-        left: ix(0.42, w), top: iy(1.24, h),
-        width: ix(9.2, w), height: iy(0.028, h),
-        background: t.accent1, opacity: 0.35,
+        left: ix(0.38, w), top: iy(1.32, h),
+        width: ix(9.24, w), height: 1,
+        background: `linear-gradient(to right, ${t.accent1}, rgba(${t.accentRgb},0.1), transparent)`,
       }} />
+
       {/* Stat cards */}
       {items.map((point, i) => {
-        const x = ix(0.42, w) + i * (cardW + cardGap);
-        const circleSize = ix(0.68, w);
+        const x = startX + i * (cardW + gap);
+        // Try to extract a leading number/stat from the point text
+        const numMatch = point.match(/^(\d[\d.,kKmMbB%+×x\-]*)/i);
+        const statNum  = numMatch ? numMatch[1] : String(i + 1);
+        const statText = numMatch ? point.slice(numMatch[0].length).trim().replace(/^[:\-–]\s*/, '') : point;
+
         return (
-          <div key={i}>
-            {/* Card background */}
+          <GlassCard
+            key={i}
+            left={x} top={iy(1.44, h)}
+            width={cardW} height={iy(3.76, h)}
+            t={t} radius={ix(0.1, w)}
+          >
+            {/* Top accent line */}
             <div style={{
-              position: 'absolute',
-              left: x, top: iy(1.38, h),
-              width: cardW, height: iy(3.85, h),
-              background: t.accent1 + '20',
-              border: `1px solid ${t.accent1}66`,
-              borderRadius: ix(0.14, w),
+              position: 'absolute', left: 0, top: 0,
+              width: '100%', height: ix(0.045, w),
+              background: `linear-gradient(to right, ${t.accent1}, ${t.accent2})`,
+              borderRadius: `${ix(0.1, w)}px ${ix(0.1, w)}px 0 0`,
+              boxShadow: `0 0 ${ix(0.25, w)}px rgba(${t.accentRgb},0.55)`,
             }} />
-            {/* Number circle */}
+
+            {/* Large stat number */}
             <div style={{
-              position: 'absolute',
-              left: x + ix(0.73, w), top: iy(1.58, h),
-              width: circleSize, height: circleSize,
-              borderRadius: '50%',
-              background: t.accent2 + '44',
-              border: `1px solid ${t.accent2}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: (15 / 10) * (w / 80), fontWeight: 700, color: t.titleColor,
+              position:   'absolute',
+              left:       ix(0.14, w), top: iy(0.18, h),
+              width:      cardW - ix(0.28, w),
+              fontSize:   fs(38, w),
+              fontWeight: 800,
+              fontFamily: t.displayFont,
+              color:      t.accent2,
+              lineHeight: 1,
+              letterSpacing: '-0.02em',
+              overflow:   'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace:   'nowrap',
             }}>
-              {i + 1}
+              {statNum}
             </div>
-            {/* Card text */}
+
+            {/* Description text */}
             <div style={{
-              position: 'absolute',
-              left: x + ix(0.14, w), top: iy(2.4, h),
-              width: cardW - ix(0.28, w), maxHeight: iy(2.6, h),
-              fontSize: (13 / 10) * (w / 80), color: t.textColor,
-              lineHeight: 1.3, overflow: 'hidden',
+              position:   'absolute',
+              left:       ix(0.14, w), top: iy(1.38, h),
+              width:      cardW - ix(0.28, w),
+              maxHeight:  iy(2.1, h),
+              fontSize:   fs(12.5, w),
+              fontFamily: t.bodyFont,
+              color:      t.textColor,
+              lineHeight: 1.35,
+              overflow:   'hidden',
             }}>
-              {point}
+              {statText || point}
             </div>
-          </div>
+          </GlassCard>
         );
       })}
-      <SlideFooter index={index} total={total} t={t} w={w} h={h} />
+
+      <SlideNumber index={index} total={total} t={t} w={w} h={h} />
     </>
   );
 }
 
-// ── Main export ───────────────────────────────────────────────
+// ── MAIN EXPORT ───────────────────────────────────────────────
 export function SlideCanvas({
   slide,
   index,
@@ -688,47 +936,53 @@ export function SlideCanvas({
   isCover = false,
   coverImage,
 }: SlideCanvasProps) {
-  const h = (width / 10) * 5.63; // 16:9 height from 10" width
-  const themeKey = (ppt.design_theme ?? 'modern') as DesignTheme;
-  const t = THEMES[themeKey] ?? THEMES.modern;
-  const bg = index % 2 === 0 ? t.bg : t.bgAlt;
+  const h         = (width / 10) * 5.63;
+  const themeKey  = (ppt.design_theme ?? 'modern') as DesignTheme;
+  const t         = THEMES[themeKey] ?? THEMES.modern;
+  const bg        = index % 2 === 0 ? t.bg : t.bgAlt;
 
   const layout = useMemo(
-    () => (slide.layout_type as LayoutType) ?? 'content',
-    [slide.layout_type],
+    () => (slide?.layout_type as LayoutType) ?? 'content',
+    [slide?.layout_type],
   );
 
-  const innerProps = { slide, index, total, t, w: width, h, slideImage };
-
-  const renderInner = () => {
-    if (isCover) {
-      return <CoverSlide ppt={ppt} t={t} w={width} h={h} coverImage={coverImage} />;
-    }
+  const inner = () => {
+    if (isCover) return <CoverSlide ppt={ppt} t={t} w={width} h={h} coverImage={coverImage} />;
+    const p = { slide, index, total, t, w: width, h, slideImage };
     switch (layout) {
-      case 'two-column':  return <TwoColumnSlide  {...innerProps} />;
-      case 'image-focus': return <ImageFocusSlide {...innerProps} />;
-      case 'quote':       return <QuoteSlide       {...innerProps} />;
-      case 'stats':       return <StatsSlide       index={index} total={total} slide={slide} t={t} w={width} h={h} />;
-      case 'title':
-      case 'content':
-      default:            return <ContentSlide    {...innerProps} />;
+      case 'two-column':  return <TwoColumnSlide  {...p} />;
+      case 'image-focus': return <ImageFocusSlide {...p} />;
+      case 'quote':       return <QuoteSlide       {...p} />;
+      case 'stats':       return <StatsSlide       slide={slide} index={index} total={total} t={t} w={width} h={h} />;
+      default:            return <ContentSlide    {...p} />;
     }
   };
 
   return (
     <div
       style={{
-        position: 'relative',
+        position:   'relative',
         width,
-        height: h,
+        height:     h,
         background: isCover ? t.bg : bg,
-        overflow: 'hidden',
-        fontFamily: 'Calibri, Inter, system-ui, sans-serif',
+        overflow:   'hidden',
+        fontFamily: t.bodyFont,
         userSelect: 'none',
         flexShrink: 0,
       }}
     >
-      {renderInner()}
+      {/* Mesh gradient background */}
+      <div style={{
+        position:   'absolute', inset: 0,
+        background: t.bgGradient,
+        pointerEvents: 'none',
+      }} />
+
+      {/* Film grain texture */}
+      <NoiseOverlay opacity={t.noiseOpacity} />
+
+      {/* Slide content */}
+      {inner()}
     </div>
   );
 }
