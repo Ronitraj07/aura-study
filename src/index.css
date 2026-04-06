@@ -233,7 +233,6 @@
   }
 
   /* ── Hero ambient glow blobs ─────────────────────────────────────────── */
-  /* FIX: was missing — caused large visible colored rectangles on landing */
   .hero-glow {
     position: absolute;
     border-radius: 50%;
@@ -241,6 +240,16 @@
     pointer-events: none;
     z-index: 0;
     will-change: opacity;
+  }
+
+  /* ── Pulse glow animation ────────────────────────────────────────────── */
+  /* FIX 1.1: was missing — used in Login.tsx ambient glow divs */
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 0.15; transform: scale(1); }
+    50%       { opacity: 0.28; transform: scale(1.06); }
+  }
+  .animate-pulse-glow {
+    animation: pulseGlow 4s ease-in-out infinite;
   }
 
   /* Shimmer skeleton */
@@ -292,13 +301,86 @@
     padding: var(--sp-6);
   }
 
-  /* Section label */
+  /* ── Section label ───────────────────────────────────────────────────── */
+  /* FIX 1.1: was missing — used in Dashboard.tsx and FeaturesSection.tsx */
+  .section-label {
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: var(--sp-3);
+  }
+
+  /* ── Page subtitle ───────────────────────────────────────────────────── */
+  /* FIX 1.1: was missing — used in Dashboard.tsx */
+  .page-subtitle {
+    font-size: var(--text-base);
+    color: hsl(var(--muted-foreground));
+    line-height: 1.6;
+    max-width: 60ch;
+  }
+
+  /* ── Card interactive ────────────────────────────────────────────────── */
+  /* FIX 1.1: was missing — used in Dashboard, FeaturesSection, AppSidebar */
+  .card-interactive {
+    transition:
+      transform  var(--t-base) var(--ease-out-expo),
+      box-shadow var(--t-base) var(--ease-out-expo),
+      border-color var(--t-fast) var(--ease-out-expo);
+  }
+  .card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: hsla(262, 80%, 62%, 0.22);
+  }
+  .card-interactive:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Label xs — for tiny uppercase labels */
   .label-xs {
     font-size: var(--text-xs);
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: hsl(var(--muted-foreground));
+  }
+
+  /* ── Button base ─────────────────────────────────────────────────────── */
+  /* FIX 1.1: .btn base class was missing — HeroSection uses "btn btn-primary"
+     and "btn btn-secondary". This provides shared layout & reset defaults.  */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    border-radius: var(--radius);
+    font-weight: 600;
+    font-size: var(--text-sm);
+    font-family: var(--font-display);
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+    white-space: nowrap;
+    user-select: none;
+    transition:
+      opacity      var(--t-fast) var(--ease-out-expo),
+      transform    var(--t-fast) var(--ease-out-expo),
+      box-shadow   var(--t-fast) var(--ease-out-expo),
+      background   var(--t-fast) var(--ease-out-expo),
+      border-color var(--t-fast) var(--ease-out-expo);
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(0) !important;
   }
 
   /* Primary gradient button */
@@ -334,7 +416,6 @@
   }
 
   /* Secondary button — glass outline style */
-  /* FIX: was missing — caused unstyled button in HeroSection CTA row */
   .btn-secondary {
     display: inline-flex;
     align-items: center;
@@ -388,7 +469,7 @@
   .btn-ghost:hover:not(:disabled) {
     background: hsl(var(--secondary));
     color: hsl(var(--foreground));
-    border-color: hsl(262, 80%, 62%, 0.4);
+    border-color: hsla(262, 80%, 62%, 0.4);
   }
   .btn-ghost:disabled {
     opacity: 0.45;
@@ -469,5 +550,18 @@
   @keyframes scaleIn {
     from { opacity: 0; transform: scaleY(0.95); transform-origin: top; }
     to   { opacity: 1; transform: scaleY(1); }
+  }
+}
+
+/* ─── Tailwind utility: font-display ─────────────────────────────────────── */
+/* FIX 1.1: font-display is used as a Tailwind class (className="font-display")
+   throughout the codebase but was never registered as a utility. This makes
+   Tailwind recognise it and emit the correct font-family rule. */
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-body {
+    font-family: var(--font-body);
   }
 }
