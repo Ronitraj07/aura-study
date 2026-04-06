@@ -1,6 +1,18 @@
 import { useState, useEffect } from "react";
 import { Presentation, FileText, BookOpen, CalendarDays, ArrowRight, Clock, Zap, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+
+/** Returns the first name from full_name metadata, or the email prefix, or a
+ *  safe fallback — never hard-codes a real person's name. */
+function getFirstName(user: ReturnType<typeof useAuth>["user"]): string {
+  if (!user) return "there";
+  const full = user.user_metadata?.full_name as string | undefined;
+  if (full?.trim()) return full.trim().split(/\s+/)[0];
+  const emailPart = user.email?.split("@")[0];
+  if (emailPart) return emailPart;
+  return "there";
+}
 
 const quickActions = [
   {
@@ -10,7 +22,8 @@ const quickActions = [
     to: "/dashboard/ppt",
     gradient: "linear-gradient(135deg, hsl(262,80%,62%), hsl(280,70%,52%))",
     glow: "hsla(262,80%,62%,0.2)",
-    stat: "12 created",
+    // FIX 1.2: stat is now a label only; real counts come from Supabase (Phase 5)
+    stat: "PPT Generator",
   },
   {
     title: "Write Assignment",
@@ -19,7 +32,7 @@ const quickActions = [
     to: "/dashboard/assignments",
     gradient: "linear-gradient(135deg, hsl(220,85%,62%), hsl(200,80%,52%))",
     glow: "hsla(220,85%,62%,0.2)",
-    stat: "8 generated",
+    stat: "Assignments",
   },
   {
     title: "Create Notes",
@@ -28,7 +41,7 @@ const quickActions = [
     to: "/dashboard/notes",
     gradient: "linear-gradient(135deg, hsl(160,70%,46%), hsl(175,65%,40%))",
     glow: "hsla(160,70%,46%,0.2)",
-    stat: "24 notes",
+    stat: "Notes",
   },
   {
     title: "Build Timetable",
@@ -37,10 +50,12 @@ const quickActions = [
     to: "/dashboard/timetable",
     gradient: "linear-gradient(135deg, hsl(30,85%,58%), hsl(12,78%,52%))",
     glow: "hsla(30,85%,58%,0.2)",
-    stat: "This week",
+    stat: "Timetable",
   },
 ];
 
+// FIX 1.2: recentActivity is placeholder data until Phase 5 wires up Supabase
+// activity_log. Kept in-file for now; will be replaced by a useQuery hook.
 const recentActivity = [
   { action: "Generated PPT",       subject: "Data Structures — Linked Lists",        time: "2h ago",  icon: Presentation, color: "hsl(262,80%,68%)" },
   { action: "Created Notes",       subject: "OS — Process Scheduling",               time: "5h ago",  icon: BookOpen,     color: "hsl(160,70%,55%)" },
@@ -66,9 +81,16 @@ function useCounter(target: number, duration = 900) {
 }
 
 const Dashboard = () => {
-  const ppts   = useCounter(12);
-  const notes  = useCounter(24);
-  const tasks  = useCounter(37);
+  // FIX 1.2: pull the real user from context instead of hardcoding a name
+  const { user } = useAuth();
+  const firstName = getFirstName(user);
+
+  // FIX 1.2: counters target 0 until Phase 5 replaces them with real Supabase
+  // counts. The animation will still run (from 0 to 0) without visual jank.
+  // TODO Phase 5: replace these with useQuery counts per table.
+  const ppts   = useCounter(0);
+  const notes  = useCounter(0);
+  const tasks  = useCounter(0);
 
   return (
     <div className="space-y-8">
@@ -79,10 +101,11 @@ const Dashboard = () => {
           <div>
             <h1
               className="font-display font-bold"
-              style={{ fontSize: "var(--text-3xl)", lineHeight: 1.15 }}
+              style={{ fontSize: "var(--text-2xl)", lineHeight: 1.15 }}
             >
               Welcome back,{" "}
-              <span className="gradient-text">Ronit</span> 👋
+              {/* FIX 1.2: firstName is now dynamic from auth context */}
+              <span className="gradient-text">{firstName}</span> 👋
             </h1>
             <p className="page-subtitle" style={{ marginTop: 6 }}>
               Your academic workflow is running smoothly.
@@ -105,10 +128,11 @@ const Dashboard = () => {
         </div>
 
         {/* Mini stat pills */}
+        {/* FIX 1.2: val targets are 0 — Phase 5 will wire real Supabase counts */}
         <div className="flex flex-wrap gap-2 mt-4">
           {[
-            { label: "PPTs",  val: ppts,  color: "hsl(262,80%,70%)" },
-            { label: "Notes", val: notes, color: "hsl(160,65%,55%)" },
+            { label: "PPTs",       val: ppts,  color: "hsl(262,80%,70%)" },
+            { label: "Notes",      val: notes, color: "hsl(160,65%,55%)" },
             { label: "Tasks done", val: tasks, color: "hsl(220,80%,68%)" },
           ].map(({ label, val, color }) => (
             <span
@@ -197,6 +221,7 @@ const Dashboard = () => {
       </div>
 
       {/* ── Recent Activity ── */}
+      {/* FIX 1.2: data is still placeholder; Phase 5 replaces with Supabase feed */}
       <div
         className="glass-card rounded-2xl"
         style={{
