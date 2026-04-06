@@ -9,11 +9,24 @@ import {
   Clock,
   Star,
   Flag,
-  MoreHorizontal,
   ChevronDown,
   ChevronRight,
+  Sparkles,
+  Loader2,
+  AlertCircle,
+  BookOpen,
+  PenTool,
+  Search,
+  RotateCcw,
+  Dumbbell,
+  Settings,
+  HelpCircle,
+  Import,
+  Timer,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useChecklistGenerator, type AITask, type AIPriority, type AICategory } from "@/hooks/useChecklistGenerator";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,25 +37,34 @@ interface Task {
   text: string;
   completed: boolean;
   priority: Priority;
+  category?: AICategory;
+  estimatedMinutes?: number;
   createdAt: number;
   completedAt?: number;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; icon: typeof Flag }> = {
-  low: { label: "Low", color: "hsl(160, 70%, 46%)", icon: Flag },
-  medium: { label: "Medium", color: "hsl(30, 80%, 57%)", icon: Flag },
-  high: { label: "High", color: "hsl(340, 75%, 57%)", icon: Flag },
+const PRIORITY_CONFIG: Record<Priority, { label: string; color: string }> = {
+  low:    { label: "Low",    color: "hsl(160, 70%, 46%)" },
+  medium: { label: "Medium", color: "hsl(30, 80%, 57%)"  },
+  high:   { label: "High",   color: "hsl(340, 75%, 57%)" },
+};
+
+const CATEGORY_CONFIG: Record<AICategory, { label: string; icon: typeof BookOpen; color: string }> = {
+  study:    { label: "Study",    icon: BookOpen,  color: "hsl(220, 85%, 62%)" },
+  research: { label: "Research", icon: Search,    color: "hsl(262, 80%, 65%)" },
+  writing:  { label: "Writing",  icon: PenTool,   color: "hsl(30, 80%, 57%)"  },
+  review:   { label: "Review",   icon: RotateCcw, color: "hsl(160, 70%, 46%)" },
+  practice: { label: "Practice", icon: Dumbbell,  color: "hsl(340, 75%, 57%)" },
+  admin:    { label: "Admin",    icon: Settings,  color: "hsl(0, 0%, 55%)"    },
+  other:    { label: "Other",    icon: HelpCircle,color: "hsl(0, 0%, 55%)"    },
 };
 
 // ─── Task Row ─────────────────────────────────────────────────────────────────
 
 function TaskRow({
-  task,
-  onToggle,
-  onDelete,
-  onPriorityChange,
+  task, onToggle, onDelete, onPriorityChange,
 }: {
   task: Task;
   onToggle: () => void;
@@ -51,6 +73,8 @@ function TaskRow({
 }) {
   const [showPriority, setShowPriority] = useState(false);
   const pc = PRIORITY_CONFIG[task.priority];
+  const cat = task.category ? CATEGORY_CONFIG[task.category] : null;
+  const CatIcon = cat?.icon;
 
   return (
     <motion.div
@@ -73,10 +97,7 @@ function TaskRow({
       />
 
       {/* Checkbox */}
-      <button
-        onClick={onToggle}
-        className="shrink-0 transition-transform hover:scale-110 active:scale-95"
-      >
+      <button onClick={onToggle} className="shrink-0 transition-transform hover:scale-110 active:scale-95">
         {task.completed ? (
           <CheckCircle2 className="w-5 h-5" style={{ color: "hsl(160,70%,46%)" }} />
         ) : (
@@ -84,17 +105,31 @@ function TaskRow({
         )}
       </button>
 
-      {/* Text */}
-      <span
-        className={cn(
-          "flex-1 text-sm leading-snug transition-all select-none",
-          task.completed
-            ? "line-through text-muted-foreground/50"
-            : "text-foreground/85",
+      {/* Text + meta */}
+      <div className="flex-1 min-w-0">
+        <span className={cn(
+          "text-sm leading-snug transition-all select-none block",
+          task.completed ? "line-through text-muted-foreground/50" : "text-foreground/85",
+        )}>
+          {task.text}
+        </span>
+        {(cat || task.estimatedMinutes) && !task.completed && (
+          <div className="flex items-center gap-2 mt-0.5">
+            {cat && CatIcon && (
+              <span className="flex items-center gap-1 text-[10px]" style={{ color: cat.color }}>
+                <CatIcon className="w-2.5 h-2.5" />
+                {cat.label}
+              </span>
+            )}
+            {task.estimatedMinutes && (
+              <span className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
+                <Timer className="w-2.5 h-2.5" />
+                {task.estimatedMinutes}m
+              </span>
+            )}
+          </div>
         )}
-      >
-        {task.text}
-      </span>
+      </div>
 
       {/* Priority badge + picker */}
       <div className="relative shrink-0">
@@ -105,11 +140,7 @@ function TaskRow({
             "opacity-0 group-hover:opacity-100",
             task.completed && "!opacity-0 pointer-events-none",
           )}
-          style={{
-            background: `${pc.color}15`,
-            borderColor: `${pc.color}35`,
-            color: pc.color,
-          }}
+          style={{ background: `${pc.color}15`, borderColor: `${pc.color}35`, color: pc.color }}
         >
           <Flag className="w-2.5 h-2.5" />
           {pc.label}
@@ -161,12 +192,7 @@ function TaskRow({
 // ─── Section Header ───────────────────────────────────────────────────────────
 
 function SectionHeader({
-  icon: Icon,
-  label,
-  count,
-  color,
-  collapsed,
-  onToggle,
+  icon: Icon, label, count, color, collapsed, onToggle,
 }: {
   icon: typeof Clock;
   label: string;
@@ -176,27 +202,230 @@ function SectionHeader({
   onToggle: () => void;
 }) {
   return (
-    <button
-      onClick={onToggle}
-      className="flex items-center gap-2.5 w-full py-1 group/sec"
-    >
+    <button onClick={onToggle} className="flex items-center gap-2.5 w-full py-1 group/sec">
       <Icon className="w-3.5 h-3.5 shrink-0" style={{ color }} />
-      <span className="text-xs font-semibold uppercase tracking-widest" style={{ color }}>
-        {label}
-      </span>
-      <span
-        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-        style={{ background: `${color}15`, color }}
-      >
-        {count}
-      </span>
+      <span className="text-xs font-semibold uppercase tracking-widest" style={{ color }}>{label}</span>
+      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: `${color}15`, color }}>{count}</span>
       <div className="flex-1 h-px ml-1" style={{ background: `${color}20` }} />
       {collapsed ? (
-        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 transition-transform" />
+        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50" />
       ) : (
-        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/50 transition-transform" />
+        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/50" />
       )}
     </button>
+  );
+}
+
+// ─── AI Generate Panel ────────────────────────────────────────────────────────
+
+function AIGeneratePanel({
+  onImport,
+}: {
+  onImport: (tasks: AITask[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [goal, setGoal] = useState("");
+  const [context, setContext] = useState("");
+  const { generate, clear, isGenerating, error, result } = useChecklistGenerator();
+
+  const handleGenerate = () => {
+    if (!goal.trim()) return;
+    generate(goal, context);
+  };
+
+  const handleImportAll = () => {
+    if (!result) return;
+    onImport(result.tasks);
+    setOpen(false);
+    setGoal("");
+    setContext("");
+    clear();
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    clear();
+  };
+
+  return (
+    <>
+      {/* Trigger button */}
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border border-dashed border-primary/30 text-primary/70 hover:text-primary hover:border-primary/60 hover:bg-primary/5 transition-all"
+      >
+        <Sparkles className="w-4 h-4" />
+        Generate with AI
+      </button>
+
+      {/* Modal */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "oklch(0 0 0 / 0.6)" }}
+            onClick={(e) => e.target === e.currentTarget && handleClose()}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 16 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="glass-card rounded-2xl border border-border/60 w-full max-w-lg shadow-2xl overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-border/30">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-8 h-8 rounded-xl flex items-center justify-center"
+                    style={{ background: "linear-gradient(135deg, hsl(262,80%,62%), hsl(220,85%,62%))" }}
+                  >
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-base text-foreground">AI Task Generator</h3>
+                    <p className="text-[11px] text-muted-foreground">Describe your goal — AI builds the plan</p>
+                  </div>
+                </div>
+                <button onClick={handleClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-all">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 flex flex-col gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-1.5">
+                    Goal or Topic <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    value={goal}
+                    onChange={(e) => setGoal(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleGenerate()}
+                    placeholder="e.g. Prepare for Physics exam on thermodynamics"
+                    className="w-full bg-secondary/60 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/40 transition-all"
+                    disabled={isGenerating}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-1.5">
+                    Extra Context <span className="text-muted-foreground/50">(optional)</span>
+                  </label>
+                  <textarea
+                    value={context}
+                    onChange={(e) => setContext(e.target.value)}
+                    placeholder="e.g. Exam is in 3 days, I'm struggling with heat transfer specifically"
+                    rows={2}
+                    className="w-full bg-secondary/60 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/40 transition-all resize-none"
+                    disabled={isGenerating}
+                  />
+                </div>
+
+                {/* Error */}
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-2.5 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm"
+                  >
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {error}
+                  </motion.div>
+                )}
+
+                {/* Result preview */}
+                {result && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col gap-3"
+                  >
+                    {/* Summary bar */}
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-primary/8 border border-primary/20">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{result.title}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{result.description}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-3 text-xs text-muted-foreground">
+                        <Timer className="w-3.5 h-3.5" />
+                        {Math.round(result.totalMinutes / 60 * 10) / 10}h
+                      </div>
+                    </div>
+
+                    {/* Task list preview */}
+                    <div
+                      className="flex flex-col gap-1.5 max-h-56 overflow-y-auto pr-1"
+                      style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(262,80%,62%,0.2) transparent" }}
+                    >
+                      {result.tasks.map((task, i) => {
+                        const pc = PRIORITY_CONFIG[task.priority];
+                        const cat = CATEGORY_CONFIG[task.category];
+                        const CatIcon = cat.icon;
+                        return (
+                          <div
+                            key={i}
+                            className="flex items-center gap-2.5 p-2.5 rounded-lg bg-secondary/40 border border-border/30"
+                          >
+                            <div className="w-0.5 h-5 rounded-full shrink-0" style={{ background: pc.color }} />
+                            <span className="flex-1 text-xs text-foreground/85 leading-snug">{task.text}</span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="flex items-center gap-1 text-[10px]" style={{ color: cat.color }}>
+                                <CatIcon className="w-2.5 h-2.5" />
+                              </span>
+                              <span className="text-[10px] text-muted-foreground/60">{task.estimatedMinutes}m</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-2.5 pt-1">
+                  {!result ? (
+                    <button
+                      onClick={handleGenerate}
+                      disabled={!goal.trim() || isGenerating}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_hsl(262,80%,62%,0.3)] active:scale-[0.98]"
+                      style={{ background: "linear-gradient(135deg, hsl(262,80%,62%), hsl(220,85%,62%))" }}
+                    >
+                      {isGenerating ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" />Generating...</>
+                      ) : (
+                        <><Sparkles className="w-4 h-4" />Generate Tasks</>
+                      )}
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => { clear(); }}
+                        className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium border border-border/50 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-all"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        Regenerate
+                      </button>
+                      <button
+                        onClick={handleImportAll}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        style={{ background: "linear-gradient(135deg, hsl(262,80%,62%), hsl(220,85%,62%))" }}
+                      >
+                        <Import className="w-4 h-4" />
+                        Import {result.tasks.length} Tasks
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -204,9 +433,9 @@ function SectionHeader({
 
 const Checklist = () => {
   const [tasks, setTasks] = useState<Task[]>([
-    { id: "1", text: "Review lecture notes for Chapter 4", completed: false, priority: "high", createdAt: Date.now() - 3600000 },
-    { id: "2", text: "Complete practice problems for Math", completed: false, priority: "medium", createdAt: Date.now() - 7200000 },
-    { id: "3", text: "Read assignment brief", completed: true, priority: "low", createdAt: Date.now() - 86400000, completedAt: Date.now() - 3600000 },
+    { id: "1", text: "Review lecture notes for Chapter 4",    completed: false, priority: "high",   createdAt: Date.now() - 3600000 },
+    { id: "2", text: "Complete practice problems for Math",   completed: false, priority: "medium", createdAt: Date.now() - 7200000 },
+    { id: "3", text: "Read assignment brief",                 completed: true,  priority: "low",    createdAt: Date.now() - 86400000, completedAt: Date.now() - 3600000 },
   ]);
   const [input, setInput] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
@@ -215,23 +444,43 @@ const Checklist = () => {
   const [filter, setFilter] = useState<"all" | Priority>("all");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const addTask = () => {
-    const text = input.trim();
-    if (!text) return;
+  const addTask = (text?: string, opts?: { priority?: Priority; category?: AICategory; estimatedMinutes?: number }) => {
+    const t = (text ?? input).trim();
+    if (!t) return;
     setTasks((prev) => [
-      { id: Date.now().toString(), text, completed: false, priority, createdAt: Date.now() },
+      {
+        id: Date.now().toString() + Math.random(),
+        text: t,
+        completed: false,
+        priority: opts?.priority ?? priority,
+        category: opts?.category,
+        estimatedMinutes: opts?.estimatedMinutes,
+        createdAt: Date.now(),
+      },
       ...prev,
     ]);
-    setInput("");
-    inputRef.current?.focus();
+    if (!text) { setInput(""); inputRef.current?.focus(); }
+  };
+
+  const importAITasks = (aiTasks: AITask[]) => {
+    const now = Date.now();
+    const newTasks: Task[] = aiTasks.map((t, i) => ({
+      id: `ai-${now}-${i}`,
+      text: t.text,
+      completed: false,
+      priority: t.priority,
+      category: t.category,
+      estimatedMinutes: t.estimatedMinutes,
+      createdAt: now + i,
+    }));
+    setTasks((prev) => [...newTasks, ...prev]);
   };
 
   const toggleTask = (id: string) =>
     setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? { ...t, completed: !t.completed, completedAt: !t.completed ? Date.now() : undefined }
-          : t,
+      prev.map((t) => t.id === id
+        ? { ...t, completed: !t.completed, completedAt: !t.completed ? Date.now() : undefined }
+        : t,
       ),
     );
 
@@ -246,13 +495,13 @@ const Checklist = () => {
   const pending = filteredTasks.filter((t) => !t.completed);
   const completed = filteredTasks.filter((t) => t.completed);
 
-  // sort pending: high → medium → low
   const priorityOrder: Priority[] = ["high", "medium", "low"];
   const sortedPending = [...pending].sort(
     (a, b) => priorityOrder.indexOf(a.priority) - priorityOrder.indexOf(b.priority),
   );
 
   const progress = tasks.length === 0 ? 0 : Math.round((tasks.filter((t) => t.completed).length / tasks.length) * 100);
+  const totalEstimatedMins = tasks.filter((t) => !t.completed && t.estimatedMinutes).reduce((s, t) => s + (t.estimatedMinutes ?? 0), 0);
 
   return (
     <div className="h-full flex flex-col">
@@ -285,6 +534,15 @@ const Checklist = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="flex items-center gap-3"
           >
+            {totalEstimatedMins > 0 && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Timer className="w-3.5 h-3.5" />
+                {totalEstimatedMins >= 60
+                  ? `${Math.floor(totalEstimatedMins / 60)}h ${totalEstimatedMins % 60}m left`
+                  : `${totalEstimatedMins}m left`
+                }
+              </div>
+            )}
             <div className="text-right">
               <p className="text-xs text-muted-foreground">Progress</p>
               <p className="text-sm font-bold" style={{ color: progress === 100 ? "hsl(160,70%,46%)" : "hsl(262,80%,65%)" }}>
@@ -307,7 +565,7 @@ const Checklist = () => {
       {/* Layout: left stats + right task area */}
       <div className="flex-1 flex gap-5 min-h-0">
 
-        {/* ── LEFT: Add + stats ── */}
+        {/* ── LEFT: Add + AI + stats ── */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -355,14 +613,17 @@ const Checklist = () => {
             </div>
 
             <button
-              onClick={addTask}
+              onClick={() => addTask()}
               disabled={!input.trim()}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_hsl(262,80%,62%,0.3)] active:scale-[0.98]"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_hsl(262,80%,62%,0.3)] active:scale-[0.98] mb-2.5"
               style={{ background: "linear-gradient(135deg, hsl(262,80%,62%), hsl(220,85%,62%))" }}
             >
               <Plus className="w-4 h-4" />
               Add Task
             </button>
+
+            {/* AI Generate button */}
+            <AIGeneratePanel onImport={importAITasks} />
           </div>
 
           {/* Filter */}
@@ -407,10 +668,10 @@ const Checklist = () => {
             <p className="text-xs text-muted-foreground uppercase tracking-widest mb-3">Overview</p>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { label: "Total", val: tasks.length, color: "hsl(262,80%,65%)" },
-                { label: "Done", val: tasks.filter((t) => t.completed).length, color: "hsl(160,70%,46%)" },
-                { label: "Pending", val: tasks.filter((t) => !t.completed).length, color: "hsl(30,80%,57%)" },
-                { label: "High", val: tasks.filter((t) => t.priority === "high" && !t.completed).length, color: "hsl(340,75%,57%)" },
+                { label: "Total",   val: tasks.length,                                                    color: "hsl(262,80%,65%)" },
+                { label: "Done",    val: tasks.filter((t) => t.completed).length,                          color: "hsl(160,70%,46%)" },
+                { label: "Pending", val: tasks.filter((t) => !t.completed).length,                         color: "hsl(30,80%,57%)"  },
+                { label: "High",    val: tasks.filter((t) => t.priority === "high" && !t.completed).length, color: "hsl(340,75%,57%)" },
               ].map((s) => (
                 <div key={s.label} className="bg-secondary/50 rounded-xl p-2.5 text-center">
                   <p className="font-display font-bold text-lg" style={{ color: s.color }}>{s.val}</p>
@@ -445,13 +706,13 @@ const Checklist = () => {
                 </motion.div>
                 <h3 className="font-display text-xl font-bold text-foreground/80 mb-2">All clear!</h3>
                 <p className="text-sm text-muted-foreground max-w-xs">
-                  No tasks yet. Add your first task to get started.
+                  Add a task manually or use <span className="text-primary font-medium">Generate with AI</span> to build a full study plan instantly.
                 </p>
               </div>
             )}
 
             {/* ── PENDING section ── */}
-            {pending.length > 0 || sortedPending.length > 0 ? (
+            {sortedPending.length > 0 && (
               <div className="flex flex-col gap-2">
                 <SectionHeader
                   icon={Clock}
@@ -481,14 +742,11 @@ const Checklist = () => {
                           />
                         ))}
                       </AnimatePresence>
-                      {sortedPending.length === 0 && (
-                        <p className="text-xs text-muted-foreground/50 text-center py-4">No pending tasks matching filter.</p>
-                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
-            ) : null}
+            )}
 
             {/* ── COMPLETED section ── */}
             {completed.length > 0 && (

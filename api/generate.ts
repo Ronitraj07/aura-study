@@ -7,6 +7,7 @@
 //   'assignment' — assignment generation  (llama-3.3-70b)
 //   'notes'      — notes generation       (llama-3.3-70b)
 //   'timetable'  — schedule generation    (llama-3.3-70b)
+//   'checklist'  — checklist generation   (llama-3.3-70b)
 //   'research'   — research pre-pass      (llama-3.1-8b-instant → Gemini 2.5 Flash on 429)
 // ============================================================
 
@@ -21,6 +22,7 @@ const MODEL_MAP: Record<string, string> = {
   assignment: 'llama-3.3-70b-versatile',
   notes:      'llama-3.3-70b-versatile',
   timetable:  'llama-3.3-70b-versatile',
+  checklist:  'llama-3.3-70b-versatile',
 };
 
 const FALLBACK_MODEL = 'llama3-8b-8192';
