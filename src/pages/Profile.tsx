@@ -31,7 +31,10 @@ function Avatar({ name, avatarUrl, size = 80 }: { name: string; avatarUrl?: stri
         alt={name}
         referrerPolicy="no-referrer"
         className="rounded-full object-cover flex-shrink-0"
-        style={{ width: size, height: size, boxShadow: "0 0 0 3px rgba(139,92,246,0.35), 0 0 32px rgba(139,92,246,0.3)" }}
+        style={{
+          width: size, height: size,
+          boxShadow: "0 0 0 3px rgba(139,92,246,0.35), 0 0 32px rgba(139,92,246,0.3)",
+        }}
       />
     );
   }
@@ -39,8 +42,7 @@ function Avatar({ name, avatarUrl, size = 80 }: { name: string; avatarUrl?: stri
     <div
       className="relative flex-shrink-0 rounded-full flex items-center justify-center select-none"
       style={{
-        width: size,
-        height: size,
+        width: size, height: size,
         background: "linear-gradient(135deg, hsl(262,80%,60%), hsl(220,85%,60%))",
         boxShadow: "0 0 0 3px rgba(139,92,246,0.35), 0 0 32px rgba(139,92,246,0.3)",
       }}
@@ -67,7 +69,7 @@ function LogoutModal({
       onClick={onCancel}
     >
       <div
-        className="rounded-2xl p-8 max-w-sm w-full mx-4 flex flex-col gap-5"
+        className="rounded-2xl p-6 sm:p-8 w-[calc(100%-32px)] max-w-sm flex flex-col gap-5"
         style={{
           background: "hsl(224,20%,12%)",
           border: "1px solid rgba(255,255,255,0.1)",
@@ -137,15 +139,14 @@ export default function Profile() {
   const joinDate = formatJoin(user?.created_at);
 
   const STAT_CARDS = [
-    { id: "ppts",        label: "PPTs Created",     value: stats?.ppt_count          ?? 0, icon: Presentation, bg: "rgba(139,92,246,0.12)", border: "rgba(139,92,246,0.25)", gc: "hsl(262,80%,60%), hsl(220,85%,60%)" },
-    { id: "assignments", label: "Assignments",       value: stats?.assignment_count   ?? 0, icon: FileText,     bg: "rgba(59,130,246,0.12)",  border: "rgba(59,130,246,0.25)",  gc: "hsl(217,91%,60%), hsl(189,94%,53%)" },
-    { id: "notes",       label: "Notes Created",     value: stats?.note_count         ?? 0, icon: BookOpen,     bg: "rgba(16,185,129,0.12)",  border: "rgba(16,185,129,0.25)",  gc: "hsl(160,84%,39%), hsl(174,62%,47%)" },
-    { id: "tasks",       label: "Tasks Completed",   value: stats?.checklist_completed ?? 0, icon: CheckSquare,  bg: "rgba(249,115,22,0.12)",  border: "rgba(249,115,22,0.25)",  gc: "hsl(25,95%,53%), hsl(330,85%,60%)" },
+    { id: "ppts",        label: "PPTs Created",    value: stats?.ppt_count           ?? 0, icon: Presentation, bg: "rgba(139,92,246,0.12)",  border: "rgba(139,92,246,0.25)",  gc: "hsl(262,80%,60%), hsl(220,85%,60%)" },
+    { id: "assignments", label: "Assignments",      value: stats?.assignment_count    ?? 0, icon: FileText,     bg: "rgba(59,130,246,0.12)",   border: "rgba(59,130,246,0.25)",   gc: "hsl(217,91%,60%), hsl(189,94%,53%)" },
+    { id: "notes",       label: "Notes Created",    value: stats?.note_count          ?? 0, icon: BookOpen,     bg: "rgba(16,185,129,0.12)",   border: "rgba(16,185,129,0.25)",   gc: "hsl(160,84%,39%), hsl(174,62%,47%)" },
+    { id: "tasks",       label: "Tasks Completed",  value: stats?.checklist_completed ?? 0, icon: CheckSquare,  bg: "rgba(249,115,22,0.12)",   border: "rgba(249,115,22,0.25)",   gc: "hsl(25,95%,53%), hsl(330,85%,60%)" },
   ];
 
   const totalActions = STAT_CARDS.reduce((s, x) => s + x.value, 0);
 
-  // ── Real sign-out: invalidates Supabase session ──────────────
   const handleLogout = async () => {
     setIsSigningOut(true);
     try {
@@ -164,7 +165,7 @@ export default function Profile() {
       <style>{`
         @keyframes scaleIn { from{opacity:0;transform:scale(0.92)} to{opacity:1;transform:scale(1)} }
         @keyframes fadeUp  { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-        .fade-up { animation: fadeUp 0.45s cubic-bezier(0.16,1,0.3,1) both; }
+        .prof-fade { animation: fadeUp 0.45s cubic-bezier(0.16,1,0.3,1) both; }
       `}</style>
 
       {showLogout && (
@@ -175,18 +176,38 @@ export default function Profile() {
         />
       )}
 
-      <div className="min-h-full p-6 md:p-8 space-y-6 max-w-4xl mx-auto">
+      {/*
+        Outer wrapper:
+        - px: 16px on mobile, 24px on sm, 32px on md+
+        - pb: 96px on mobile to clear the bottom nav bar
+        - max-w-2xl keeps it readable on wide screens (profile is not a dashboard)
+      */}
+      <div
+        className="prof-fade w-full mx-auto"
+        style={{
+          maxWidth: 672,
+          padding: "clamp(16px, 4vw, 32px)",
+          paddingBottom: "clamp(96px, 12vw, 48px)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+        }}
+      >
 
-        {/* Hero card */}
+        {/* ── Hero card ──────────────────────────────────────────── */}
         <div
-          className="rounded-2xl overflow-hidden fade-up"
+          className="rounded-2xl overflow-hidden w-full"
           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
         >
-          {/* Banner */}
+          {/* Banner — taller on mobile so avatar sits in the right proportion */}
           <div
-            className="h-28 w-full relative"
-            style={{ background: "linear-gradient(135deg, rgba(139,92,246,0.35) 0%, rgba(59,130,246,0.25) 50%, rgba(16,185,129,0.15) 100%)" }}
+            className="w-full relative"
+            style={{
+              height: "clamp(80px, 22vw, 112px)",
+              background: "linear-gradient(135deg, rgba(139,92,246,0.35) 0%, rgba(59,130,246,0.25) 50%, rgba(16,185,129,0.15) 100%)",
+            }}
           >
+            {/* Dot grid overlay */}
             <div
               className="absolute inset-0 opacity-20"
               style={{
@@ -194,156 +215,305 @@ export default function Profile() {
                 backgroundSize: "32px 32px",
               }}
             />
+            {/* Premium badge */}
             <div
-              className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
+              className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
               style={{
                 background: "rgba(139,92,246,0.25)",
                 border: "1px solid rgba(139,92,246,0.4)",
                 color: "hsl(262,80%,75%)",
                 backdropFilter: "blur(8px)",
+                fontSize: 11,
               }}
             >
-              <Sparkles size={11} />
+              <Sparkles size={10} />
               Premium
             </div>
           </div>
 
-          {/* Profile row */}
-          <div className="px-6 pb-6">
-            <div className="-mt-12 mb-4">
+          {/* Profile content */}
+          <div className="px-4 sm:px-6 pb-5">
+            {/* Avatar overlapping banner — pull up by half the avatar size */}
+            <div
+              style={{
+                marginTop: -40,
+                marginBottom: 12,
+                display: "inline-block",
+              }}
+            >
               <Avatar name={displayName || email} avatarUrl={avatarUrl} size={80} />
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <div className="space-y-1">
-                <h1 className="font-display font-bold text-2xl text-white">{displayName}</h1>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <Mail size={13} className="text-purple-400" />{email}
+
+            {/*
+              Name + meta + signout button.
+              On mobile: stacked (column). On sm+: side by side.
+            */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+              }}
+            >
+              {/* Name + meta */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+                <h2
+                  className="font-display font-bold text-white"
+                  style={{ fontSize: "clamp(18px, 5vw, 24px)", margin: 0, lineHeight: 1.2, wordBreak: "break-word" }}
+                >
+                  {displayName}
+                </h2>
+
+                {/* Meta row — wraps naturally */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
+                  <span
+                    className="flex items-center gap-1.5 text-muted-foreground"
+                    style={{ fontSize: 12, minWidth: 0 }}
+                  >
+                    <Mail size={11} className="text-purple-400 flex-shrink-0" />
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: "clamp(160px, 50vw, 280px)",
+                        display: "block",
+                      }}
+                    >
+                      {email}
+                    </span>
                   </span>
                   {joinDate && (
-                    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Calendar size={13} className="text-blue-400" />Joined {joinDate}
+                    <span className="flex items-center gap-1.5 text-muted-foreground" style={{ fontSize: 12 }}>
+                      <Calendar size={11} className="text-blue-400 flex-shrink-0" />
+                      Joined {joinDate}
                     </span>
                   )}
-                  <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <Shield size={13} className="text-emerald-400" />{totalActions} total actions
+                  <span className="flex items-center gap-1.5 text-muted-foreground" style={{ fontSize: 12 }}>
+                    <Shield size={11} className="text-emerald-400 flex-shrink-0" />
+                    {totalActions} total actions
                   </span>
                 </div>
               </div>
 
-              {/* ── Sign out button ── */}
-              <button
-                onClick={() => setShowLogout(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
-                           transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]
-                           self-start sm:self-auto"
-                style={{
-                  background: "rgba(239,68,68,0.10)",
-                  border: "1px solid rgba(239,68,68,0.25)",
-                  color: "#f87171",
-                }}
-                onMouseEnter={e => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.background = "rgba(239,68,68,0.18)";
-                  el.style.borderColor = "rgba(239,68,68,0.45)";
-                }}
-                onMouseLeave={e => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.background = "rgba(239,68,68,0.10)";
-                  el.style.borderColor = "rgba(239,68,68,0.25)";
-                }}
-              >
-                <LogOut size={15} />
-                Sign out
-              </button>
+              {/* Sign out button — full-width on mobile, auto on sm+ */}
+              <div>
+                <button
+                  onClick={() => setShowLogout(true)}
+                  className="flex items-center justify-center gap-2 rounded-xl text-sm font-medium
+                             transition-all duration-200 active:scale-[0.97]"
+                  style={{
+                    width: "100%",
+                    maxWidth: 200,
+                    padding: "9px 16px",
+                    background: "rgba(239,68,68,0.10)",
+                    border: "1px solid rgba(239,68,68,0.25)",
+                    color: "#f87171",
+                  }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.background = "rgba(239,68,68,0.18)";
+                    el.style.borderColor = "rgba(239,68,68,0.45)";
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.background = "rgba(239,68,68,0.10)";
+                    el.style.borderColor = "rgba(239,68,68,0.25)";
+                  }}
+                >
+                  <LogOut size={14} />
+                  Sign out
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Stats grid */}
-        <div className="fade-up" style={{ animationDelay: "80ms" }}>
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+        {/* ── Activity Stats ─────────────────────────────────────── */}
+        <section className="prof-fade" style={{ animationDelay: "80ms" }}>
+          <p
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.1em",
+              color: "hsl(var(--muted-foreground))",
+              marginBottom: 10,
+            }}
+          >
             Activity Stats
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          </p>
+          {/*
+            2 cols on mobile (cards are compact enough),
+            4 cols on md+
+          */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: 10,
+            }}
+          >
             {STAT_CARDS.map(stat => {
               const Icon = stat.icon;
               return (
                 <div
                   key={stat.id}
-                  className="rounded-2xl p-5 flex flex-col gap-3 transition-all duration-300 cursor-default hover:-translate-y-0.5"
-                  style={{ background: stat.bg, border: `1px solid ${stat.border}` }}
+                  className="rounded-2xl flex flex-col transition-all duration-300 cursor-default hover:-translate-y-0.5"
+                  style={{
+                    background: stat.bg,
+                    border: `1px solid ${stat.border}`,
+                    padding: "clamp(14px, 3vw, 20px)",
+                    gap: 10,
+                  }}
                 >
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{ background: "rgba(255,255,255,0.08)", border: `1px solid ${stat.border}` }}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: "rgba(255,255,255,0.08)",
+                      border: `1px solid ${stat.border}`,
+                    }}
                   >
-                    <Icon size={18} className="text-white opacity-80" />
+                    <Icon size={16} className="text-white opacity-80" />
                   </div>
                   <div>
                     <p
-                      className="font-display font-bold text-3xl"
-                      style={{ background: `linear-gradient(135deg, ${stat.gc})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+                      className="font-display font-bold"
+                      style={{
+                        fontSize: "clamp(22px, 6vw, 30px)",
+                        background: `linear-gradient(135deg, ${stat.gc})`,
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                        lineHeight: 1,
+                      }}
                     >
                       {stat.value}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
+                    <p style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginTop: 3 }}>
+                      {stat.label}
+                    </p>
                   </div>
                 </div>
               );
             })}
           </div>
-        </div>
+        </section>
 
-        {/* Account info + activity */}
-        <div className="grid md:grid-cols-2 gap-5 fade-up" style={{ animationDelay: "160ms" }}>
-
+        {/* ── Account Details + Recent Activity ─────────────────── */}
+        <div
+          className="prof-fade"
+          style={{
+            animationDelay: "160ms",
+            display: "grid",
+            gridTemplateColumns: "1fr",
+            gap: 14,
+          }}
+        >
           {/* Account details */}
           <div
-            className="rounded-2xl p-5 space-y-1"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
+            className="rounded-2xl"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              padding: "clamp(14px, 3vw, 20px)",
+            }}
           >
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            <p
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                color: "hsl(var(--muted-foreground))",
+                marginBottom: 12,
+              }}
+            >
               Account Details
-            </h2>
-            {[
-              { icon: User,     label: "Display Name", value: displayName, color: "text-purple-400"  },
-              { icon: Mail,     label: "Email",        value: email,       color: "text-blue-400"    },
-              { icon: Calendar, label: "Member Since", value: joinDate,    color: "text-orange-400"  },
-              { icon: Shield,   label: "Plan",         value: "Premium",   color: "text-emerald-400" },
-            ].map(({ icon: Icon, label, value, color }) => (
-              <div
-                key={label}
-                className="flex items-center justify-between py-2.5 border-b last:border-0"
-                style={{ borderColor: "rgba(255,255,255,0.06)" }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ background: "rgba(255,255,255,0.05)" }}>
-                    <Icon size={14} className={color} />
+            </p>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {[
+                { icon: User,     label: "Display Name", value: displayName, color: "text-purple-400"  },
+                { icon: Mail,     label: "Email",        value: email,       color: "text-blue-400"    },
+                { icon: Calendar, label: "Member Since", value: joinDate,    color: "text-orange-400"  },
+                { icon: Shield,   label: "Plan",         value: "Premium",   color: "text-emerald-400" },
+              ].map(({ icon: Icon, label, value, color }) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between"
+                  style={{
+                    padding: "10px 0",
+                    borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    gap: 12,
+                  }}
+                >
+                  <div className="flex items-center flex-shrink-0" style={{ gap: 10 }}>
+                    <div
+                      className="rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ width: 32, height: 32, background: "rgba(255,255,255,0.05)" }}
+                    >
+                      <Icon size={13} className={color} />
+                    </div>
+                    <span style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", whiteSpace: "nowrap" }}>
+                      {label}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">{label}</span>
+                  {/*
+                    Value: truncate long emails on mobile.
+                    text-right so it sits flush with the card edge.
+                  */}
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: "hsl(var(--foreground))",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      minWidth: 0,
+                      textAlign: "right",
+                      maxWidth: "clamp(120px, 40vw, 220px)",
+                    }}
+                    title={value}
+                  >
+                    {value}
+                  </span>
                 </div>
-                <span className="text-sm font-medium text-foreground truncate max-w-[160px] text-right">{value}</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
-          {/* Recent activity placeholder */}
+          {/* Recent Activity */}
           <div
-            className="rounded-2xl p-5"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
+            className="rounded-2xl"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              padding: "clamp(14px, 3vw, 20px)",
+            }}
           >
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            <p
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                color: "hsl(var(--muted-foreground))",
+                marginBottom: 12,
+              }}
+            >
               Recent Activity
-            </h2>
-            <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
-              <Clock size={28} className="text-muted-foreground opacity-40" />
-              <p className="text-sm text-muted-foreground">Activity feed coming soon</p>
-              <p className="text-xs text-muted-foreground opacity-60">Your recent actions will appear here</p>
+            </p>
+            <div
+              className="flex flex-col items-center justify-center text-center"
+              style={{ padding: "clamp(24px, 8vw, 40px) 0", gap: 8 }}
+            >
+              <Clock size={26} className="text-muted-foreground opacity-40" />
+              <p style={{ fontSize: 13, color: "hsl(var(--muted-foreground))" }}>Activity feed coming soon</p>
+              <p style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", opacity: 0.6 }}>Your recent actions will appear here</p>
             </div>
           </div>
         </div>
+
       </div>
     </>
   );
