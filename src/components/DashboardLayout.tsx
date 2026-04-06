@@ -23,26 +23,48 @@ const DashboardLayout = () => {
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
 
-  // Scroll to top on route change
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [location.pathname]);
 
   return (
     <SidebarProvider>
+      {/*
+        FIX 2.1 — Skip-to-content link.
+        Must be the very first focusable element in the DOM so keyboard users
+        can bypass the sidebar and nav on every page. It is visually hidden
+        (.sr-only from base.css) until it receives focus, at which point it
+        becomes visible and positioned at the top-left of the viewport.
+        The href target is #main-content on the <main> element below.
+      */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[9999] focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm focus:font-medium focus:text-white"
+        style={{
+          background: "var(--gradient-primary)",
+          outline: "none",
+          boxShadow: "0 0 0 2px hsl(262,80%,62%)",
+        }}
+      >
+        Skip to main content
+      </a>
+
       <div className="min-h-screen flex w-full bg-background overflow-hidden">
-        {/* Desktop sidebar — hidden on mobile by shadcn Sidebar internals */}
         <AppSidebar />
 
         <div className="flex-1 flex flex-col min-w-0">
           <TopBar />
           {/*
-            pb-20 md:pb-0 — reserves 80px at the bottom on mobile so content
-            never gets hidden behind the fixed MobileBottomNav (56px + insets).
+            FIX 2.1 — id="main-content" is the skip-link target.
+            tabIndex={-1} lets the browser focus the element programmatically
+            when the skip link is activated, without making it part of the
+            regular Tab order.
           */}
           <main
+            id="main-content"
             ref={mainRef}
-            className="flex-1 overflow-y-auto pb-20 md:pb-0"
+            tabIndex={-1}
+            className="flex-1 overflow-y-auto pb-20 md:pb-0 outline-none"
             style={{ padding: "clamp(1.25rem, 3vw, 2rem)" }}
           >
             <div className="max-w-6xl mx-auto">
@@ -62,8 +84,6 @@ const DashboardLayout = () => {
         </div>
       </div>
 
-      {/* Mobile bottom tab bar — rendered outside the flex layout so it's
-          truly fixed to the viewport, not relative to the scroll container */}
       <MobileBottomNav />
     </SidebarProvider>
   );
