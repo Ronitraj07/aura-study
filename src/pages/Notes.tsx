@@ -16,11 +16,17 @@ import {
   Loader2,
   AlertCircle,
   Tag,
+  GraduationCap,
+  Brain,
+  Target,
+  ClipboardList,
+  BookMarked,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { exportNotesPDF } from "@/lib/pdfExport";
+import { exportNotesPDF, exportExamNotesPDF } from "@/lib/pdfExport";
 import { useNotesGenerator } from "@/hooks/useNotesGenerator";
 import type { NoteHeading, NoteBullet } from "@/types/database";
+import type { ExamTip, Mnemonic, CheatsheetEntry } from "@/hooks/useNotesGenerator";
 
 // ─── Section Card ─────────────────────────────────────────────────────────────
 
@@ -133,21 +139,204 @@ function KeyTermsBlock({ terms }: { terms: string[] }) {
   );
 }
 
+// ─── Exam Tips Block ──────────────────────────────────────────────────────────
+
+const DIFF_CONFIG = {
+  easy:   { color: "hsl(160,70%,48%)",  label: "Easy" },
+  medium: { color: "hsl(30,80%,58%)",   label: "Medium" },
+  hard:   { color: "hsl(340,75%,58%)",  label: "Hard" },
+};
+
+function ExamTipsBlock({ tips }: { tips: ExamTip[] }) {
+  const [expanded, setExpanded] = useState<number | null>(null);
+  if (!tips?.length) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      className="glass-card rounded-2xl overflow-hidden border border-border/30"
+    >
+      <div className="h-0.5" style={{ background: "linear-gradient(90deg, hsl(340,75%,55%), hsl(30,80%,55%))" }} />
+      <div className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Target className="w-4 h-4" style={{ color: "hsl(340,75%,60%)" }} />
+          <h3 className="font-display font-semibold text-base text-foreground">Exam Q&A</h3>
+          <span
+            className="text-[10px] px-2 py-0.5 rounded-full font-medium border"
+            style={{ background: "hsl(340,75%,58%,0.12)", borderColor: "hsl(340,75%,58%,0.3)", color: "hsl(340,75%,62%)" }}
+          >
+            {tips.length} questions
+          </span>
+        </div>
+        <div className="space-y-2">
+          {tips.map((tip, i) => {
+            const cfg = DIFF_CONFIG[tip.difficulty] ?? DIFF_CONFIG.medium;
+            const open = expanded === i;
+            return (
+              <div
+                key={i}
+                className="rounded-xl border border-border/30 overflow-hidden transition-all duration-200 hover:border-border/60"
+                style={{ background: "hsl(0,0%,8%,0.4)" }}
+              >
+                <button
+                  onClick={() => setExpanded(open ? null : i)}
+                  className="w-full flex items-start gap-3 p-3.5 text-left"
+                >
+                  <span
+                    className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 uppercase tracking-wide border"
+                    style={{
+                      background: `${cfg.color}18`,
+                      borderColor: `${cfg.color}40`,
+                      color: cfg.color,
+                    }}
+                  >
+                    {cfg.label}
+                  </span>
+                  <span className="text-sm font-medium text-foreground/90 leading-snug flex-1">{tip.question}</span>
+                  <ChevronRight
+                    className="w-3.5 h-3.5 shrink-0 mt-0.5 text-muted-foreground transition-transform duration-200"
+                    style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
+                  />
+                </button>
+                <AnimatePresence>
+                  {open && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                      className="overflow-hidden"
+                    >
+                      <div
+                        className="px-4 pb-3.5 pt-0 text-sm text-foreground/75 leading-relaxed border-t border-border/20"
+                        style={{ marginTop: "-1px", paddingTop: "12px" }}
+                      >
+                        {tip.answer}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Mnemonics Block ──────────────────────────────────────────────────────────
+
+function MnemonicsBlock({ mnemonics }: { mnemonics: Mnemonic[] }) {
+  if (!mnemonics?.length) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
+      className="glass-card rounded-2xl p-5 border border-border/30"
+    >
+      <div className="flex items-center gap-2 mb-4">
+        <Brain className="w-4 h-4" style={{ color: "hsl(220,85%,65%)" }} />
+        <h3 className="font-display font-semibold text-base text-foreground">Memory Devices</h3>
+      </div>
+      <div className="space-y-3">
+        {mnemonics.map((m, i) => (
+          <div
+            key={i}
+            className="rounded-xl border p-4"
+            style={{
+              background: "hsl(220,85%,60%,0.06)",
+              borderColor: "hsl(220,85%,60%,0.2)",
+            }}
+          >
+            <p className="text-[10px] font-semibold text-foreground/50 uppercase tracking-widest mb-1">
+              Concept
+            </p>
+            <p className="text-xs font-semibold mb-2" style={{ color: "hsl(220,85%,65%)" }}>
+              {m.concept}
+            </p>
+            <p
+              className="text-base font-bold text-foreground mb-2 italic"
+              style={{ fontFamily: "Georgia, serif" }}
+            >
+              &ldquo;{m.device}&rdquo;
+            </p>
+            <p className="text-xs text-foreground/65 leading-relaxed">{m.explanation}</p>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Cheatsheet Block ─────────────────────────────────────────────────────────
+
+function CheatsheetBlock({ entries }: { entries: CheatsheetEntry[] }) {
+  if (!entries?.length) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+      className="glass-card rounded-2xl overflow-hidden border border-border/30"
+    >
+      <div className="h-0.5" style={{ background: "linear-gradient(90deg, hsl(30,80%,55%), hsl(262,80%,60%))" }} />
+      <div className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <ClipboardList className="w-4 h-4" style={{ color: "hsl(30,80%,60%)" }} />
+          <h3 className="font-display font-semibold text-base text-foreground">Quick Reference</h3>
+          <span
+            className="text-[10px] px-2 py-0.5 rounded-full font-medium border uppercase tracking-wide"
+            style={{ background: "hsl(30,80%,58%,0.12)", borderColor: "hsl(30,80%,58%,0.3)", color: "hsl(30,80%,62%)" }}
+          >
+            Cheatsheet
+          </span>
+        </div>
+        <div className="rounded-xl overflow-hidden border border-border/30">
+          {entries.map((entry, i) => (
+            <div
+              key={i}
+              className={cn(
+                "grid grid-cols-[2fr_3fr] gap-0 border-b border-border/20 last:border-b-0"
+              )}
+              style={{ background: i % 2 === 0 ? "hsl(0,0%,8%,0.4)" : "hsl(0,0%,10%,0.3)" }}
+            >
+              <div className="px-4 py-2.5 border-r border-border/20">
+                <span className="text-xs font-semibold text-foreground/90">{entry.label}</span>
+              </div>
+              <div className="px-4 py-2.5">
+                <span className="text-xs text-foreground/70">{entry.value}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const Notes = () => {
   const [topic, setTopic] = useState("");
-  const [depth, setDepth] = useState<'overview' | 'detailed'>('overview');
+  const [depth, setDepth] = useState<'overview' | 'detailed' | 'exam'>('overview');
+  const [examMode, setExamMode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
 
   const { notes, isGenerating, isResearching, saveStatus, error, generate } = useNotesGenerator();
 
   const hasGenerated = !!notes;
+  const hasExamContent = !!(notes?.exam_tips?.length || notes?.mnemonics?.length || notes?.cheatsheet?.length);
 
   const handleGenerate = () => {
     if (!topic.trim() || isGenerating) return;
     generate({ topic: topic.trim(), depth });
+    // If exam depth selected, auto-switch to exam view once generated
+    if (depth === 'exam') setExamMode(true);
+    else setExamMode(false);
   };
 
   const handleCopy = () => {
@@ -168,7 +357,6 @@ const Notes = () => {
     if (isPdfExporting || !notes) return;
     setIsPdfExporting(true);
     try {
-      // Build NoteSection[] shape for pdfExport
       const sections = notes.headings.map((h, i) => {
         const b = notes.bullets.find((bl) => bl.heading === h.text);
         return {
@@ -178,9 +366,19 @@ const Notes = () => {
           color: SECTION_COLORS[i % SECTION_COLORS.length],
         };
       });
-      // summary as string array for legacy exportNotesPDF signature
-      const summaryLines = notes.summary.split(". ").filter(Boolean).map((s) => s.endsWith(".") ? s : s + ".");
-      await exportNotesPDF(notes.title, sections, summaryLines);
+
+      if (examMode && hasExamContent) {
+        await exportExamNotesPDF(
+          notes.title,
+          sections,
+          notes.exam_tips ?? [],
+          notes.mnemonics ?? [],
+          notes.cheatsheet ?? []
+        );
+      } else {
+        const summaryLines = notes.summary.split(". ").filter(Boolean).map((s) => s.endsWith(".") ? s : s + ".");
+        await exportNotesPDF(notes.title, sections, summaryLines);
+      }
     } catch (err) {
       console.error("PDF export failed:", err);
     } finally {
@@ -189,6 +387,12 @@ const Notes = () => {
   };
 
   const totalBullets = notes?.bullets.reduce((a, b) => a + (b.points?.length ?? 0), 0) ?? 0;
+
+  const DEPTH_CONFIG = [
+    { key: 'overview' as const, label: 'Overview', desc: '3–4 sections' },
+    { key: 'detailed' as const, label: 'Detailed', desc: '4–6 sections' },
+    { key: 'exam' as const,    label: 'Exam Mode', desc: '+ tips & mnemonics' },
+  ];
 
   return (
     <div className="h-full flex flex-col">
@@ -219,6 +423,23 @@ const Notes = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="flex items-center gap-2"
           >
+            {/* Exam Mode toggle — only shown if exam content exists */}
+            {hasExamContent && (
+              <button
+                onClick={() => setExamMode((v) => !v)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all",
+                  examMode
+                    ? "text-white border-transparent"
+                    : "bg-secondary border-border text-muted-foreground hover:border-primary/30"
+                )}
+                style={examMode ? { background: "linear-gradient(135deg, hsl(340,75%,50%), hsl(30,80%,52%))" } : {}}
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                Exam Mode
+              </button>
+            )}
+
             {saveStatus === 'saving' && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" /> Saving...
@@ -274,20 +495,30 @@ const Notes = () => {
           </div>
 
           <div className="glass-card rounded-2xl p-5">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Depth</p>
-            <div className="grid grid-cols-2 gap-2">
-              {(["overview", "detailed"] as const).map((d) => (
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Mode</p>
+            <div className="flex flex-col gap-2">
+              {DEPTH_CONFIG.map((d) => (
                 <button
-                  key={d}
-                  onClick={() => setDepth(d)}
+                  key={d.key}
+                  onClick={() => setDepth(d.key)}
                   className={cn(
-                    "py-2 rounded-xl text-xs font-semibold border transition-all",
-                    depth === d
-                      ? "bg-primary/15 border-primary/40 text-primary"
+                    "py-2.5 px-3 rounded-xl text-left border transition-all",
+                    depth === d.key
+                      ? "border-primary/40 text-primary"
                       : "bg-secondary/40 border-border text-muted-foreground hover:border-primary/20"
                   )}
+                  style={depth === d.key ? { background: d.key === 'exam' ? 'linear-gradient(135deg,hsl(340,75%,50%,0.15),hsl(30,80%,52%,0.1))' : 'hsl(262,80%,60%,0.1)' } : {}}
                 >
-                  {d.charAt(0).toUpperCase() + d.slice(1)}
+                  <div className="flex items-center gap-2">
+                    {d.key === 'exam'
+                      ? <GraduationCap className="w-3.5 h-3.5" style={{ color: depth === d.key ? 'hsl(340,75%,60%)' : undefined }} />
+                      : d.key === 'detailed'
+                      ? <BookMarked className="w-3.5 h-3.5" />
+                      : <BookOpen className="w-3.5 h-3.5" />
+                    }
+                    <span className="text-xs font-semibold">{d.label}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 ml-5.5">{d.desc}</p>
                 </button>
               ))}
             </div>
@@ -297,10 +528,15 @@ const Notes = () => {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Output Includes</p>
             <div className="flex flex-col gap-2">
               {[
-                { icon: Hash, label: "Section Headings", desc: depth === 'detailed' ? "4–6 structured sections" : "3–4 structured sections", color: "hsl(262,80%,65%)" },
+                { icon: Hash, label: "Section Headings", desc: depth === 'detailed' || depth === 'exam' ? "4–6 structured sections" : "3–4 structured sections", color: "hsl(262,80%,65%)" },
                 { icon: List, label: "Bullet Points", desc: "Concise scannable facts", color: "hsl(220,85%,65%)" },
                 { icon: AlignLeft, label: "Summary", desc: "Executive summary", color: "hsl(160,70%,48%)" },
                 { icon: Tag, label: "Key Terms", desc: "Vocabulary glossary", color: "hsl(30,80%,58%)" },
+                ...(depth === 'exam' ? [
+                  { icon: Target, label: "Exam Q&A", desc: "5–8 likely exam questions", color: "hsl(340,75%,58%)" },
+                  { icon: Brain, label: "Mnemonics", desc: "Memory devices", color: "hsl(220,85%,65%)" },
+                  { icon: ClipboardList, label: "Cheatsheet", desc: "Key facts at a glance", color: "hsl(30,80%,58%)" },
+                ] : []),
               ].map(({ icon: Icon, label, desc, color }) => (
                 <div key={label} className="flex items-center gap-3 p-2.5 rounded-xl bg-secondary/40">
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${color}18` }}>
@@ -318,15 +554,22 @@ const Notes = () => {
           <button
             onClick={handleGenerate}
             disabled={!topic.trim() || isGenerating}
-            className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-display font-semibold text-white transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] hover:shadow-[0_0_30px_hsl(160,70%,45%,0.3)] active:scale-[0.98]"
-            style={{ background: "linear-gradient(135deg, hsl(160,70%,45%), hsl(220,85%,60%))" }}
+            className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-display font-semibold text-white transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+            style={{
+              background: depth === 'exam'
+                ? "linear-gradient(135deg, hsl(340,75%,50%), hsl(30,80%,52%))"
+                : "linear-gradient(135deg, hsl(160,70%,45%), hsl(220,85%,60%))",
+              boxShadow: depth === 'exam'
+                ? (isGenerating ? undefined : "0 0 0 0 transparent")
+                : undefined,
+            }}
           >
             {isResearching ? (
               <><Loader2 className="w-4 h-4 animate-spin" />Researching...</>
             ) : isGenerating ? (
               <><RefreshCw className="w-4 h-4 animate-spin" />Generating...</>
             ) : (
-              <><Wand2 className="w-4 h-4" />Generate Notes</>
+              <>{depth === 'exam' ? <GraduationCap className="w-4 h-4" /> : <Wand2 className="w-4 h-4" />}Generate Notes</>
             )}
           </button>
 
@@ -404,48 +647,98 @@ const Notes = () => {
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
                 className="w-12 h-12 rounded-full border-2 border-primary/20 mb-6"
-                style={{ borderTopColor: "hsl(160,70%,45%)" }}
+                style={{ borderTopColor: depth === 'exam' ? "hsl(340,75%,55%)" : "hsl(160,70%,45%)" }}
               />
               <p className="font-display text-lg font-semibold text-foreground/80 mb-1">
                 {isResearching ? "Researching topic..." : "Generating notes..."}
               </p>
               <p className="text-sm text-muted-foreground">
-                {isResearching ? "Gathering facts via Groq" : "Organising headings and bullet points"}
+                {isResearching
+                  ? "Gathering facts via Groq"
+                  : depth === 'exam'
+                  ? "Building exam tips, mnemonics & cheatsheet"
+                  : "Organising headings and bullet points"}
               </p>
             </div>
           ) : (
             notes && (
-              <div
-                className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
-                style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(160,70%,45%,0.3) transparent" }}
-              >
-                <div className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0">
-                  <Sparkles className="w-4 h-4 shrink-0" style={{ color: "hsl(160,70%,50%)" }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{notes.title}</p>
-                    <p className="text-[10px] text-muted-foreground">{notes.headings.length} sections · {totalBullets} bullets · summary included</p>
-                  </div>
-                </div>
+              <AnimatePresence mode="wait">
+                {examMode && hasExamContent ? (
+                  // ── EXAM MODE VIEW ──
+                  <motion.div
+                    key="exam"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.25 }}
+                    className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
+                    style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(340,75%,55%,0.3) transparent" }}
+                  >
+                    {/* Exam header banner */}
+                    <div
+                      className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0 border"
+                      style={{ borderColor: "hsl(340,75%,55%,0.25)", background: "hsl(340,75%,55%,0.05)" }}
+                    >
+                      <GraduationCap className="w-4 h-4 shrink-0" style={{ color: "hsl(340,75%,60%)" }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{notes.title} — Exam Prep</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {notes.exam_tips?.length ?? 0} exam Q&As · {notes.mnemonics?.length ?? 0} mnemonics · {notes.cheatsheet?.length ?? 0} cheatsheet entries
+                        </p>
+                      </div>
+                      <span
+                        className="text-[10px] font-bold px-2.5 py-1 rounded-full border uppercase tracking-wider"
+                        style={{ background: "hsl(340,75%,55%,0.15)", borderColor: "hsl(340,75%,55%,0.3)", color: "hsl(340,75%,62%)" }}
+                      >
+                        Exam Mode
+                      </span>
+                    </div>
 
-                <AnimatePresence>
-                  {notes.headings.map((heading, i) => {
-                    const bulletEntry = notes.bullets.find((b) => b.heading === heading.text);
-                    return (
-                      <NoteSectionCard
-                        key={heading.text + i}
-                        heading={heading}
-                        bullets={bulletEntry?.points ?? []}
-                        index={i}
-                      />
-                    );
-                  })}
-                </AnimatePresence>
+                    <ExamTipsBlock tips={notes.exam_tips ?? []} />
+                    <MnemonicsBlock mnemonics={notes.mnemonics ?? []} />
+                    <CheatsheetBlock entries={notes.cheatsheet ?? []} />
+                    <p className="text-[10px] text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
+                  </motion.div>
+                ) : (
+                  // ── STANDARD NOTES VIEW ──
+                  <motion.div
+                    key="notes"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.25 }}
+                    className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
+                    style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(160,70%,45%,0.3) transparent" }}
+                  >
+                    <div className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0">
+                      <Sparkles className="w-4 h-4 shrink-0" style={{ color: "hsl(160,70%,50%)" }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{notes.title}</p>
+                        <p className="text-[10px] text-muted-foreground">{notes.headings.length} sections · {totalBullets} bullets · summary included</p>
+                      </div>
+                    </div>
 
-                <SummaryBlock summary={notes.summary} />
-                <KeyTermsBlock terms={notes.keyTerms ?? []} />
+                    <AnimatePresence>
+                      {notes.headings.map((heading, i) => {
+                        const bulletEntry = notes.bullets.find((b) => b.heading === heading.text);
+                        return (
+                          <NoteSectionCard
+                            key={heading.text + i}
+                            heading={heading}
+                            bullets={bulletEntry?.points ?? []}
+                            index={i}
+                          />
+                        );
+                      })}
+                    </AnimatePresence>
 
-                <p className="text-[10px] text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
-              </div>
+                    <SummaryBlock summary={notes.summary} />
+                    <KeyTermsBlock terms={notes.keyTerms ?? []} />
+
+                    <p className="text-[10px] text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             )
           )}
         </motion.div>

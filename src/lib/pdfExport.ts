@@ -1,6 +1,6 @@
 // ============================================================
-// Aura Study — Shared PDF Export Module (C4)
-// Covers: Assignments, Notes (extensible to Research)
+// Aura Study — Shared PDF Export Module (C4 + C5)
+// Covers: Assignments, Notes, Exam Notes (extensible to Research)
 // Strategy: build an off-screen HTML element → html2canvas → jsPDF
 // No external font CDN needed — uses system sans-serif stack
 // ============================================================
@@ -18,6 +18,23 @@ export interface PdfBlock {
   accentColor?: string;
   content?: string;
   bullets?: string[];
+}
+
+export interface ExamTipPdf {
+  question: string;
+  answer: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+}
+
+export interface MnemonicPdf {
+  concept: string;
+  device: string;
+  explanation: string;
+}
+
+export interface CheatsheetEntryPdf {
+  label: string;
+  value: string;
 }
 
 // ─── Shared render helpers ────────────────────────────────────────
@@ -130,11 +147,7 @@ async function renderPagesToPdf(
 }
 
 // ─── Split blocks across pages ────────────────────────────────────
-// Each block gets its own estimated pixel height; when the running
-// total would exceed the printable area, start a new page.
-
 function estimateBlockHeight(block: string): number {
-  // rough: count lines in rendered HTML (very approximate)
   const lineEstimate = (block.match(/<br|<p|<li|<div/gi) ?? []).length;
   return Math.max(80, lineEstimate * 22 + 48);
 }
@@ -146,13 +159,12 @@ function paginateBlocks(
 ): string[] {
   const pages: string[] = [];
   let current = headerHtml;
-  let used = 160; // header height estimate
+  let used = 160;
 
   for (const block of blockHtmls) {
     const bh = estimateBlockHeight(block);
     if (used + bh > printableH && current !== headerHtml) {
       pages.push(current);
-      // subsequent pages: no header, just margin spacer
       current = `<div style="height:${MARGIN}px"></div>`;
       used = MARGIN;
     }
@@ -374,6 +386,119 @@ export async function exportNotesPDF(
   const pages = paginateBlocks(headerHtml, allBlocks, PRINTABLE_H);
   const slug = topic.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 40);
   await renderPagesToPdf(pages, `notes-${slug}.pdf`);
+}
+
+// ─── Exam Notes PDF (C5) ──────────────────────────────────────────
+
+export async function exportExamNotesPDF(
+  topic: string,
+  sections: NoteSection[],
+  examTips: ExamTipPdf[],
+  mnemonics: MnemonicPdf[],
+  cheatsheet: CheatsheetEntryPdf[]
+): Promise<void> {
+  const ACCENT = 'hsl(30,80%,58%)';
+  const headerHtml = pageHeader(`${topic} — Exam Cheatsheet`, ACCENT);
+
+  const diffColor: Record<string, string> = {
+    easy:   'hsl(160,70%,48%)',
+    medium: 'hsl(30,80%,58%)',
+    hard:   'hsl(340,75%,58%)',
+  };
+
+  // Section blocks (same as notes)
+  const sectionBlocks = sections.map((sec) => {
+    const bulletItems = sec.bullets.map((b) => `
+      <li style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:12px;color:#b0b5c0;line-height:1.6;">
+        <span style="color:${sec.color};font-size:9px;margin-top:4px;flex-shrink:0;">▶</span>
+        <span>${escHtml(b)}</span>
+      </li>
+    `).join('');
+    return `
+      <div style="margin:0 ${MARGIN}px 16px;background:#161920;border-radius:10px;overflow:hidden;border:1px solid #2a2d35;display:flex;">
+        <div style="width:3px;flex-shrink:0;background:${sec.color};"></div>
+        <div style="flex:1;padding:13px 16px;">
+          <h3 style="margin:0 0 8px;font-size:13px;font-weight:700;color:#f0f1f5;">${escHtml(sec.heading)}</h3>
+          <ul style="margin:0;padding:0;list-style:none;">${bulletItems}</ul>
+        </div>
+      </div>
+    `;
+  });
+
+  // Cheatsheet block
+  const cheatRows = cheatsheet.map((entry, i) => `
+    <tr style="background:${i % 2 === 0 ? '#161920' : '#1a1d24'};">
+      <td style="padding:8px 12px;font-size:12px;font-weight:600;color:#e0e2e8;border-right:1px solid #2a2d35;width:40%;">${escHtml(entry.label)}</td>
+      <td style="padding:8px 12px;font-size:12px;color:#b0b5c0;">${escHtml(entry.value)}</td>
+    </tr>
+  `).join('');
+
+  const cheatsheetBlock = cheatsheet.length ? `
+    <div style="margin:0 ${MARGIN}px 20px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:13px;">📋</span>
+        <h3 style="margin:0;font-size:14px;font-weight:700;color:#f0f1f5;">Quick Reference</h3>
+        <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;background:${ACCENT}22;border:1px solid ${ACCENT}44;color:${ACCENT};text-transform:uppercase;letter-spacing:0.06em;">Cheatsheet</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #2a2d35;">
+        ${cheatRows}
+      </table>
+    </div>
+  ` : '';
+
+  // Exam tips block
+  const tipItems = examTips.map((tip) => {
+    const dc = diffColor[tip.difficulty] ?? ACCENT;
+    return `
+      <div style="margin-bottom:10px;background:#161920;border-radius:10px;padding:13px 16px;border:1px solid #2a2d35;">
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;">
+          <span style="
+            font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;
+            background:${dc}22;border:1px solid ${dc}44;color:${dc};
+            text-transform:uppercase;letter-spacing:0.06em;flex-shrink:0;margin-top:1px;
+          ">${tip.difficulty}</span>
+          <span style="font-size:13px;font-weight:600;color:#f0f1f5;line-height:1.4;">${escHtml(tip.question)}</span>
+        </div>
+        <p style="margin:0 0 0 46px;font-size:12px;color:#b0b5c0;line-height:1.6;">${escHtml(tip.answer)}</p>
+      </div>
+    `;
+  }).join('');
+
+  const tipsBlock = examTips.length ? `
+    <div style="margin:0 ${MARGIN}px 20px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:13px;">🎯</span>
+        <h3 style="margin:0;font-size:14px;font-weight:700;color:#f0f1f5;">Exam Q&amp;A</h3>
+        <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;background:hsl(340,75%,58%,0.15);border:1px solid hsl(340,75%,58%,0.3);color:hsl(340,75%,60%);text-transform:uppercase;letter-spacing:0.06em;">${examTips.length} questions</span>
+      </div>
+      ${tipItems}
+    </div>
+  ` : '';
+
+  // Mnemonics block
+  const mnemonicItems = mnemonics.map((m) => `
+    <div style="margin-bottom:10px;background:#161920;border-radius:10px;padding:13px 16px;border:1px solid hsl(220,85%,60%,0.25);">
+      <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:hsl(220,85%,65%);">Concept: ${escHtml(m.concept)}</p>
+      <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#f0f1f5;font-style:italic;">&ldquo;${escHtml(m.device)}&rdquo;</p>
+      <p style="margin:0;font-size:12px;color:#b0b5c0;line-height:1.5;">${escHtml(m.explanation)}</p>
+    </div>
+  `).join('');
+
+  const mnemonicsBlock = mnemonics.length ? `
+    <div style="margin:0 ${MARGIN}px 20px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:13px;">🧠</span>
+        <h3 style="margin:0;font-size:14px;font-weight:700;color:#f0f1f5;">Memory Devices</h3>
+      </div>
+      ${mnemonicItems}
+    </div>
+  ` : '';
+
+  const allBlocks = [...sectionBlocks, cheatsheetBlock, tipsBlock, mnemonicsBlock].filter(Boolean);
+  const PRINTABLE_H = PAGE_H - MARGIN * 2;
+  const pages = paginateBlocks(headerHtml, allBlocks, PRINTABLE_H);
+  const slug = topic.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 40);
+  await renderPagesToPdf(pages, `exam-notes-${slug}.pdf`);
 }
 
 // ─── Generic PDF (for future pages: Research, etc.) ───────────────
