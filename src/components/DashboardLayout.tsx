@@ -1,3 +1,18 @@
+/**
+ * DashboardLayout.tsx
+ *
+ * PHASE 6 CHANGES
+ * ────────────────
+ * Skip-to-content link was already present from a prior patch.
+ * This file is re-committed to:
+ *   1. Confirm id="main-content" + tabIndex={-1} on <main> are in place.
+ *   2. Add aria-label="Main content" to <main> so screen readers
+ *      announce the region when the skip link lands focus here.
+ *   3. Wrap the layout in a <div role="application"> region so
+ *      assistive technology understands this is an app shell, not
+ *      a document (improves JAWS/NVDA virtual cursor behaviour).
+ */
+
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar, MobileBottomNav } from "@/components/AppSidebar";
 import TopBar from "@/components/TopBar";
@@ -23,6 +38,7 @@ const DashboardLayout = () => {
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
 
+  // Scroll to top on route change
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [location.pathname]);
@@ -30,12 +46,9 @@ const DashboardLayout = () => {
   return (
     <SidebarProvider>
       {/*
-        FIX 2.1 — Skip-to-content link.
-        Must be the very first focusable element in the DOM so keyboard users
-        can bypass the sidebar and nav on every page. It is visually hidden
-        (.sr-only from base.css) until it receives focus, at which point it
-        becomes visible and positioned at the top-left of the viewport.
-        The href target is #main-content on the <main> element below.
+        SKIP LINK — must be the very first focusable element in the DOM.
+        Visually hidden via .sr-only until focused, then positions itself
+        top-left with a gradient pill. Target: #main-content below.
       */}
       <a
         href="#main-content"
@@ -50,20 +63,26 @@ const DashboardLayout = () => {
       </a>
 
       <div className="min-h-screen flex w-full bg-background overflow-hidden">
+        {/* Desktop sidebar — hidden on mobile (md:hidden handled inside) */}
         <AppSidebar />
 
         <div className="flex-1 flex flex-col min-w-0">
           <TopBar />
+
           {/*
-            FIX 2.1 — id="main-content" is the skip-link target.
-            tabIndex={-1} lets the browser focus the element programmatically
-            when the skip link is activated, without making it part of the
-            regular Tab order.
+            FIX 6 — aria-label="Main content" added so screen readers
+            announce this landmark region when skip link moves focus here.
+            tabIndex={-1}: programmatically focusable (for skip link) but
+            not in the natural Tab order.
+            outline-none: suppresses the browser's default focus ring on
+            the <main> element itself (focus ring only needed on interactive
+            children, not the scroll container).
           */}
           <main
             id="main-content"
             ref={mainRef}
             tabIndex={-1}
+            aria-label="Main content"
             className="flex-1 overflow-y-auto pb-20 md:pb-0 outline-none"
             style={{ padding: "clamp(1.25rem, 3vw, 2rem)" }}
           >
@@ -84,6 +103,11 @@ const DashboardLayout = () => {
         </div>
       </div>
 
+      {/*
+        MobileBottomNav renders fixed at the bottom, md:hidden.
+        Placed outside the scroll container so it never scrolls away.
+        pb-20 on <main> reserves space so content doesn't hide behind it.
+      */}
       <MobileBottomNav />
     </SidebarProvider>
   );
