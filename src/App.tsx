@@ -1,3 +1,23 @@
+/**
+ * App.tsx
+ *
+ * PHASE 8 CHANGES
+ * ────────────────
+ * Every heavy dashboard page now has its own ErrorBoundary so a
+ * runtime crash in PPT never kills Notes, Checklist, etc.
+ *
+ * Boundary placement:
+ *   - Per-route boundary  → wraps each <Route element> individually.
+ *     A crash in one route shows the fallback only in that page's
+ *     content area; the sidebar/topbar stay alive.
+ *   - Catch-all boundary  → wraps the entire DashboardLayout Outlet
+ *     as a secondary safety net for anything not caught above.
+ *
+ * resetKey={location.key} is NOT needed here because each boundary is
+ * a per-route wrapper — React unmounts/remounts the component (and
+ * therefore the boundary) on navigation anyway.
+ */
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -5,6 +25,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthContext";
 import AuthGuard from "@/components/AuthGuard";
+import ErrorBoundary from "@/components/ErrorBoundary";
+
 import Index from "./pages/Index.tsx";
 import Login from "./pages/Login.tsx";
 import AuthCallback from "./pages/AuthCallback.tsx";
@@ -28,12 +50,12 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            {/* Public */}
+            {/* ── Public routes ── */}
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
 
-            {/* Protected — wrapped with AuthGuard */}
+            {/* ── Protected routes ── */}
             <Route
               path="/dashboard"
               element={
@@ -42,13 +64,69 @@ const App = () => (
                 </AuthGuard>
               }
             >
-              <Route index element={<Dashboard />} />
-              <Route path="ppt" element={<PPT />} />
-              <Route path="assignments" element={<Assignments />} />
-              <Route path="notes" element={<Notes />} />
-              <Route path="timetable" element={<Timetable />} />
-              <Route path="checklist" element={<Checklist />} />
-              <Route path="profile" element={<Profile />} />
+              {/*
+                Each route gets its own ErrorBoundary.
+                A crash in <PPT /> only shows the fallback in the
+                main content area — sidebar and topbar stay alive.
+                The user can click 'Go to Dashboard' or any sidebar
+                link to escape to a working page.
+              */}
+              <Route
+                index
+                element={
+                  <ErrorBoundary>
+                    <Dashboard />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="ppt"
+                element={
+                  <ErrorBoundary>
+                    <PPT />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="assignments"
+                element={
+                  <ErrorBoundary>
+                    <Assignments />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="notes"
+                element={
+                  <ErrorBoundary>
+                    <Notes />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="timetable"
+                element={
+                  <ErrorBoundary>
+                    <Timetable />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="checklist"
+                element={
+                  <ErrorBoundary>
+                    <Checklist />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="profile"
+                element={
+                  <ErrorBoundary>
+                    <Profile />
+                  </ErrorBoundary>
+                }
+              />
             </Route>
 
             <Route path="*" element={<NotFound />} />
