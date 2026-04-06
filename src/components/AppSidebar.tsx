@@ -1,26 +1,3 @@
-/**
- * AppSidebar.tsx
- *
- * PRE-PHASE-9 CLEANUP — Profile deduplication
- * ─────────────────────────────────────────────
- * PROBLEM:
- *   On mobile, when the sidebar drawer opened, users saw:
- *     1. A Profile link in the SidebarFooter (inside the drawer)
- *     2. A Profile tab in the MobileBottomNav (always visible)
- *   That's two "Profile" entries on the same screen. Confusing.
- *
- * FIX:
- *   The SidebarFooter ProfileLink is wrapped in a <div className="md:block hidden">
- *   so it only renders on md+ (desktop/tablet ≥ 768px).
- *   On mobile (< 768px) the sidebar drawer exists for navigation but
- *   the Profile entry is suppressed — the bottom nav tab is the single
- *   canonical mobile profile entry point.
- *
- *   Desktop behaviour is unchanged:
- *     - Sidebar footer shows the profile link.
- *     - TopBar avatar is a secondary shortcut (see TopBar.tsx comment).
- */
-
 import {
   LayoutDashboard,
   Presentation,
@@ -234,12 +211,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/*
-        Profile footer — DESKTOP ONLY (hidden on mobile).
-        On mobile the bottom nav already has a Profile tab.
-        Showing it here too would create a duplicate entry
-        when the sidebar drawer opens on small screens.
-      */}
+      {/* Profile footer — DESKTOP ONLY */}
       <SidebarFooter style={{ padding: "8px 8px 12px" }}>
         <div className="hidden md:block">
           {!collapsed && (
@@ -270,7 +242,7 @@ export function AppSidebar() {
   );
 }
 
-// ── Mobile bottom tab bar ───────────────────────────────────────────
+// ── Mobile bottom tab bar — Telegram-style floating pill ───────────────────────────────
 const mobileTabItems = [
   { title: "Home",      url: "/dashboard",           icon: LayoutDashboard },
   { title: "PPT",       url: "/dashboard/ppt",        icon: Presentation    },
@@ -290,14 +262,29 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Main navigation"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around"
+      className="md:hidden fixed z-50"
       style={{
-        background: "hsl(240,12%,9%)",
-        borderTop: "1px solid hsl(240,10%,18%)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        height: "calc(60px + env(safe-area-inset-bottom, 0px))",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
+        /* Floating pill — centred, not edge-to-edge */
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)",
+        left: "50%",
+        transform: "translateX(-50%)",
+        /* Pill shape */
+        borderRadius: 9999,
+        /* Width: fill on small phones, capped on larger */
+        width: "min(calc(100vw - 32px), 360px)",
+        /* Glass surface */
+        background: "hsl(240,14%,11%)",
+        border: "1px solid hsl(240,10%,20%)",
+        boxShadow:
+          "0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+        /* Internal layout */
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-around",
+        padding: "6px 8px",
+        height: 62,
       }}
     >
       {mobileTabItems.map((item) => {
@@ -309,34 +296,52 @@ export function MobileBottomNav() {
             end={item.url === "/dashboard"}
             activeClassName=""
             aria-label={item.title}
-            className="flex flex-col items-center justify-center flex-1 h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
             style={{
-              color: active ? "hsl(262,80%,75%)" : "hsl(220,8%,44%)",
-              transition: "color 150ms ease",
-              borderTop: active
-                ? "2px solid hsl(262,80%,62%)"
-                : "2px solid transparent",
-              gap: 4,
+              /* Each tab item */
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              flex: 1,
+              gap: 3,
+              textDecoration: "none",
+              color: active ? "hsl(262,80%,78%)" : "hsl(220,8%,46%)",
+              transition: "color 160ms ease",
+              outline: "none",
             }}
           >
+            {/* Icon pill — active tab gets a small glowing chip */}
             <span
               aria-hidden="true"
-              className="flex items-center justify-center rounded-xl transition-all duration-150"
               style={{
-                width: 40,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 44,
                 height: 28,
-                background: active ? "hsla(262,80%,62%,0.18)" : "transparent",
+                borderRadius: 9999,
+                background: active
+                  ? "linear-gradient(135deg, hsla(262,80%,62%,0.30), hsla(220,85%,62%,0.18))"
+                  : "transparent",
+                boxShadow: active ? "0 0 12px hsla(262,80%,62%,0.25)" : "none",
+                transition: "background 200ms ease, box-shadow 200ms ease",
               }}
             >
-              <item.icon size={active ? 19 : 18} strokeWidth={active ? 2.2 : 1.8} />
+              <item.icon
+                size={active ? 18 : 17}
+                strokeWidth={active ? 2.3 : 1.7}
+              />
             </span>
+
+            {/* Label */}
             <span
               aria-hidden="true"
               style={{
-                fontSize: 12,
+                fontSize: 10,
                 fontWeight: active ? 700 : 400,
-                letterSpacing: "0.04em",
+                letterSpacing: "0.03em",
                 lineHeight: 1,
+                whiteSpace: "nowrap",
               }}
             >
               {item.title}
