@@ -1,23 +1,7 @@
 /**
  * DashboardLayout.tsx
- *
- * PRE-PHASE-9 CLEANUP — Mobile layout alignment
- * ──────────────────────────────────────────────
- * 1. MOBILE PADDING TIGHTENED
- *    Previous: clamp(1.25rem, 3vw, 2rem) = 20px on 375px phones.
- *    That's fine for content but combined with the sidebar gutter and
- *    the bottom-nav safe area it was squeezing content too much on
- *    small screens.
- *    New: clamp(0.75rem, 3.5vw, 2rem) = 12px floor on 375px, scales
- *    to 32px at 1200px. Content now has breathing room without overflow.
- *
- * 2. BOTTOM PADDING
- *    pb-20 (80px) was barely clearing the 60px bottom nav on devices
- *    without safe-area-inset. Bumped to pb-24 (96px) so the last item
- *    on any page is never hidden behind the nav bar.
- *
- * 3. SKIP LINK — already correct from Phase 6. No change.
- * 4. ARIA — already correct from Phase 6. No change.
+ * Bottom padding bumped to 88px to clear the floating pill bottom nav
+ * (62px pill height + 14px gap from bottom + 12px breathing room).
  */
 
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -51,7 +35,7 @@ const DashboardLayout = () => {
 
   return (
     <SidebarProvider>
-      {/* Skip link — must be the very first focusable element */}
+      {/* Skip link */}
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[9999] focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm focus:font-medium focus:text-white"
@@ -78,11 +62,12 @@ const DashboardLayout = () => {
             className="flex-1 overflow-y-auto outline-none"
             style={{
               /*
-               * pb-24 (96px) ensures content clears the 60px mobile
-               * bottom nav + safe-area-inset on notched devices.
-               * md:pb-0 removes it on desktop where there is no bottom nav.
+               * Mobile: 88px bottom padding clears the floating pill nav
+               * (62px pill + 14px gap from bottom + 12px breathing room).
+               * On md+ there is no pill nav so we drop to 24px.
+               * clamp() smoothly interpolates between the two.
                */
-              paddingBottom: "clamp(5rem, 8vw, 6rem)",
+              paddingBottom: "clamp(5.5rem, 10vw, 1.5rem)",
               paddingTop: "clamp(0.75rem, 2vw, 1.5rem)",
               paddingInline: "clamp(0.75rem, 3.5vw, 2rem)",
             }}
