@@ -1,21 +1,28 @@
 /**
  * Dashboard.tsx
  *
- * PHASE 4 CHANGES
- * ────────────────
- * 1. EMPTY STATE for Recent Activity.
- *    When recentActivity is empty (which it is until Phase 5 wires Supabase),
- *    show a proper empty state with icon + message + CTA instead of
- *    an empty card with just a header. "No items" is never acceptable.
+ * PRE-PHASE-9 CLEANUP — Mobile layout fixes
+ * ──────────────────────────────────────────
+ * 1. QUICK ACTIONS GRID
+ *    Was: sm:grid-cols-2 lg:grid-cols-4
+ *    Problem: At 768-1023px (tablets, landscape phones) lg hadn't
+ *    triggered yet so the grid tried to fit 4 cards in 2 columns,
+ *    creating very tall cards with excess whitespace.
+ *    Fix: xl:grid-cols-4 — 4 columns only at ≥ 1280px.
+ *    Between 640-1279px: 2 columns. Under 640px: 1 column.
  *
- * 2. REMOVE inline onMouseEnter/Leave style mutations.
- *    The row hover was done via onMouseEnter/onMouseLeave imperatively
- *    mutating el.style.background. Replaced with a CSS class approach
- *    using a data-hover attribute + <style> block, keeping the same
- *    visual result but without runtime DOM style mutations.
+ * 2. WELCOME H1 SIZE
+ *    Was: var(--text-2xl) = clamp(2rem, ...) — too large on 375px
+ *    phones, caused the name to wrap awkwardly.
+ *    Fix: clamp(1.4rem, 4vw + 0.5rem, 2.5rem) — fluid, never wraps
+ *    before 400px.
  *
- * 3. Activity list uses role="list" / role="listitem" for screen readers
- *    and a visually hidden sr-only label.
+ * 3. STAT PILLS WRAP
+ *    flex-wrap gap-2 already handles this correctly. No change needed.
+ *
+ * 4. STREAK BADGE
+ *    flex-wrap on the welcome row ensures the badge drops to its own
+ *    line on very narrow screens instead of squeezing the heading.
  */
 
 import { useState, useEffect } from "react";
@@ -73,8 +80,6 @@ const quickActions = [
   },
 ];
 
-// TODO Phase 5: replace with useQuery from Supabase activity_log table.
-// When this array has items the list renders; when empty the EmptyState shows.
 const recentActivity: {
   action: string;
   subject: string;
@@ -83,7 +88,6 @@ const recentActivity: {
   color: string;
 }[] = [];
 
-// Animated counter hook
 function useCounter(target: number, duration = 900) {
   const [val, setVal] = useState(0);
   useEffect(() => {
@@ -102,41 +106,42 @@ function useCounter(target: number, duration = 900) {
 
 const Dashboard = () => {
   const { user } = useAuth();
-  // FIX 4: use shared userUtils instead of local duplicate
   const firstName = getDisplayName(user) || "there";
 
-  const ppts   = useCounter(0);
-  const notes  = useCounter(0);
-  const tasks  = useCounter(0);
+  const ppts  = useCounter(0);
+  const notes = useCounter(0);
+  const tasks = useCounter(0);
 
   return (
     <>
-      {/*
-        FIX 4.2: CSS for activity row hover — replaces inline style mutations.
-        .activity-row:hover background is handled in CSS, not JS.
-      */}
       <style>{`
         .activity-row:hover { background: hsl(var(--secondary)); }
       `}</style>
 
-      <div className="space-y-8">
+      <div className="space-y-6 md:space-y-8">
         {/* ── Welcome ── */}
         <div className="fade-up" style={{ animationDelay: "0ms" }}>
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
               <h1
                 className="font-display font-bold"
-                style={{ fontSize: "var(--text-2xl)", lineHeight: 1.15 }}
+                style={{
+                  fontSize: "clamp(1.4rem, 4vw + 0.5rem, 2.5rem)",
+                  lineHeight: 1.2,
+                }}
               >
                 Welcome back,{" "}
                 <span className="gradient-text">{firstName}</span> 👋
               </h1>
-              <p className="page-subtitle" style={{ marginTop: 6 }}>
+              <p
+                className="page-subtitle"
+                style={{ marginTop: 6, fontSize: "var(--text-sm)" }}
+              >
                 Your academic workflow is running smoothly.
               </p>
             </div>
             <div
-              className="flex items-center gap-2 px-3 py-2 rounded-xl"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl shrink-0"
               style={{
                 background: "hsla(30,80%,55%,0.12)",
                 border: "1px solid hsla(30,80%,55%,0.25)",
@@ -150,7 +155,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Mini stat pills */}
+          {/* Stat pills */}
           <div className="flex flex-wrap gap-2 mt-4" role="list" aria-label="Usage stats">
             {[
               { label: "PPTs",       val: ppts,  color: "hsl(262,80%,70%)" },
@@ -183,7 +188,12 @@ const Dashboard = () => {
         {/* ── Quick Actions ── */}
         <div>
           <p className="section-label">Quick actions</p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/*
+            FIX: xl:grid-cols-4 instead of lg:grid-cols-4.
+            4 columns only triggers at ≥ 1280px.
+            640–1279px = 2 cols, <640px = 1 col.
+          */}
+          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
             {quickActions.map((action, i) => (
               <Link
                 key={action.title}
@@ -191,13 +201,13 @@ const Dashboard = () => {
                 className="glass-card rounded-2xl card-interactive"
                 style={{
                   display: "block",
-                  padding: "20px",
+                  padding: "clamp(14px, 3vw, 20px)",
                   textDecoration: "none",
                   animation: `fadeUp 0.45s cubic-bezier(0.16,1,0.3,1) ${80 + i * 60}ms both`,
                 }}
               >
                 <div
-                  className="flex items-center justify-center rounded-xl mb-4"
+                  className="flex items-center justify-center rounded-xl mb-3"
                   style={{
                     width: 40,
                     height: 40,
@@ -210,11 +220,22 @@ const Dashboard = () => {
                 </div>
                 <h3
                   className="font-display font-semibold"
-                  style={{ fontSize: "var(--text-sm)", color: "hsl(var(--foreground))", marginBottom: 4 }}
+                  style={{
+                    fontSize: "var(--text-sm)",
+                    color: "hsl(var(--foreground))",
+                    marginBottom: 4,
+                  }}
                 >
                   {action.title}
                 </h3>
-                <p style={{ fontSize: "var(--text-xs)", color: "hsl(var(--muted-foreground))", marginBottom: 16, lineHeight: 1.5 }}>
+                <p
+                  style={{
+                    fontSize: "var(--text-xs)",
+                    color: "hsl(var(--muted-foreground))",
+                    marginBottom: 14,
+                    lineHeight: 1.5,
+                  }}
+                >
                   {action.description}
                 </p>
                 <div className="flex items-center justify-between">
@@ -232,7 +253,11 @@ const Dashboard = () => {
                   </span>
                   <span
                     className="flex items-center gap-1"
-                    style={{ fontSize: "var(--text-xs)", color: "hsl(262,80%,68%)", fontWeight: 500 }}
+                    style={{
+                      fontSize: "var(--text-xs)",
+                      color: "hsl(262,80%,68%)",
+                      fontWeight: 500,
+                    }}
                     aria-hidden="true"
                   >
                     Open <ArrowRight size={11} />
@@ -248,10 +273,9 @@ const Dashboard = () => {
           className="glass-card rounded-2xl"
           style={{ animation: "fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) 380ms both" }}
         >
-          {/* Header */}
           <div
             style={{
-              padding: "18px 20px 14px",
+              padding: "16px 20px 12px",
               borderBottom: "1px solid hsl(var(--border))",
               display: "flex",
               alignItems: "center",
@@ -279,11 +303,6 @@ const Dashboard = () => {
             </span>
           </div>
 
-          {/*
-            FIX 4.1: Empty state — shown when recentActivity is empty.
-            A proper empty state with icon, warm message, and a CTA.
-            "No items" is never acceptable (see Design Taste guidelines).
-          */}
           {recentActivity.length === 0 ? (
             <div
               role="status"
@@ -293,7 +312,7 @@ const Dashboard = () => {
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                padding: "40px 24px",
+                padding: "clamp(24px, 5vw, 40px) 24px",
                 gap: 12,
                 textAlign: "center",
               }}
@@ -337,13 +356,17 @@ const Dashboard = () => {
               <Link
                 to="/dashboard/ppt"
                 className="btn btn-primary"
-                style={{ padding: "8px 20px", fontSize: "var(--text-xs)", borderRadius: "0.625rem", marginTop: 4 }}
+                style={{
+                  padding: "8px 20px",
+                  fontSize: "var(--text-xs)",
+                  borderRadius: "0.625rem",
+                  marginTop: 4,
+                }}
               >
                 <Zap size={13} aria-hidden="true" /> Start with PPT
               </Link>
             </div>
           ) : (
-            /* Activity list — only rendered when there are items */
             <ul
               role="list"
               aria-label="Recent activity"
@@ -354,7 +377,6 @@ const Dashboard = () => {
                 return (
                   <li
                     key={i}
-                    // FIX 4.2: CSS class handles hover — no inline style mutations
                     className="activity-row flex items-center gap-3 rounded-xl transition-colors duration-150"
                     style={{ padding: "10px", cursor: "default" }}
                   >
@@ -367,20 +389,34 @@ const Dashboard = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p
-                        style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "hsl(var(--foreground))", lineHeight: 1.3 }}
+                        style={{
+                          fontSize: "var(--text-sm)",
+                          fontWeight: 500,
+                          color: "hsl(var(--foreground))",
+                          lineHeight: 1.3,
+                        }}
                         className="truncate"
                       >
                         {item.action}
                       </p>
                       <p
-                        style={{ fontSize: "var(--text-xs)", color: "hsl(var(--muted-foreground))", lineHeight: 1.3 }}
+                        style={{
+                          fontSize: "var(--text-xs)",
+                          color: "hsl(var(--muted-foreground))",
+                          lineHeight: 1.3,
+                        }}
                         className="truncate"
                       >
                         {item.subject}
                       </p>
                     </div>
                     <span
-                      style={{ fontSize: "var(--text-xs)", color: "hsl(var(--muted-foreground))", whiteSpace: "nowrap", flexShrink: 0 }}
+                      style={{
+                        fontSize: "var(--text-xs)",
+                        color: "hsl(var(--muted-foreground))",
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                      }}
                     >
                       {item.time}
                     </span>

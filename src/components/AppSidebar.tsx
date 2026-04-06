@@ -1,16 +1,24 @@
 /**
  * AppSidebar.tsx
  *
- * PHASE 7 CHANGES
- * ────────────────
- * 1. MOBILE NAV LABEL — raised from 11px → 12px.
- *    12px is the absolute accessibility floor defined in the
- *    design system (--text-xs clamp lower bound). 11px was a
- *    deliberate Phase 6 compromise; now that the bar is 5 items
- *    there is enough room to meet the hard floor.
+ * PRE-PHASE-9 CLEANUP — Profile deduplication
+ * ─────────────────────────────────────────────
+ * PROBLEM:
+ *   On mobile, when the sidebar drawer opened, users saw:
+ *     1. A Profile link in the SidebarFooter (inside the drawer)
+ *     2. A Profile tab in the MobileBottomNav (always visible)
+ *   That's two "Profile" entries on the same screen. Confusing.
  *
- * All other changes (5-item bar, stronger active state,
- * visual separation, aria-labels) were completed in Phase 6.
+ * FIX:
+ *   The SidebarFooter ProfileLink is wrapped in a <div className="md:block hidden">
+ *   so it only renders on md+ (desktop/tablet ≥ 768px).
+ *   On mobile (< 768px) the sidebar drawer exists for navigation but
+ *   the Profile entry is suppressed — the bottom nav tab is the single
+ *   canonical mobile profile entry point.
+ *
+ *   Desktop behaviour is unchanged:
+ *     - Sidebar footer shows the profile link.
+ *     - TopBar avatar is a secondary shortcut (see TopBar.tsx comment).
  */
 
 import {
@@ -43,12 +51,12 @@ import {
 import { getInitials, getDisplayName, getAvatarUrl } from "@/lib/userUtils";
 
 const mainItems = [
-  { title: "Dashboard",   url: "/dashboard",             icon: LayoutDashboard },
-  { title: "PPT",         url: "/dashboard/ppt",          icon: Presentation    },
-  { title: "Assignments", url: "/dashboard/assignments",  icon: FileText        },
-  { title: "Notes",       url: "/dashboard/notes",        icon: BookOpen        },
-  { title: "Timetable",   url: "/dashboard/timetable",    icon: CalendarDays    },
-  { title: "Checklist",   url: "/dashboard/checklist",    icon: CheckSquare     },
+  { title: "Dashboard",   url: "/dashboard",            icon: LayoutDashboard },
+  { title: "PPT",         url: "/dashboard/ppt",         icon: Presentation    },
+  { title: "Assignments", url: "/dashboard/assignments", icon: FileText        },
+  { title: "Notes",       url: "/dashboard/notes",       icon: BookOpen        },
+  { title: "Timetable",   url: "/dashboard/timetable",   icon: CalendarDays    },
+  { title: "Checklist",   url: "/dashboard/checklist",   icon: CheckSquare     },
 ];
 
 // ── ProfileLink ────────────────────────────────────────────────────
@@ -60,13 +68,7 @@ interface ProfileLinkProps {
   active: boolean;
 }
 
-function ProfileLink({
-  avatarUrl,
-  displayName,
-  initials,
-  collapsed,
-  active,
-}: ProfileLinkProps) {
+function ProfileLink({ avatarUrl, displayName, initials, collapsed, active }: ProfileLinkProps) {
   return (
     <NavLink
       to="/dashboard/profile"
@@ -75,7 +77,7 @@ function ProfileLink({
       className="flex items-center gap-3 px-3 rounded-xl text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       style={{
         height: 40,
-        color: active ? "hsl(262,80%,75%)" : "hsl(220,8%,58%)",
+        color:      active ? "hsl(262,80%,75%)" : "hsl(220,8%,58%)",
         background: active ? "hsla(262,80%,62%,0.12)" : "transparent",
         fontWeight: active ? 600 : 400,
       }}
@@ -109,10 +111,10 @@ function ProfileLink({
 
 // ── Desktop sidebar ─────────────────────────────────────────────────
 export function AppSidebar() {
-  const { state } = useSidebar();
-  const collapsed = state === "collapsed";
-  const location = useLocation();
-  const { user } = useAuth();
+  const { state }   = useSidebar();
+  const collapsed   = state === "collapsed";
+  const location    = useLocation();
+  const { user }    = useAuth();
 
   const initials    = getInitials(user?.user_metadata?.full_name ?? user?.email);
   const displayName = getDisplayName(user);
@@ -124,10 +126,7 @@ export function AppSidebar() {
       : location.pathname.startsWith(url);
 
   return (
-    <Sidebar
-      collapsible="icon"
-      style={{ borderRight: "1px solid hsl(240,10%,14%)" }}
-    >
+    <Sidebar collapsible="icon" style={{ borderRight: "1px solid hsl(240,10%,14%)" }}>
       {/* Logo */}
       <SidebarHeader style={{ padding: collapsed ? "14px 12px" : "16px 14px" }}>
         <div className="flex items-center gap-2.5 overflow-hidden">
@@ -197,10 +196,8 @@ export function AppSidebar() {
                         className="flex items-center gap-3 px-3 rounded-xl text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                         style={{
                           height: 38,
-                          color: active ? "hsl(262,80%,75%)" : "hsl(220,8%,58%)",
-                          background: active
-                            ? "hsla(262,80%,62%,0.12)"
-                            : "transparent",
+                          color:      active ? "hsl(262,80%,75%)" : "hsl(220,8%,58%)",
+                          background: active ? "hsla(262,80%,62%,0.12)" : "transparent",
                           fontWeight: active ? 600 : 400,
                         }}
                         activeClassName=""
@@ -210,9 +207,7 @@ export function AppSidebar() {
                           aria-hidden="true"
                           style={{
                             width: 22,
-                            color: active
-                              ? "hsl(262,80%,70%)"
-                              : "hsl(220,8%,50%)",
+                            color: active ? "hsl(262,80%,70%)" : "hsl(220,8%,50%)",
                           }}
                         >
                           <item.icon size={16} />
@@ -239,30 +234,37 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Profile footer */}
+      {/*
+        Profile footer — DESKTOP ONLY (hidden on mobile).
+        On mobile the bottom nav already has a Profile tab.
+        Showing it here too would create a duplicate entry
+        when the sidebar drawer opens on small screens.
+      */}
       <SidebarFooter style={{ padding: "8px 8px 12px" }}>
-        {!collapsed && (
-          <div
-            style={{
-              height: 1,
-              background: "hsl(240,10%,14%)",
-              margin: "0 6px 8px",
-            }}
-          />
-        )}
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <ProfileLink
-                avatarUrl={avatarUrl}
-                displayName={displayName}
-                initials={initials}
-                collapsed={collapsed}
-                active={location.pathname === "/dashboard/profile"}
-              />
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <div className="hidden md:block">
+          {!collapsed && (
+            <div
+              style={{
+                height: 1,
+                background: "hsl(240,10%,14%)",
+                margin: "0 6px 8px",
+              }}
+            />
+          )}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <ProfileLink
+                  avatarUrl={avatarUrl}
+                  displayName={displayName}
+                  initials={initials}
+                  collapsed={collapsed}
+                  active={location.pathname === "/dashboard/profile"}
+                />
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );
@@ -323,22 +325,11 @@ export function MobileBottomNav() {
               style={{
                 width: 40,
                 height: 28,
-                background: active
-                  ? "hsla(262,80%,62%,0.18)"
-                  : "transparent",
+                background: active ? "hsla(262,80%,62%,0.18)" : "transparent",
               }}
             >
-              <item.icon
-                size={active ? 19 : 18}
-                strokeWidth={active ? 2.2 : 1.8}
-              />
+              <item.icon size={active ? 19 : 18} strokeWidth={active ? 2.2 : 1.8} />
             </span>
-            {/*
-              PHASE 7 FIX: Label raised from 11px → 12px.
-              12px is the absolute floor per design system
-              (--text-xs clamp lower bound). All text on screen
-              must render at 12px minimum — no exceptions.
-            */}
             <span
               aria-hidden="true"
               style={{

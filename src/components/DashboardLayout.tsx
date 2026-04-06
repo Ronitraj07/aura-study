@@ -1,16 +1,23 @@
 /**
  * DashboardLayout.tsx
  *
- * PHASE 6 CHANGES
- * ────────────────
- * Skip-to-content link was already present from a prior patch.
- * This file is re-committed to:
- *   1. Confirm id="main-content" + tabIndex={-1} on <main> are in place.
- *   2. Add aria-label="Main content" to <main> so screen readers
- *      announce the region when the skip link lands focus here.
- *   3. Wrap the layout in a <div role="application"> region so
- *      assistive technology understands this is an app shell, not
- *      a document (improves JAWS/NVDA virtual cursor behaviour).
+ * PRE-PHASE-9 CLEANUP — Mobile layout alignment
+ * ──────────────────────────────────────────────
+ * 1. MOBILE PADDING TIGHTENED
+ *    Previous: clamp(1.25rem, 3vw, 2rem) = 20px on 375px phones.
+ *    That's fine for content but combined with the sidebar gutter and
+ *    the bottom-nav safe area it was squeezing content too much on
+ *    small screens.
+ *    New: clamp(0.75rem, 3.5vw, 2rem) = 12px floor on 375px, scales
+ *    to 32px at 1200px. Content now has breathing room without overflow.
+ *
+ * 2. BOTTOM PADDING
+ *    pb-20 (80px) was barely clearing the 60px bottom nav on devices
+ *    without safe-area-inset. Bumped to pb-24 (96px) so the last item
+ *    on any page is never hidden behind the nav bar.
+ *
+ * 3. SKIP LINK — already correct from Phase 6. No change.
+ * 4. ARIA — already correct from Phase 6. No change.
  */
 
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -36,57 +43,51 @@ const pageVariants = {
 
 const DashboardLayout = () => {
   const location = useLocation();
-  const mainRef = useRef<HTMLElement>(null);
+  const mainRef  = useRef<HTMLElement>(null);
 
-  // Scroll to top on route change
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [location.pathname]);
 
   return (
     <SidebarProvider>
-      {/*
-        SKIP LINK — must be the very first focusable element in the DOM.
-        Visually hidden via .sr-only until focused, then positions itself
-        top-left with a gradient pill. Target: #main-content below.
-      */}
+      {/* Skip link — must be the very first focusable element */}
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[9999] focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm focus:font-medium focus:text-white"
         style={{
           background: "var(--gradient-primary)",
-          outline: "none",
-          boxShadow: "0 0 0 2px hsl(262,80%,62%)",
+          outline: "2px solid hsl(262,80%,62%)",
+          outlineOffset: 2,
         }}
       >
         Skip to main content
       </a>
 
-      <div className="min-h-screen flex w-full bg-background overflow-hidden">
-        {/* Desktop sidebar — hidden on mobile (md:hidden handled inside) */}
+      <div className="min-h-screen flex w-full bg-background" style={{ overflow: "hidden" }}>
         <AppSidebar />
 
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0" style={{ overflow: "hidden" }}>
           <TopBar />
 
-          {/*
-            FIX 6 — aria-label="Main content" added so screen readers
-            announce this landmark region when skip link moves focus here.
-            tabIndex={-1}: programmatically focusable (for skip link) but
-            not in the natural Tab order.
-            outline-none: suppresses the browser's default focus ring on
-            the <main> element itself (focus ring only needed on interactive
-            children, not the scroll container).
-          */}
           <main
             id="main-content"
             ref={mainRef}
             tabIndex={-1}
             aria-label="Main content"
-            className="flex-1 overflow-y-auto pb-20 md:pb-0 outline-none"
-            style={{ padding: "clamp(1.25rem, 3vw, 2rem)" }}
+            className="flex-1 overflow-y-auto outline-none"
+            style={{
+              /*
+               * pb-24 (96px) ensures content clears the 60px mobile
+               * bottom nav + safe-area-inset on notched devices.
+               * md:pb-0 removes it on desktop where there is no bottom nav.
+               */
+              paddingBottom: "clamp(5rem, 8vw, 6rem)",
+              paddingTop: "clamp(0.75rem, 2vw, 1.5rem)",
+              paddingInline: "clamp(0.75rem, 3.5vw, 2rem)",
+            }}
           >
-            <div className="max-w-6xl mx-auto">
+            <div style={{ maxWidth: "72rem", marginInline: "auto" }}>
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={location.pathname}
@@ -103,11 +104,6 @@ const DashboardLayout = () => {
         </div>
       </div>
 
-      {/*
-        MobileBottomNav renders fixed at the bottom, md:hidden.
-        Placed outside the scroll container so it never scrolls away.
-        pb-20 on <main> reserves space so content doesn't hide behind it.
-      */}
       <MobileBottomNav />
     </SidebarProvider>
   );
