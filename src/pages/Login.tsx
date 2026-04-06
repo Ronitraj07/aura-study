@@ -58,9 +58,35 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden px-6">
-      {/* Ambient glows */}
-      <div className="hero-glow bg-primary/20 top-1/4 left-1/4 animate-pulse-glow" />
-      <div className="hero-glow bg-accent/15 bottom-1/4 right-1/4 animate-pulse-glow" style={{ animationDelay: "2s" }} />
+      {/*
+        FIX 1.4: Ambient glow divs previously had no explicit width/height,
+        so they rendered at 0×0 and were invisible. Added explicit dimensions
+        matching the HeroSection pattern. The .hero-glow class handles
+        border-radius:50% and filter:blur(90px).
+      */}
+      <div
+        className="hero-glow animate-pulse-glow"
+        style={{
+          width: 480,
+          height: 480,
+          background: "hsl(var(--primary))",
+          opacity: 0.18,
+          top: "15%",
+          left: "10%",
+        }}
+      />
+      <div
+        className="hero-glow animate-pulse-glow"
+        style={{
+          width: 400,
+          height: 400,
+          background: "hsl(var(--accent))",
+          opacity: 0.13,
+          bottom: "15%",
+          right: "8%",
+          animationDelay: "2s",
+        }}
+      />
 
       {/* Dot grid */}
       <div
@@ -72,118 +98,127 @@ export default function Login() {
         }}
       />
 
-      <AnimatePresence mode="wait">
-        {/* ── RESTRICTED ────────────────────────────────────── */}
-        {isRestricted ? (
-          <motion.div
-            key="restricted"
-            initial={{ opacity: 0, y: 20, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.97 }}
-            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 glass-card rounded-2xl p-8 w-full max-w-md text-center"
-          >
-            <div
-              className="absolute -inset-[1px] rounded-2xl opacity-40 pointer-events-none"
-              style={glowBorder("linear-gradient(135deg, hsl(0,70%,55%), hsl(30,80%,55%))")}
-            />
-
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 bg-destructive/10 border border-destructive/20">
-              <ShieldX className="w-8 h-8 text-destructive" />
-            </div>
-
-            <h1 className="font-display text-2xl font-bold text-foreground mb-2">
-              Access Restricted
-            </h1>
-            <p className="text-sm text-muted-foreground mb-2 leading-relaxed">
-              This platform is invite-only. Your Google account is not on the
-              authorised list.
-            </p>
-            <p className="text-xs text-muted-foreground/60 mb-8">
-              Contact the admin if you believe this is a mistake.
-            </p>
-
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="px-6 py-3 rounded-xl font-display font-medium text-sm bg-secondary border border-border text-foreground hover:bg-secondary/80 hover:border-primary/30 transition-all duration-300"
+      {/*
+        FIX 1.5: aria-live="polite" on the outer container means screen readers
+        announce when the view switches between sign-in and restricted states.
+        The two <h1> elements are mutually exclusive (AnimatePresence mode="wait")
+        so only one is ever in the DOM at a time — this is correct at runtime.
+      */}
+      <div aria-live="polite" aria-atomic="true" className="relative z-10 w-full flex justify-center">
+        <AnimatePresence mode="wait">
+          {/* ── RESTRICTED ──────────────────────────────────────────── */}
+          {isRestricted ? (
+            <motion.div
+              key="restricted"
+              initial={{ opacity: 0, y: 20, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.97 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              className="glass-card rounded-2xl p-8 w-full max-w-md text-center"
             >
-              Sign out &amp; try another account
-            </button>
-          </motion.div>
-        ) : (
-          /* ── SIGN IN ──────────────────────────────────────── */
-          <motion.div
-            key="login"
-            initial={{ opacity: 0, y: 20, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.97 }}
-            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 glass-card rounded-2xl p-8 w-full max-w-md"
-          >
-            <div
-              className="absolute -inset-[1px] rounded-2xl opacity-50 pointer-events-none"
-              style={glowBorder("var(--gradient-primary)")}
-            />
-
-            {/* Logo mark */}
-            <div className="flex justify-center mb-6">
               <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
-                style={{ background: "var(--gradient-primary)" }}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                </svg>
+                className="absolute -inset-[1px] rounded-2xl opacity-40 pointer-events-none"
+                style={glowBorder("linear-gradient(135deg, hsl(0,70%,55%), hsl(30,80%,55%))")}
+              />
+
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 bg-destructive/10 border border-destructive/20">
+                <ShieldX className="w-8 h-8 text-destructive" />
               </div>
-            </div>
 
-            <div className="text-center mb-8">
-              <h1 className="font-display text-3xl font-bold gradient-text mb-2">Welcome Back</h1>
-              <p className="text-sm text-muted-foreground">Sign in with your Google account to continue</p>
-            </div>
+              <h1 className="font-display text-2xl font-bold text-foreground mb-2">
+                Access Restricted
+              </h1>
+              <p className="text-sm text-muted-foreground mb-2 leading-relaxed">
+                This platform is invite-only. Your Google account is not on the
+                authorised list.
+              </p>
+              <p className="text-xs text-muted-foreground/60 mb-8">
+                Contact the admin if you believe this is a mistake.
+              </p>
 
-            {/* Error banner */}
-            <AnimatePresence>
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mb-4 px-4 py-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm"
-                >
-                  {error}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Google Sign-In button */}
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={loading || status === "loading"}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl bg-secondary border border-border text-foreground text-sm font-medium hover:bg-secondary/80 hover:border-primary/30 transition-all duration-300 group disabled:opacity-60 disabled:cursor-not-allowed"
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="px-6 py-3 rounded-xl font-display font-medium text-sm bg-secondary border border-border text-foreground hover:bg-secondary/80 hover:border-primary/30 transition-all duration-300"
+              >
+                Sign out &amp; try another account
+              </button>
+            </motion.div>
+          ) : (
+            /* ── SIGN IN ─────────────────────────────────────────────── */
+            <motion.div
+              key="login"
+              initial={{ opacity: 0, y: 20, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.97 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              className="glass-card rounded-2xl p-8 w-full max-w-md"
             >
-              {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin text-primary" />
-              ) : (
-                <GoogleIcon />
-              )}
-              {loading ? "Redirecting to Google…" : "Continue with Google"}
-              {!loading && (
-                <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground group-hover:translate-x-1 group-hover:text-primary transition-all" />
-              )}
-            </button>
+              <div
+                className="absolute -inset-[1px] rounded-2xl opacity-50 pointer-events-none"
+                style={glowBorder("var(--gradient-primary)")}
+              />
 
-            <p className="text-xs text-muted-foreground/60 text-center mt-6 leading-relaxed">
-              Access is restricted to authorised accounts only.
-              <br />
-              Email/password login is not available.
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              {/* Logo mark */}
+              <div className="flex justify-center mb-6">
+                <div
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
+                  style={{ background: "var(--gradient-primary)" }}
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                  </svg>
+                </div>
+              </div>
+
+              <div className="text-center mb-8">
+                <h1 className="font-display text-3xl font-bold gradient-text mb-2">Welcome Back</h1>
+                <p className="text-sm text-muted-foreground">Sign in with your Google account to continue</p>
+              </div>
+
+              {/* Error banner */}
+              <AnimatePresence>
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-4 px-4 py-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm"
+                    role="alert"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Google Sign-In button */}
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={loading || status === "loading"}
+                className="w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl bg-secondary border border-border text-foreground text-sm font-medium hover:bg-secondary/80 hover:border-primary/30 transition-all duration-300 group disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                ) : (
+                  <GoogleIcon />
+                )}
+                {loading ? "Redirecting to Google…" : "Continue with Google"}
+                {!loading && (
+                  <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground group-hover:translate-x-1 group-hover:text-primary transition-all" />
+                )}
+              </button>
+
+              <p className="text-xs text-muted-foreground/60 text-center mt-6 leading-relaxed">
+                Access is restricted to authorised accounts only.
+                <br />
+                Email/password login is not available.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
