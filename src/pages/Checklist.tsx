@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -28,6 +28,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChecklistGenerator, type AITask, type AIPriority, type AICategory } from "@/hooks/useChecklistGenerator";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  fetchChecklist,
+  insertChecklistTask,
+  updateChecklistTask,
+  deleteChecklistTask,
+  type ChecklistTask as DBTask,
+} from "@/lib/database";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +50,21 @@ interface Task {
   estimatedMinutes?: number;
   createdAt: number;
   completedAt?: number;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function dbToTask(row: DBTask): Task {
+  return {
+    id: row.id,
+    text: row.title,
+    completed: row.completed,
+    priority: row.priority as Priority,
+    category: row.category as AICategory | undefined,
+    estimatedMinutes: row.estimated_minutes ?? undefined,
+    createdAt: new Date(row.created_at).getTime(),
+    completedAt: row.completed_at ? new Date(row.completed_at).getTime() : undefined,
+  };
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -91,13 +114,10 @@ function TaskRow({
           : "bg-secondary/40 border-border/40 hover:border-border/70 hover:bg-secondary/60",
       )}
     >
-      {/* Priority indicator */}
       <div
         className="w-0.5 h-7 rounded-full shrink-0"
         style={{ background: task.completed ? "hsl(0,0%,40%)" : pc.color }}
       />
-
-      {/* Checkbox */}
       <button onClick={onToggle} className="shrink-0 transition-transform hover:scale-110 active:scale-95">
         {task.completed ? (
           <CheckCircle2 className="w-5 h-5" style={{ color: "hsl(160,70%,46%)" }} />
@@ -105,8 +125,6 @@ function TaskRow({
           <Circle className="w-5 h-5 text-muted-foreground/50 hover:text-primary transition-colors" />
         )}
       </button>
-
-      {/* Text + meta */}
       <div className="flex-1 min-w-0">
         <span className={cn(
           "text-sm leading-snug transition-all select-none block",
@@ -131,8 +149,6 @@ function TaskRow({
           </div>
         )}
       </div>
-
-      {/* Priority badge + picker */}
       <div className="relative shrink-0">
         <button
           onClick={() => setShowPriority((v) => !v)}
@@ -146,7 +162,6 @@ function TaskRow({
           <Flag className="w-2.5 h-2.5" />
           {pc.label}
         </button>
-
         <AnimatePresence>
           {showPriority && (
             <motion.div
@@ -178,8 +193,6 @@ function TaskRow({
           )}
         </AnimatePresence>
       </div>
-
-      {/* Delete */}
       <button
         onClick={onDelete}
         className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all shrink-0"
@@ -218,8 +231,6 @@ function SectionHeader({
 }
 
 // ─── AI Generate Modal ────────────────────────────────────────────────────────
-// Uses createPortal so it escapes Framer Motion stacking contexts on ancestors.
-// AnimatePresence lives INSIDE the portal so it can properly animate mount/unmount.
 
 function AIGenerateModal({
   isOpen,
@@ -275,7 +286,6 @@ function AIGenerateModal({
             style={{ maxHeight: "90vh" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border/30 shrink-0">
               <div className="flex items-center gap-3">
                 <div
@@ -297,13 +307,10 @@ function AIGenerateModal({
                 <X className="w-4 h-4" />
               </button>
             </div>
-
-            {/* Scrollable body */}
             <div
               className="p-6 flex flex-col gap-4 overflow-y-auto"
               style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(262,80%,62%,0.2) transparent" }}
             >
-              {/* Goal input */}
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">
                   Goal or Topic <span className="text-destructive">*</span>
@@ -318,8 +325,6 @@ function AIGenerateModal({
                   autoFocus
                 />
               </div>
-
-              {/* Context textarea */}
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">
                   Extra Context <span className="text-muted-foreground/50 normal-case font-normal">(optional)</span>
@@ -333,8 +338,6 @@ function AIGenerateModal({
                   disabled={isGenerating}
                 />
               </div>
-
-              {/* Error state */}
               <AnimatePresence>
                 {error && (
                   <motion.div
@@ -348,8 +351,6 @@ function AIGenerateModal({
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {/* Result preview */}
               <AnimatePresence>
                 {result && (
                   <motion.div
@@ -358,7 +359,6 @@ function AIGenerateModal({
                     exit={{ opacity: 0, y: 8 }}
                     className="flex flex-col gap-3"
                   >
-                    {/* Summary bar */}
                     <div className="flex items-start justify-between p-3.5 rounded-xl border border-primary/20" style={{ background: "hsl(262,80%,62%,0.06)" }}>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground">{result.title}</p>
@@ -372,8 +372,6 @@ function AIGenerateModal({
                         }
                       </div>
                     </div>
-
-                    {/* Task list preview */}
                     <div
                       className="flex flex-col gap-1.5 max-h-52 overflow-y-auto pr-1"
                       style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(262,80%,62%,0.2) transparent" }}
@@ -406,8 +404,6 @@ function AIGenerateModal({
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {/* Action buttons */}
               <div className="flex gap-3 pt-1">
                 {!result ? (
                   <>
@@ -459,15 +455,10 @@ function AIGenerateModal({
   );
 }
 
-// ─── AI Generate Panel (trigger button only) ──────────────────────────────────
+// ─── AI Generate Panel ────────────────────────────────────────────────────────
 
-function AIGeneratePanel({
-  onImport,
-}: {
-  onImport: (tasks: AITask[]) => void;
-}) {
+function AIGeneratePanel({ onImport }: { onImport: (tasks: AITask[]) => void }) {
   const [open, setOpen] = useState(false);
-
   return (
     <>
       <button
@@ -477,25 +468,20 @@ function AIGeneratePanel({
         <Sparkles className="w-4 h-4" />
         Generate with AI
       </button>
-
-      {/* Always rendered so AnimatePresence can track the exit animation */}
-      <AIGenerateModal
-        isOpen={open}
-        onImport={onImport}
-        onClose={() => setOpen(false)}
-      />
+      <AIGenerateModal isOpen={open} onImport={onImport} onClose={() => setOpen(false)} />
     </>
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 const Checklist = () => {
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: "1", text: "Review lecture notes for Chapter 4",    completed: false, priority: "high",   createdAt: Date.now() - 3600000 },
-    { id: "2", text: "Complete practice problems for Math",   completed: false, priority: "medium", createdAt: Date.now() - 7200000 },
-    { id: "3", text: "Read assignment brief",                 completed: true,  priority: "low",    createdAt: Date.now() - 86400000, completedAt: Date.now() - 3600000 },
-  ]);
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [pendingCollapsed, setPendingCollapsed] = useState(false);
@@ -503,28 +489,62 @@ const Checklist = () => {
   const [filter, setFilter] = useState<"all" | Priority>("all");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const addTask = (text?: string, opts?: { priority?: Priority; category?: AICategory; estimatedMinutes?: number }) => {
+  // ── Load from Supabase on mount ──
+  useEffect(() => {
+    if (!userId) { setIsLoading(false); return; }
+    setIsLoading(true);
+    fetchChecklist(userId)
+      .then((rows) => { setTasks(rows.map(dbToTask)); setFetchError(null); })
+      .catch((e) => setFetchError(e?.message ?? "Failed to load tasks"))
+      .finally(() => setIsLoading(false));
+  }, [userId]);
+
+  // ── Add task ──
+  const addTask = useCallback(async (
+    text?: string,
+    opts?: { priority?: Priority; category?: AICategory; estimatedMinutes?: number },
+  ) => {
     const t = (text ?? input).trim();
     if (!t) return;
-    setTasks((prev) => [
-      {
-        id: Date.now().toString() + Math.random(),
-        text: t,
-        completed: false,
-        priority: opts?.priority ?? priority,
-        category: opts?.category,
-        estimatedMinutes: opts?.estimatedMinutes,
-        createdAt: Date.now(),
-      },
-      ...prev,
-    ]);
-    if (!text) { setInput(""); inputRef.current?.focus(); }
-  };
 
-  const importAITasks = (aiTasks: AITask[]) => {
+    const newPriority = opts?.priority ?? priority;
+    const tempId = `tmp-${Date.now()}-${Math.random()}`;
+    const optimistic: Task = {
+      id: tempId,
+      text: t,
+      completed: false,
+      priority: newPriority,
+      category: opts?.category,
+      estimatedMinutes: opts?.estimatedMinutes,
+      createdAt: Date.now(),
+    };
+
+    setTasks((prev) => [optimistic, ...prev]);
+    if (!text) { setInput(""); inputRef.current?.focus(); }
+
+    if (userId) {
+      try {
+        const row = await insertChecklistTask(userId, {
+          title: t,
+          priority: newPriority,
+          position: 0,
+          category: opts?.category,
+          estimated_minutes: opts?.estimatedMinutes,
+        });
+        // replace temp id with real DB id
+        setTasks((prev) => prev.map((tk) => tk.id === tempId ? dbToTask(row) : tk));
+      } catch {
+        // rollback on error
+        setTasks((prev) => prev.filter((tk) => tk.id !== tempId));
+      }
+    }
+  }, [userId, input, priority]);
+
+  // ── Import AI tasks (bulk) ──
+  const importAITasks = useCallback(async (aiTasks: AITask[]) => {
     const now = Date.now();
-    const newTasks: Task[] = aiTasks.map((t, i) => ({
-      id: `ai-${now}-${i}`,
+    const optimistic: Task[] = aiTasks.map((t, i) => ({
+      id: `ai-tmp-${now}-${i}`,
       text: t.text,
       completed: false,
       priority: t.priority,
@@ -532,35 +552,102 @@ const Checklist = () => {
       estimatedMinutes: t.estimatedMinutes,
       createdAt: now + i,
     }));
-    setTasks((prev) => [...newTasks, ...prev]);
-  };
+    setTasks((prev) => [...optimistic, ...prev]);
 
-  const toggleTask = (id: string) =>
+    if (userId) {
+      try {
+        const inserted = await Promise.all(
+          aiTasks.map((t, i) =>
+            insertChecklistTask(userId, {
+              title: t.text,
+              priority: t.priority,
+              position: i,
+              category: t.category,
+              estimated_minutes: t.estimatedMinutes,
+            }),
+          ),
+        );
+        // replace temp ids with real DB ids in order
+        setTasks((prev) => {
+          const tempIds = optimistic.map((o) => o.id);
+          const rest = prev.filter((tk) => !tempIds.includes(tk.id));
+          return [...inserted.map(dbToTask), ...rest];
+        });
+      } catch {
+        // rollback the optimistic batch
+        setTasks((prev) => prev.filter((tk) => !tk.id.startsWith(`ai-tmp-${now}`)));
+      }
+    }
+  }, [userId]);
+
+  // ── Toggle complete ──
+  const toggleTask = useCallback((id: string) => {
     setTasks((prev) =>
-      prev.map((t) => t.id === id
-        ? { ...t, completed: !t.completed, completedAt: !t.completed ? Date.now() : undefined }
-        : t,
+      prev.map((t) =>
+        t.id === id
+          ? { ...t, completed: !t.completed, completedAt: !t.completed ? Date.now() : undefined }
+          : t,
       ),
     );
+    if (userId) {
+      const task = tasks.find((t) => t.id === id);
+      if (!task) return;
+      const nowCompleted = !task.completed;
+      updateChecklistTask(id, userId, {
+        completed: nowCompleted,
+        completed_at: nowCompleted ? new Date().toISOString() : null,
+      }).catch(() => {
+        // revert on error
+        setTasks((prev) =>
+          prev.map((t) => t.id === id ? { ...t, completed: task.completed, completedAt: task.completedAt } : t),
+        );
+      });
+    }
+  }, [userId, tasks]);
 
-  const deleteTask = (id: string) => setTasks((prev) => prev.filter((t) => t.id !== id));
+  // ── Delete task ──
+  const deleteTask = useCallback((id: string) => {
+    const snapshot = tasks.find((t) => t.id === id);
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    if (userId && snapshot) {
+      deleteChecklistTask(id, userId).catch(() => {
+        setTasks((prev) => [snapshot, ...prev]);
+      });
+    }
+  }, [userId, tasks]);
 
-  const changePriority = (id: string, p: Priority) =>
+  // ── Change priority ──
+  const changePriority = useCallback((id: string, p: Priority) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, priority: p } : t)));
+    if (userId) {
+      updateChecklistTask(id, userId, { priority: p }).catch(() => {
+        // best-effort, no rollback needed for priority
+      });
+    }
+  }, [userId]);
 
-  const clearCompleted = () => setTasks((prev) => prev.filter((t) => !t.completed));
+  // ── Clear completed ──
+  const clearCompleted = useCallback(() => {
+    const toDelete = tasks.filter((t) => t.completed);
+    setTasks((prev) => prev.filter((t) => !t.completed));
+    if (userId) {
+      Promise.all(toDelete.map((t) => deleteChecklistTask(t.id, userId))).catch(() => {
+        setTasks((prev) => [...prev, ...toDelete]);
+      });
+    }
+  }, [userId, tasks]);
 
   const filteredTasks = filter === "all" ? tasks : tasks.filter((t) => t.priority === filter);
-  const pending = filteredTasks.filter((t) => !t.completed);
+  const pending   = filteredTasks.filter((t) => !t.completed);
   const completed = filteredTasks.filter((t) => t.completed);
-
   const priorityOrder: Priority[] = ["high", "medium", "low"];
   const sortedPending = [...pending].sort(
     (a, b) => priorityOrder.indexOf(a.priority) - priorityOrder.indexOf(b.priority),
   );
-
   const progress = tasks.length === 0 ? 0 : Math.round((tasks.filter((t) => t.completed).length / tasks.length) * 100);
-  const totalEstimatedMins = tasks.filter((t) => !t.completed && t.estimatedMinutes).reduce((s, t) => s + (t.estimatedMinutes ?? 0), 0);
+  const totalEstimatedMins = tasks
+    .filter((t) => !t.completed && t.estimatedMinutes)
+    .reduce((s, t) => s + (t.estimatedMinutes ?? 0), 0);
 
   return (
     <div className="h-full flex flex-col">
@@ -585,8 +672,6 @@ const Checklist = () => {
             <p className="text-xs text-muted-foreground">Track tasks and stay on top of deadlines</p>
           </div>
         </div>
-
-        {/* Progress pill */}
         {tasks.length > 0 && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -621,21 +706,18 @@ const Checklist = () => {
         )}
       </motion.div>
 
-      {/* Layout: left stats + right task area */}
+      {/* Layout */}
       <div className="flex-1 flex gap-5 min-h-0">
 
-        {/* ── LEFT: Add + AI + stats ── */}
+        {/* LEFT panel */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.05 }}
           className="w-72 shrink-0 flex flex-col gap-4"
         >
-          {/* Add task */}
           <div className="glass-card rounded-2xl p-5">
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
-              New Task
-            </label>
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">New Task</label>
             <input
               ref={inputRef}
               value={input}
@@ -644,8 +726,6 @@ const Checklist = () => {
               placeholder="What needs to be done?"
               className="w-full bg-secondary/60 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/40 transition-all mb-3"
             />
-
-            {/* Priority selector */}
             <div className="flex items-center gap-1.5 mb-3">
               <span className="text-[10px] text-muted-foreground uppercase tracking-widest mr-1">Priority:</span>
               {(Object.keys(PRIORITY_CONFIG) as Priority[]).map((p) => {
@@ -670,7 +750,6 @@ const Checklist = () => {
                 );
               })}
             </div>
-
             <button
               onClick={() => addTask()}
               disabled={!input.trim()}
@@ -680,16 +759,11 @@ const Checklist = () => {
               <Plus className="w-4 h-4" />
               Add Task
             </button>
-
-            {/* AI Generate button */}
             <AIGeneratePanel onImport={importAITasks} />
           </div>
 
-          {/* Filter */}
           <div className="glass-card rounded-2xl p-5">
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
-              Filter
-            </label>
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Filter</label>
             <div className="flex flex-col gap-1.5">
               {(["all", "high", "medium", "low"] as const).map((f) => {
                 const isAll = f === "all";
@@ -722,7 +796,6 @@ const Checklist = () => {
             </div>
           </div>
 
-          {/* Stats */}
           <div className="glass-card rounded-2xl p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-widest mb-3">Overview</p>
             <div className="grid grid-cols-2 gap-2">
@@ -741,7 +814,7 @@ const Checklist = () => {
           </div>
         </motion.div>
 
-        {/* ── RIGHT: Task list ── */}
+        {/* RIGHT: Task list */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -752,8 +825,25 @@ const Checklist = () => {
             className="flex-1 overflow-y-auto flex flex-col gap-5 pr-1"
             style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(262,80%,62%,0.2) transparent" }}
           >
+            {/* Loading skeleton */}
+            {isLoading && (
+              <div className="flex flex-col gap-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-14 rounded-xl bg-secondary/40 animate-pulse" />
+                ))}
+              </div>
+            )}
+
+            {/* Fetch error */}
+            {!isLoading && fetchError && (
+              <div className="flex items-center gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>Couldn't load tasks: {fetchError}</span>
+              </div>
+            )}
+
             {/* Empty state */}
-            {tasks.length === 0 && (
+            {!isLoading && !fetchError && tasks.length === 0 && (
               <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
                 <motion.div
                   animate={{ y: [0, -8, 0] }}
@@ -770,8 +860,8 @@ const Checklist = () => {
               </div>
             )}
 
-            {/* ── PENDING section ── */}
-            {sortedPending.length > 0 && (
+            {/* Pending section */}
+            {!isLoading && sortedPending.length > 0 && (
               <div className="flex flex-col gap-2">
                 <SectionHeader
                   icon={Clock}
@@ -807,8 +897,8 @@ const Checklist = () => {
               </div>
             )}
 
-            {/* ── COMPLETED section ── */}
-            {completed.length > 0 && (
+            {/* Completed section */}
+            {!isLoading && completed.length > 0 && (
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-3">
                   <SectionHeader
@@ -853,8 +943,7 @@ const Checklist = () => {
             )}
           </div>
 
-          {/* Bottom hint */}
-          {tasks.length > 0 && (
+          {tasks.length > 0 && !isLoading && (
             <p className="text-[10px] text-muted-foreground/40 text-center mt-3 shrink-0">
               Hover task to change priority · Press Enter to add · Click ✓ to complete
             </p>
