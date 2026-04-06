@@ -5,25 +5,31 @@
 // ✔ researchSource attached to result for UI badge
 // ✔ Groq calls proxied through /api/generate (key never exposed)
 // ✔ C5: 'exam' depth mode — exam_tips, mnemonics, cheatsheet
+// ✔ C10: version snapshot before every overwrite + loadVersions/restoreVersion
 // ============================================================
 
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { fetchResearch, buildResearchPreamble } from '@/lib/research';
+import {
+  fetchNotesVersions,
+  createNotesVersion,
+  type NotesVersion,
+} from '@/lib/database';
 import type { NoteHeading, NoteBullet } from '@/types/database';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export interface ExamTip {
-  question: string;   // "What is X?"
-  answer:   string;   // concise answer for spaced repetition
+  question: string;
+  answer:   string;
   difficulty: 'easy' | 'medium' | 'hard';
 }
 
 export interface Mnemonic {
   concept: string;
-  device:  string;   // e.g. "HOMES = Huron, Ontario, Michigan, Erie, Superior"
+  device:  string;
   explanation: string;
 }
 
@@ -38,7 +44,6 @@ export interface GeneratedNotes {
   bullets: NoteBullet[];
   summary: string;
   keyTerms: string[];
-  // Exam mode extras (only present when depth === 'exam')
   exam_tips?:  ExamTip[];
   mnemonics?:  Mnemonic[];
   cheatsheet?: CheatsheetEntry[];
@@ -153,10 +158,11 @@ export function useNotesGenerator() {
   const [isResearching, setIsResearching] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [versions, setVersions] = useState<NotesVersion[]>([]);
   const savedIdRef = useRef<string | null>(null);
   savedIdRef.current = savedId;
 
-  // ── Save ──────────────────────────────────────────────────────
+  // ── Save (with snapshot-before-overwrite) ─────────────────────
   const saveToSupabase = useCallback(async (
     data: GeneratedNotes,
     input: NotesInput,
@@ -174,6 +180,22 @@ export function useNotesGenerator() {
       };
 
       if (existingId) {
+        // Snapshot current state before overwriting
+        const { data: current } = await supabase
+          .from('notes')
+          .select('topic, headings, bullets, summary')
+          .eq('id', existingId)
+          .single();
+
+        if (current) {
+          await createNotesVersion(existingId, user.id, {
+            topic:    current.topic,
+            headings: current.headings,
+            bullets:  current.bullets,
+            summary:  current.summary,
+          });
+        }
+
         await supabase.from('notes').update(payload).eq('id', existingId);
         setSavedId(existingId);
         savedIdRef.current = existingId;
@@ -204,6 +226,7 @@ export function useNotesGenerator() {
     setNotes(null);
     setSavedId(null);
     savedIdRef.current = null;
+    setVersions([]);
 
     try {
       const research = await fetchResearch(input.topic);
@@ -225,6 +248,54 @@ export function useNotesGenerator() {
     }
   }, [saveToSupabase]);
 
+  // ── Load version history ──────────────────────────────────────
+  const loadVersions = useCallback(async (notesId: string) => {
+    const data = await fetchNotesVersions(notesId);
+    setVersions(data);
+  }, []);
+
+  // ── Restore version ───────────────────────────────────────────
+  const restoreVersion = useCallback(async (version: NotesVersion) => {
+    if (!savedIdRef.current || !user) return;
+    setSaveStatus('saving');
+
+    // Snapshot current before restoring
+    if (notes) {
+      await createNotesVersion(savedIdRef.current, user.id, {
+        topic:    notes.title,
+        headings: notes.headings,
+        bullets:  notes.bullets,
+        summary:  notes.summary,
+      });
+    }
+
+    const { error: restoreErr } = await supabase
+      .from('notes')
+      .update({
+        headings: version.headings,
+        bullets:  version.bullets,
+        summary:  version.summary,
+        topic:    version.topic,
+      })
+      .eq('id', savedIdRef.current);
+
+    if (restoreErr) {
+      setSaveStatus('error');
+    } else {
+      setNotes(prev => prev ? {
+        ...prev,
+        title:    version.topic,
+        headings: version.headings as any,
+        bullets:  version.bullets  as any,
+        summary:  version.summary,
+      } : prev);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+      // Refresh version list
+      loadVersions(savedIdRef.current!);
+    }
+  }, [notes, user, loadVersions]);
+
   return {
     notes,
     savedId,
@@ -232,6 +303,9 @@ export function useNotesGenerator() {
     isResearching,
     saveStatus,
     error,
+    versions,
     generate,
+    loadVersions,
+    restoreVersion,
   };
 }

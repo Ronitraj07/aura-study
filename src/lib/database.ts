@@ -160,3 +160,107 @@ export async function deleteChecklistTask(
     throw error;
   }
 }
+
+// ─── Notes Versions ───────────────────────────────────────────────────────────
+
+export interface NotesVersion {
+  id: string;
+  notes_id: string;
+  user_id: string;
+  version: number;
+  topic: string;
+  headings: unknown;
+  bullets: unknown;
+  summary: string;
+  created_at: string;
+}
+
+export async function fetchNotesVersions(notesId: string): Promise<NotesVersion[]> {
+  const { data, error } = await supabase
+    .from("notes_versions")
+    .select("*")
+    .eq("notes_id", notesId)
+    .order("version", { ascending: false });
+
+  if (error) {
+    console.error("[database] fetchNotesVersions error:", error.message);
+    return [];
+  }
+  return (data ?? []) as NotesVersion[];
+}
+
+export async function createNotesVersion(
+  notesId: string,
+  userId: string,
+  snapshot: { topic: string; headings: unknown; bullets: unknown; summary: string },
+): Promise<void> {
+  const { data: lastVer } = await supabase
+    .from("notes_versions")
+    .select("version")
+    .eq("notes_id", notesId)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  await supabase.from("notes_versions").insert({
+    notes_id: notesId,
+    user_id: userId,
+    version: (lastVer?.version ?? 0) + 1,
+    topic: snapshot.topic,
+    headings: snapshot.headings,
+    bullets: snapshot.bullets,
+    summary: snapshot.summary,
+  });
+}
+
+// ─── Assignment Versions ──────────────────────────────────────────────────────
+
+export interface AssignmentVersion {
+  id: string;
+  assignment_id: string;
+  user_id: string;
+  version: number;
+  topic: string;
+  content: string;
+  word_count: number;
+  tone: string;
+  created_at: string;
+}
+
+export async function fetchAssignmentVersions(assignmentId: string): Promise<AssignmentVersion[]> {
+  const { data, error } = await supabase
+    .from("assignment_versions")
+    .select("*")
+    .eq("assignment_id", assignmentId)
+    .order("version", { ascending: false });
+
+  if (error) {
+    console.error("[database] fetchAssignmentVersions error:", error.message);
+    return [];
+  }
+  return (data ?? []) as AssignmentVersion[];
+}
+
+export async function createAssignmentVersion(
+  assignmentId: string,
+  userId: string,
+  snapshot: { topic: string; content: string; word_count: number; tone: string },
+): Promise<void> {
+  const { data: lastVer } = await supabase
+    .from("assignment_versions")
+    .select("version")
+    .eq("assignment_id", assignmentId)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  await supabase.from("assignment_versions").insert({
+    assignment_id: assignmentId,
+    user_id: userId,
+    version: (lastVer?.version ?? 0) + 1,
+    topic: snapshot.topic,
+    content: snapshot.content,
+    word_count: snapshot.word_count,
+    tone: snapshot.tone,
+  });
+}

@@ -4,12 +4,18 @@
 // ✔ isResearching state exposed for UI loading stages
 // ✔ researchSource attached to result for UI badge
 // ✔ Groq calls proxied through /api/generate (key never exposed)
+// ✔ C10: version snapshot before every overwrite + loadVersions/restoreVersion
 // ============================================================
 
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { fetchResearch, buildResearchPreamble } from '@/lib/research';
+import {
+  fetchAssignmentVersions,
+  createAssignmentVersion,
+  type AssignmentVersion,
+} from '@/lib/database';
 
 export type AssignmentTone = 'formal' | 'academic' | 'casual';
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -109,11 +115,13 @@ export function useAssignmentGenerator() {
   const [isResearching, setIsResearching] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [versions, setVersions] = useState<AssignmentVersion[]>([]);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedIdRef = useRef<string | null>(null);
+  const currentInputRef = useRef<AssignmentInput | null>(null);
   savedIdRef.current = savedId;
 
-  // ── Save ──────────────────────────────────────────────────────
+  // ── Save (with snapshot-before-overwrite) ─────────────────────
   const saveToSupabase = useCallback(async (
     data: GeneratedAssignment,
     input: AssignmentInput,
@@ -131,6 +139,22 @@ export function useAssignmentGenerator() {
       };
 
       if (existingId) {
+        // Snapshot current state before overwriting
+        const { data: current } = await supabase
+          .from('assignments')
+          .select('topic, content, word_count, tone')
+          .eq('id', existingId)
+          .single();
+
+        if (current) {
+          await createAssignmentVersion(existingId, user.id, {
+            topic:      current.topic,
+            content:    current.content,
+            word_count: current.word_count,
+            tone:       current.tone,
+          });
+        }
+
         await supabase.from('assignments').update(payload).eq('id', existingId);
         setSavedId(existingId);
         savedIdRef.current = existingId;
@@ -161,6 +185,8 @@ export function useAssignmentGenerator() {
     setAssignment(null);
     setSavedId(null);
     savedIdRef.current = null;
+    setVersions([]);
+    currentInputRef.current = input;
 
     try {
       const research = await fetchResearch(input.topic);
@@ -199,6 +225,52 @@ export function useAssignmentGenerator() {
     });
   }, []);
 
+  // ── Load version history ──────────────────────────────────────
+  const loadVersions = useCallback(async (assignmentId: string) => {
+    const data = await fetchAssignmentVersions(assignmentId);
+    setVersions(data);
+  }, []);
+
+  // ── Restore version ───────────────────────────────────────────
+  const restoreVersion = useCallback(async (version: AssignmentVersion) => {
+    if (!savedIdRef.current || !user) return;
+    setSaveStatus('saving');
+
+    // Snapshot current before restoring
+    if (assignment && currentInputRef.current) {
+      await createAssignmentVersion(savedIdRef.current, user.id, {
+        topic:      currentInputRef.current.topic,
+        content:    assignment.rawContent,
+        word_count: assignment.wordCount,
+        tone:       currentInputRef.current.tone,
+      });
+    }
+
+    const { error: restoreErr } = await supabase
+      .from('assignments')
+      .update({
+        content:    version.content,
+        word_count: version.word_count,
+        tone:       version.tone,
+        topic:      version.topic,
+      })
+      .eq('id', savedIdRef.current);
+
+    if (restoreErr) {
+      setSaveStatus('error');
+    } else {
+      setAssignment(prev => prev ? {
+        ...prev,
+        rawContent: version.content,
+        wordCount:  version.word_count,
+        title:      version.topic,
+      } : prev);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+      loadVersions(savedIdRef.current!);
+    }
+  }, [assignment, user, loadVersions]);
+
   return {
     assignment,
     savedId,
@@ -206,7 +278,10 @@ export function useAssignmentGenerator() {
     isResearching,
     saveStatus,
     error,
+    versions,
     generate,
     updateContent,
+    loadVersions,
+    restoreVersion,
   };
 }
