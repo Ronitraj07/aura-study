@@ -1,29 +1,18 @@
 /**
  * TopBar.tsx
  *
- * PRE-PHASE-9 CLEANUP
- * ───────────────────
- * 1. REMOVE search button — the input had no results backend and no
- *    navigation effect. Dead UI removed entirely. Will be re-added
- *    in a future phase when a real search index exists.
+ * MOBILE FIX:
+ * - Avatar pill (profile shortcut) is now hidden on mobile (<md).
+ *   On mobile, the bottom nav already has a dedicated Profile tab.
+ *   Showing the avatar pill too creates visual clutter and redundancy.
+ *   On md+ (tablet/desktop), the pill remains as a secondary shortcut
+ *   alongside the sidebar footer profile link — consistent with how
+ *   GitHub, Linear, and Vercel handle this pattern.
  *
- * 2. REMOVE notification bell — it was `disabled` with opacity:0.4
- *    and cursor:not-allowed. It communicated "coming soon" but added
- *    visual noise and confusion. Removed until notifications ship.
- *
- * 3. PROFILE DEDUPLICATION — TopBar avatar link kept as a convenience
- *    shortcut to /dashboard/profile. This does NOT duplicate the
- *    sidebar footer profile link because:
- *      - Desktop: sidebar footer is the canonical nav entry.
- *        TopBar avatar is a secondary shortcut (common pattern: GitHub,
- *        Linear, Vercel all have both).
- *      - Mobile: sidebar is hidden. TopBar avatar + bottom-nav Profile
- *        tab are the two entry points. The bottom-nav tab is primary;
- *        the avatar in the TopBar is secondary. Both are intentional.
- *
- * 4. LAYOUT — TopBar is now simpler: trigger | title | avatar.
- *    Removes the flex gap inconsistency that caused the right section
- *    to overflow on narrow screens (< 360px).
+ * - SidebarTrigger is kept on ALL screen sizes because the sidebar
+ *   is a drawer on mobile (useful for navigating to Timetable /
+ *   Assignments which are NOT in the bottom nav) and a collapsible
+ *   panel on desktop.
  */
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -96,7 +85,7 @@ const TopBar = () => {
             flexShrink: 0,
           }}
         />
-        {/* Page title — h1 so each route has a proper document heading */}
+        {/* Page title */}
         <h1
           className="font-display font-semibold truncate"
           style={{
@@ -110,11 +99,15 @@ const TopBar = () => {
         </h1>
       </div>
 
-      {/* Right: avatar → profile (secondary shortcut) */}
+      {/*
+        Avatar pill — DESKTOP ONLY (hidden on mobile).
+        On mobile the bottom nav Profile tab is the primary entry point.
+        Showing this pill too creates duplicate affordances on a small screen.
+      */}
       <Link
         to="/dashboard/profile"
         aria-label={`${displayName} — View profile`}
-        className="flex items-center gap-2 px-2.5 rounded-xl hover:bg-secondary transition-all"
+        className="hidden md:flex items-center gap-2 px-2.5 rounded-xl hover:bg-secondary transition-all"
         style={{
           height: 36,
           border: "1px solid hsl(var(--border))",
@@ -139,8 +132,7 @@ const TopBar = () => {
             {initials}
           </span>
         )}
-        {/* Name + role — hidden on very small screens to prevent overflow */}
-        <span className="hidden sm:flex flex-col" style={{ gap: 0 }}>
+        <span className="flex flex-col" style={{ gap: 0 }}>
           <span
             style={{
               fontSize: "var(--text-xs)",
