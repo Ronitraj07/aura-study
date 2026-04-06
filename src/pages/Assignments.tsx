@@ -14,6 +14,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { exportAssignmentPDF } from "@/lib/pdfExport";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,7 +63,6 @@ const BODY_TEMPLATES_ACADEMIC = [
 ];
 
 function wordsToParas(wordCount: number): number {
-  // roughly 80 words per paragraph block
   return Math.max(3, Math.min(6, Math.round(wordCount / 120)));
 }
 
@@ -71,9 +71,9 @@ function generateAssignment(topic: string, wordCount: number, tone: Tone): Parag
   const bodyTexts = tone === "academic" ? BODY_TEMPLATES_ACADEMIC : BODY_TEMPLATES_FORMAL;
   const parasNeeded = wordsToParas(wordCount);
   const selected = [
-    templates[0], // always intro
-    ...templates.slice(1, -1).slice(0, parasNeeded - 2), // body sections
-    templates[templates.length - 1], // always conclusion
+    templates[0],
+    ...templates.slice(1, -1).slice(0, parasNeeded - 2),
+    templates[templates.length - 1],
   ];
 
   return selected.map((tmpl, i) => ({
@@ -120,11 +120,8 @@ function ParagraphBlock({
       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       className="glass-card rounded-2xl overflow-hidden border border-border/30 hover:border-primary/20 transition-all duration-200 group"
     >
-      {/* Top accent */}
       <div className="h-0.5 w-full" style={{ background: color }} />
-
       <div className="p-5">
-        {/* Type badge + heading */}
         <div className="flex items-start gap-3 mb-3">
           <span
             className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 mt-0.5 border"
@@ -158,7 +155,6 @@ function ParagraphBlock({
           )}
         </div>
 
-        {/* Body text */}
         {editingBody ? (
           <textarea
             autoFocus
@@ -181,7 +177,6 @@ function ParagraphBlock({
           </p>
         )}
 
-        {/* Word count hint */}
         <p className="text-[10px] text-muted-foreground/40 mt-3 text-right">
           ~{para.body.split(" ").length} words · click text to edit
         </p>
@@ -200,6 +195,7 @@ const Assignments = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isPdfExporting, setIsPdfExporting] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
 
   const generate = () => {
@@ -221,13 +217,24 @@ const Assignments = () => {
     });
   };
 
+  const handleExportPDF = async () => {
+    if (isPdfExporting || !paragraphs.length) return;
+    setIsPdfExporting(true);
+    try {
+      await exportAssignmentPDF(topic, paragraphs);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+    } finally {
+      setIsPdfExporting(false);
+    }
+  };
+
   const totalWords = paragraphs.reduce((a, p) => a + p.body.split(" ").length, 0);
 
   const WORD_COUNTS = [200, 300, 500, 750, 1000, 1500];
 
   return (
     <div className="h-full flex flex-col">
-      {/* Page header */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -263,20 +270,21 @@ const Assignments = () => {
               {copied ? "Copied!" : "Copy All"}
             </button>
             <button
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_hsl(220,85%,60%,0.3)]"
+              onClick={handleExportPDF}
+              disabled={isPdfExporting}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_hsl(220,85%,60%,0.3)] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
               style={{ background: "linear-gradient(135deg, hsl(220,85%,60%), hsl(262,80%,60%))" }}
-              title="Export coming soon"
             >
-              <Download className="w-3.5 h-3.5" />
-              Export
+              {isPdfExporting
+                ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Exporting...</>
+                : <><Download className="w-3.5 h-3.5" />Export PDF</>
+              }
             </button>
           </motion.div>
         )}
       </motion.div>
 
-      {/* Two-panel layout */}
       <div className="flex-1 flex gap-5 min-h-0">
-
         {/* ── LEFT PANEL ── */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
@@ -284,7 +292,6 @@ const Assignments = () => {
           transition={{ duration: 0.45, delay: 0.05 }}
           className="w-72 shrink-0 flex flex-col gap-4"
         >
-          {/* Topic */}
           <div className="glass-card rounded-2xl p-5">
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
               Topic
@@ -299,7 +306,6 @@ const Assignments = () => {
             />
           </div>
 
-          {/* Word count */}
           <div className="glass-card rounded-2xl p-5">
             <div className="flex items-center justify-between mb-3">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-widest">
@@ -330,7 +336,6 @@ const Assignments = () => {
             </div>
           </div>
 
-          {/* Tone */}
           <div className="glass-card rounded-2xl p-5">
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
               Tone
@@ -363,7 +368,6 @@ const Assignments = () => {
             </div>
           </div>
 
-          {/* Generate */}
           <button
             onClick={generate}
             disabled={!topic.trim() || isGenerating}
@@ -377,7 +381,6 @@ const Assignments = () => {
             )}
           </button>
 
-          {/* Stats */}
           {hasGenerated && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -447,7 +450,6 @@ const Assignments = () => {
               className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
               style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(220,85%,60%,0.3) transparent" }}
             >
-              {/* Output header */}
               <div className="glass-card rounded-2xl p-4 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4" style={{ color: "hsl(220,85%,60%)" }} />
@@ -459,7 +461,6 @@ const Assignments = () => {
                 <span className="text-xs text-muted-foreground">~{totalWords} words</span>
               </div>
 
-              {/* Paragraph blocks */}
               <AnimatePresence>
                 {paragraphs.map((para) => (
                   <ParagraphBlock

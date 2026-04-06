@@ -15,6 +15,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { exportNotesPDF } from "@/lib/pdfExport";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -139,11 +140,9 @@ function NoteSectionCard({
       transition={{ duration: 0.35, delay: index * 0.06, ease: [0.16, 1, 0.3, 1] }}
       className="glass-card rounded-2xl overflow-hidden border border-border/30 hover:border-primary/20 transition-all duration-200"
     >
-      {/* Left accent */}
       <div className="flex">
         <div className="w-1 shrink-0" style={{ background: section.color }} />
         <div className="flex-1 p-5">
-          {/* Heading */}
           <div className="flex items-center gap-2 mb-3">
             <Hash className="w-3.5 h-3.5 shrink-0" style={{ color: section.color }} />
             {editingHeading ? (
@@ -169,7 +168,6 @@ function NoteSectionCard({
             )}
           </div>
 
-          {/* Bullet points */}
           <ul className="space-y-2">
             {section.bullets.map((bullet, idx) => (
               <li key={idx} className="flex items-start gap-2.5">
@@ -277,6 +275,7 @@ const Notes = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isPdfExporting, setIsPdfExporting] = useState(false);
 
   const generate = () => {
     if (!topic.trim()) return;
@@ -302,6 +301,18 @@ const Notes = () => {
     });
   };
 
+  const handleExportPDF = async () => {
+    if (isPdfExporting || !notes) return;
+    setIsPdfExporting(true);
+    try {
+      await exportNotesPDF(notes.topic, notes.sections, notes.summary);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+    } finally {
+      setIsPdfExporting(false);
+    }
+  };
+
   const updateSection = (updated: NoteSection) => {
     if (!notes) return;
     setNotes({ ...notes, sections: notes.sections.map((s) => (s.id === updated.id ? updated : s)) });
@@ -311,7 +322,6 @@ const Notes = () => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Page header */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -347,20 +357,21 @@ const Notes = () => {
               {copied ? "Copied!" : "Copy Notes"}
             </button>
             <button
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_hsl(160,70%,45%,0.3)]"
+              onClick={handleExportPDF}
+              disabled={isPdfExporting}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_hsl(160,70%,45%,0.3)] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
               style={{ background: "linear-gradient(135deg, hsl(160,70%,45%), hsl(220,85%,60%))" }}
-              title="Export coming soon"
             >
-              <Download className="w-3.5 h-3.5" />
-              Export
+              {isPdfExporting
+                ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Exporting...</>
+                : <><Download className="w-3.5 h-3.5" />Export PDF</>
+              }
             </button>
           </motion.div>
         )}
       </motion.div>
 
-      {/* Two-panel layout */}
       <div className="flex-1 flex gap-5 min-h-0">
-
         {/* ── LEFT PANEL ── */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
@@ -368,7 +379,6 @@ const Notes = () => {
           transition={{ duration: 0.45, delay: 0.05 }}
           className="w-72 shrink-0 flex flex-col gap-4"
         >
-          {/* Topic */}
           <div className="glass-card rounded-2xl p-5">
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
               Topic
@@ -383,7 +393,6 @@ const Notes = () => {
             />
           </div>
 
-          {/* What you get */}
           <div className="glass-card rounded-2xl p-5">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Output Includes</p>
             <div className="flex flex-col gap-2">
@@ -405,7 +414,6 @@ const Notes = () => {
             </div>
           </div>
 
-          {/* Generate */}
           <button
             onClick={generate}
             disabled={!topic.trim() || isGenerating}
@@ -419,7 +427,6 @@ const Notes = () => {
             )}
           </button>
 
-          {/* Stats */}
           {hasGenerated && notes && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -489,7 +496,6 @@ const Notes = () => {
                 className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
                 style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(160,70%,45%,0.3) transparent" }}
               >
-                {/* Topic banner */}
                 <div className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0">
                   <Sparkles className="w-4 h-4 shrink-0" style={{ color: "hsl(160,70%,50%)" }} />
                   <div className="flex-1 min-w-0">
@@ -498,7 +504,6 @@ const Notes = () => {
                   </div>
                 </div>
 
-                {/* Section cards */}
                 <AnimatePresence>
                   {notes.sections.map((section, i) => (
                     <NoteSectionCard
@@ -510,7 +515,6 @@ const Notes = () => {
                   ))}
                 </AnimatePresence>
 
-                {/* Summary */}
                 <SummaryBlock
                   lines={notes.summary}
                   onUpdate={(lines) => setNotes({ ...notes, summary: lines })}
