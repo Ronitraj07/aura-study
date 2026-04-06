@@ -7,6 +7,7 @@ import {
   CheckSquare,
   Sparkles,
   ChevronRight,
+  User,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -27,7 +28,7 @@ import {
 
 const mainItems = [
   { title: "Dashboard",    url: "/dashboard",            icon: LayoutDashboard },
-  { title: "PPT Generator",url: "/dashboard/ppt",         icon: Presentation    },
+  { title: "PPT",          url: "/dashboard/ppt",         icon: Presentation    },
   { title: "Assignments",  url: "/dashboard/assignments",  icon: FileText        },
   { title: "Notes",        url: "/dashboard/notes",        icon: BookOpen        },
   { title: "Timetable",    url: "/dashboard/timetable",    icon: CalendarDays    },
@@ -54,6 +55,7 @@ function getDisplayName(user: { email?: string; user_metadata?: { full_name?: st
   return user.email?.split("@")[0] ?? "";
 }
 
+// ── Desktop sidebar ────────────────────────────────────────────────
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -147,7 +149,6 @@ export function AppSidebar() {
                         }}
                         activeClassName=""
                       >
-                        {/* icon container */}
                         <span
                           className="flex items-center justify-center shrink-0"
                           style={{
@@ -211,7 +212,6 @@ export function AppSidebar() {
                     }}
                     activeClassName=""
                   >
-                    {/* avatar — real photo or initials fallback */}
                     {avatarUrl ? (
                       <img
                         src={avatarUrl}
@@ -241,5 +241,76 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+// ── Mobile bottom tab bar (md:hidden) ─────────────────────────────
+const mobileTabItems = [
+  { title: "Home",        url: "/dashboard",            icon: LayoutDashboard },
+  { title: "PPT",         url: "/dashboard/ppt",         icon: Presentation    },
+  { title: "Notes",       url: "/dashboard/notes",        icon: BookOpen        },
+  { title: "Timetable",   url: "/dashboard/timetable",    icon: CalendarDays    },
+  { title: "Checklist",   url: "/dashboard/checklist",    icon: CheckSquare     },
+  { title: "Profile",     url: "/dashboard/profile",      icon: User            },
+];
+
+export function MobileBottomNav() {
+  const location = useLocation();
+
+  const isActive = (url: string) =>
+    url === "/dashboard"
+      ? location.pathname === "/dashboard"
+      : location.pathname.startsWith(url);
+
+  return (
+    <nav
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around"
+      style={{
+        background: "hsl(240,10%,8%)",
+        borderTop: "1px solid hsl(240,10%,14%)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        height: "calc(56px + env(safe-area-inset-bottom, 0px))",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+      }}
+    >
+      {mobileTabItems.map((item) => {
+        const active = isActive(item.url);
+        return (
+          <NavLink
+            key={item.title}
+            to={item.url}
+            end={item.url === "/dashboard"}
+            activeClassName=""
+            className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full outline-none"
+            style={{
+              color: active ? "hsl(262,80%,72%)" : "hsl(220,8%,48%)",
+              transition: "color 150ms ease",
+            }}
+          >
+            <span
+              className="flex items-center justify-center rounded-xl transition-all duration-150"
+              style={{
+                width: 36,
+                height: 28,
+                background: active ? "hsla(262,80%,62%,0.15)" : "transparent",
+              }}
+            >
+              <item.icon size={18} />
+            </span>
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: active ? 600 : 400,
+                letterSpacing: "0.02em",
+                lineHeight: 1,
+              }}
+            >
+              {item.title}
+            </span>
+          </NavLink>
+        );
+      })}
+    </nav>
   );
 }

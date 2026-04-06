@@ -1,5 +1,5 @@
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/AppSidebar";
+import { AppSidebar, MobileBottomNav } from "@/components/AppSidebar";
 import TopBar from "@/components/TopBar";
 import { Outlet, useLocation } from "react-router-dom";
 import { useEffect, useRef } from "react";
@@ -23,7 +23,7 @@ const DashboardLayout = () => {
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
 
-  // Scroll to top on route change (scroll the container, not the window)
+  // Scroll to top on route change
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [location.pathname]);
@@ -31,21 +31,18 @@ const DashboardLayout = () => {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background overflow-hidden">
+        {/* Desktop sidebar — hidden on mobile by shadcn Sidebar internals */}
         <AppSidebar />
+
         <div className="flex-1 flex flex-col min-w-0">
           <TopBar />
           {/*
-            The <main> element is now a stable, persistent container —
-            no key prop, no CSS animation on it. This preserves scroll
-            position, avoids remounting child state, and stops
-            redundant data re-fetches on navigation.
-
-            AnimatePresence + motion.div handle the per-route fade,
-            keyed by pathname so only the inner content transitions.
+            pb-20 md:pb-0 — reserves 80px at the bottom on mobile so content
+            never gets hidden behind the fixed MobileBottomNav (56px + insets).
           */}
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto"
+            className="flex-1 overflow-y-auto pb-20 md:pb-0"
             style={{ padding: "clamp(1.25rem, 3vw, 2rem)" }}
           >
             <div className="max-w-6xl mx-auto">
@@ -64,6 +61,10 @@ const DashboardLayout = () => {
           </main>
         </div>
       </div>
+
+      {/* Mobile bottom tab bar — rendered outside the flex layout so it's
+          truly fixed to the viewport, not relative to the scroll container */}
+      <MobileBottomNav />
     </SidebarProvider>
   );
 };
