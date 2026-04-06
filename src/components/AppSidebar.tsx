@@ -25,6 +25,9 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { getInitials, getDisplayName, getAvatarUrl } from "@/lib/userUtils";
+// FIX 3.4: local getInitials + getDisplayName definitions removed.
+// Imported from shared src/lib/userUtils.ts instead.
 
 const mainItems = [
   { title: "Dashboard",   url: "/dashboard",             icon: LayoutDashboard },
@@ -35,33 +38,7 @@ const mainItems = [
   { title: "Checklist",   url: "/dashboard/checklist",     icon: CheckSquare     },
 ];
 
-// ── Shared helpers ─────────────────────────────────────────────────
-
-/** Returns initials from a full name or email */
-function getInitials(nameOrEmail: string | null | undefined): string {
-  if (!nameOrEmail) return "?";
-  const parts = nameOrEmail.includes("@")
-    ? [nameOrEmail.split("@")[0]]
-    : nameOrEmail.trim().split(/\s+/);
-  return parts
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
-/** Returns first name from full_name, or the part before @ in email */
-function getDisplayName(
-  user: { email?: string; user_metadata?: { full_name?: string } } | null
-): string {
-  if (!user) return "";
-  const full = user.user_metadata?.full_name;
-  if (full) return full.split(" ")[0];
-  return user.email?.split("@")[0] ?? "";
-}
-
-// ── FIX 2.4: Extract profile footer link into its own named component.
-// The previous IIFE pattern ((() => { return <NavLink> })()) is valid JS
-// but hard to read and impossible to test. A named component is cleaner.
+// ── ProfileLink component ────────────────────────────────────────────
 interface ProfileLinkProps {
   avatarUrl?: string;
   displayName: string;
@@ -75,8 +52,6 @@ function ProfileLink({ avatarUrl, displayName, initials, collapsed, active }: Pr
     <NavLink
       to="/dashboard/profile"
       end
-      // FIX 2.3: aria-label tells screen readers the destination when the
-      // sidebar is collapsed and only the avatar/icon is visible.
       aria-label="Profile"
       className="flex items-center gap-3 px-3 rounded-xl text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       style={{
@@ -119,9 +94,9 @@ export function AppSidebar() {
   const location = useLocation();
   const { user } = useAuth();
 
-  const initials = getInitials(user?.user_metadata?.full_name ?? user?.email);
+  const initials    = getInitials(user?.user_metadata?.full_name ?? user?.email);
   const displayName = getDisplayName(user);
-  const avatarUrl: string | undefined = user?.user_metadata?.avatar_url;
+  const avatarUrl   = getAvatarUrl(user);
 
   const isActive = (url: string) =>
     url === "/dashboard"
@@ -143,19 +118,15 @@ export function AppSidebar() {
               boxShadow: "0 2px 12px hsla(262,80%,62%,0.35)",
             }}
           >
-            {/* FIX 2.3: aria-hidden on decorative icon; the parent landmark
-                provides context. If collapsed, the logo IS the only brand
-                indicator — a visually hidden <span> provides the label. */}
             <Sparkles className="w-4 h-4 text-white" aria-hidden="true" />
           </div>
           {collapsed ? (
-            // Visually hidden brand name for screen readers when sidebar is icon-only
             <span className="sr-only">StudyAI — Academic Assistant</span>
           ) : (
             <div className="min-w-0">
               <span
                 className="font-display font-bold text-base gradient-text block leading-none"
-                aria-hidden="true" // the sr-only span above already covers this
+                aria-hidden="true"
               >
                 StudyAI
               </span>
@@ -202,20 +173,12 @@ export function AppSidebar() {
                       <NavLink
                         to={item.url}
                         end={item.url === "/dashboard"}
-                        // FIX 2.3: aria-label ensures screen readers announce
-                        // the destination in both expanded and collapsed states.
-                        // When expanded, the visible text is redundant but
-                        // harmless; when collapsed (icon-only), it's essential.
                         aria-label={item.title}
                         className="flex items-center gap-3 px-3 rounded-xl text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                         style={{
                           height: 38,
-                          color: active
-                            ? "hsl(262,80%,75%)"
-                            : "hsl(220,8%,58%)",
-                          background: active
-                            ? "hsla(262,80%,62%,0.12)"
-                            : "transparent",
+                          color: active ? "hsl(262,80%,75%)" : "hsl(220,8%,58%)",
+                          background: active ? "hsla(262,80%,62%,0.12)" : "transparent",
                           fontWeight: active ? 600 : 400,
                         }}
                         activeClassName=""
@@ -225,9 +188,7 @@ export function AppSidebar() {
                           aria-hidden="true"
                           style={{
                             width: 22,
-                            color: active
-                              ? "hsl(262,80%,70%)"
-                              : "hsl(220,8%,50%)",
+                            color: active ? "hsl(262,80%,70%)" : "hsl(220,8%,50%)",
                           }}
                         >
                           <item.icon size={16} />
@@ -268,7 +229,6 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              {/* FIX 2.4: was an IIFE, now a clean named component */}
               <ProfileLink
                 avatarUrl={avatarUrl}
                 displayName={displayName}
@@ -285,20 +245,13 @@ export function AppSidebar() {
 }
 
 // ── Mobile bottom tab bar (md:hidden) ─────────────────────────────
-
-// FIX 2.2: Assignments was missing from mobile nav (desktop had 6 items,
-// mobile only had 5 + Profile). Added back. The labels were also at a
-// hardcoded 9px — below the 12px accessibility floor. Changed to
-// clamp(10px, 2.2vw, 11px) which hits 11px on most phones (375–430px
-// viewport) and never drops below 10px. This is still compact enough
-// for the tab bar while being legible and accessible.
 const mobileTabItems = [
-  { title: "Home",        url: "/dashboard",             icon: LayoutDashboard },
-  { title: "PPT",         url: "/dashboard/ppt",          icon: Presentation    },
-  { title: "Assign",      url: "/dashboard/assignments",  icon: FileText        },
-  { title: "Notes",       url: "/dashboard/notes",         icon: BookOpen        },
-  { title: "Checklist",   url: "/dashboard/checklist",     icon: CheckSquare     },
-  { title: "Profile",     url: "/dashboard/profile",       icon: User            },
+  { title: "Home",       url: "/dashboard",             icon: LayoutDashboard },
+  { title: "PPT",        url: "/dashboard/ppt",          icon: Presentation    },
+  { title: "Assign",     url: "/dashboard/assignments",  icon: FileText        },
+  { title: "Notes",      url: "/dashboard/notes",         icon: BookOpen        },
+  { title: "Checklist",  url: "/dashboard/checklist",     icon: CheckSquare     },
+  { title: "Profile",    url: "/dashboard/profile",       icon: User            },
 ];
 
 export function MobileBottomNav() {
@@ -330,9 +283,6 @@ export function MobileBottomNav() {
             to={item.url}
             end={item.url === "/dashboard"}
             activeClassName=""
-            // FIX 2.3: aria-label on every mobile tab link so screen
-            // readers announce the full destination, not just the 10px
-            // truncated label text.
             aria-label={item.title === "Assign" ? "Assignments" : item.title}
             className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
             style={{
@@ -351,12 +301,6 @@ export function MobileBottomNav() {
             >
               <item.icon size={18} />
             </span>
-            {/* FIX 2.2: was fontSize:9 (below 12px floor)
-                Now clamp(10px, 2.2vw, 11px) — renders ~10-11px on phones,
-                never below 10px, comfortably under the 12px absolute floor
-                concern for decorative/label text (WCAG allows 3:1 at 18px+
-                bold; this is a supplementary label under an icon so the
-                icon carries the primary semantic weight via aria-label). */}
             <span
               aria-hidden="true"
               style={{
