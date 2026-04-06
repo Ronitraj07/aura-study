@@ -6,7 +6,6 @@ import {
   RefreshCw,
   Copy,
   Check,
-  ChevronDown,
   Download,
   Sparkles,
   AlignLeft,
@@ -14,6 +13,9 @@ import {
   GraduationCap,
   Loader2,
   AlertCircle,
+  History,
+  RotateCcw,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportAssignmentPDF } from "@/lib/pdfExport";
@@ -22,8 +24,18 @@ import { useSmartMode } from "@/hooks/useSmartMode";
 import { SmartModeBanner } from "@/components/SmartModeBanner";
 import type { AssignmentTone } from "@/hooks/useAssignmentGenerator";
 
-// ─── Block renderer ───────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
 
+// ─── Block renderer styles ───────────────────────────────────────────────────────────
 const BLOCK_STYLES: Record<string, string> = {
   heading:    "font-display font-bold text-lg text-foreground mt-2",
   subheading: "font-display font-semibold text-base text-foreground/90 mt-1",
@@ -40,8 +52,110 @@ const BLOCK_COLORS: Record<string, string> = {
   conclusion: "hsl(30, 80%, 58%)",
 };
 
-// ─── Main Page ──────────────────────────────────────────────────────────────────────────
+// ─── History Sheet ────────────────────────────────────────────────────────────────────
+function AssignmentHistorySheet({
+  open,
+  onClose,
+  versions,
+  onRestore,
+  restoring,
+}: {
+  open: boolean;
+  onClose: () => void;
+  versions: ReturnType<typeof import('@/hooks/useAssignmentGenerator').useAssignmentGenerator>['versions'];
+  onRestore: (v: (typeof versions)[0]) => void;
+  restoring: boolean;
+}) {
+  if (!open) return null;
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed right-0 top-0 h-full w-80 z-50 flex flex-col"
+            style={{ background: "hsl(240,8%,7%)", borderLeft: "1px solid hsl(0,0%,15%)" }}
+          >
+            <div className="flex items-center justify-between p-5 border-b border-border/30">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-primary" />
+                <span className="font-display font-semibold text-sm text-foreground">Version History</span>
+              </div>
+              <button
+                onClick={onClose}
+                className="w-7 h-7 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary text-muted-foreground hover:text-foreground transition-all"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
+            <div className="flex-1 overflow-y-auto p-4 space-y-2" style={{ scrollbarWidth: "thin" }}>
+              {versions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-12">
+                  <History className="w-8 h-8 mb-3 opacity-30" />
+                  <p className="text-sm">No versions yet</p>
+                  <p className="text-xs mt-1 opacity-60">Versions are saved each time you regenerate</p>
+                </div>
+              ) : (
+                versions.map((v) => (
+                  <div
+                    key={v.id}
+                    className="rounded-xl border border-border/30 p-3.5 hover:border-primary/20 transition-all"
+                    style={{ background: "hsl(0,0%,10%,0.6)" }}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span
+                            className="text-[10px] font-bold px-1.5 py-0.5 rounded border"
+                            style={{ background: "hsl(220,85%,60%,0.15)", borderColor: "hsl(220,85%,60%,0.3)", color: "hsl(220,85%,65%)" }}
+                          >
+                            v{v.version}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">{timeAgo(v.created_at)}</span>
+                        </div>
+                        <p className="text-xs font-medium text-foreground/80 truncate">{v.topic}</p>
+                        <p className="text-[10px] text-muted-foreground">{v.word_count} words · {v.tone}</p>
+                      </div>
+                      <button
+                        onClick={() => onRestore(v)}
+                        disabled={restoring}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border transition-all disabled:opacity-40"
+                        style={{ background: "hsl(220,85%,60%,0.1)", borderColor: "hsl(220,85%,60%,0.3)", color: "hsl(220,85%,65%)" }}
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        Restore
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-4 border-t border-border/30">
+              <p className="text-[10px] text-muted-foreground/50 text-center">
+                Restoring saves a new snapshot of your current version first
+              </p>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ─── Main Page ──────────────────────────────────────────────────────────────────────────
 const Assignments = () => {
   const [topic, setTopic]       = useState("");
   const [wordCount, setWordCount] = useState(500);
@@ -49,14 +163,12 @@ const Assignments = () => {
   const [copied, setCopied]     = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
   const [smartApplied, setSmartApplied]     = useState(false);
+  const [historyOpen, setHistoryOpen]       = useState(false);
+  const [restoring, setRestoring]           = useState(false);
 
   const {
-    assignment,
-    isGenerating,
-    isResearching,
-    saveStatus,
-    error,
-    generate,
+    assignment, savedId, isGenerating, isResearching, saveStatus, error,
+    versions, generate, loadVersions, restoreVersion,
   } = useAssignmentGenerator();
 
   const { suggestion, isAnalysing, dismiss, dismissed } = useSmartMode(topic, 'assignment');
@@ -82,6 +194,18 @@ const Assignments = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  };
+
+  const handleOpenHistory = () => {
+    if (savedId) loadVersions(savedId);
+    setHistoryOpen(true);
+  };
+
+  const handleRestore = async (v: (typeof versions)[0]) => {
+    setRestoring(true);
+    await restoreVersion(v);
+    setRestoring(false);
+    setHistoryOpen(false);
   };
 
   const handleExportPDF = async () => {
@@ -114,6 +238,14 @@ const Assignments = () => {
 
   return (
     <div className="h-full flex flex-col">
+      <AssignmentHistorySheet
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        versions={versions}
+        onRestore={handleRestore}
+        restoring={restoring}
+      />
+
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -141,6 +273,18 @@ const Assignments = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="flex items-center gap-2"
           >
+            {/* History button — only when a record exists */}
+            {savedId && (
+              <button
+                onClick={handleOpenHistory}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-secondary border-border text-muted-foreground hover:border-primary/30 hover:text-foreground transition-all"
+                title="Version history"
+              >
+                <History className="w-3.5 h-3.5" />
+                History
+              </button>
+            )}
+
             {saveStatus === 'saving' && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" /> Saving...
