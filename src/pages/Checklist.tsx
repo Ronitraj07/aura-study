@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChecklistGenerator, type AITask, type AIPriority, type AICategory } from "@/hooks/useChecklistGenerator";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 import {
   fetchChecklist,
   insertChecklistTask,
@@ -531,10 +531,8 @@ const Checklist = () => {
           category: opts?.category,
           estimated_minutes: opts?.estimatedMinutes,
         });
-        // replace temp id with real DB id
         setTasks((prev) => prev.map((tk) => tk.id === tempId ? dbToTask(row) : tk));
       } catch {
-        // rollback on error
         setTasks((prev) => prev.filter((tk) => tk.id !== tempId));
       }
     }
@@ -567,14 +565,12 @@ const Checklist = () => {
             }),
           ),
         );
-        // replace temp ids with real DB ids in order
         setTasks((prev) => {
           const tempIds = optimistic.map((o) => o.id);
           const rest = prev.filter((tk) => !tempIds.includes(tk.id));
           return [...inserted.map(dbToTask), ...rest];
         });
       } catch {
-        // rollback the optimistic batch
         setTasks((prev) => prev.filter((tk) => !tk.id.startsWith(`ai-tmp-${now}`)));
       }
     }
@@ -597,7 +593,6 @@ const Checklist = () => {
         completed: nowCompleted,
         completed_at: nowCompleted ? new Date().toISOString() : null,
       }).catch(() => {
-        // revert on error
         setTasks((prev) =>
           prev.map((t) => t.id === id ? { ...t, completed: task.completed, completedAt: task.completedAt } : t),
         );
@@ -621,7 +616,7 @@ const Checklist = () => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, priority: p } : t)));
     if (userId) {
       updateChecklistTask(id, userId, { priority: p }).catch(() => {
-        // best-effort, no rollback needed for priority
+        // best-effort
       });
     }
   }, [userId]);
