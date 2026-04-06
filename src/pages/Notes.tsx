@@ -25,10 +25,12 @@ import {
 import { cn } from "@/lib/utils";
 import { exportNotesPDF, exportExamNotesPDF } from "@/lib/pdfExport";
 import { useNotesGenerator } from "@/hooks/useNotesGenerator";
+import { useSmartMode } from "@/hooks/useSmartMode";
+import { SmartModeBanner } from "@/components/SmartModeBanner";
 import type { NoteHeading, NoteBullet } from "@/types/database";
 import type { ExamTip, Mnemonic, CheatsheetEntry } from "@/hooks/useNotesGenerator";
 
-// ─── Section Card ─────────────────────────────────────────────────────────────
+// ─── Section Card ──────────────────────────────────────────────────────────────────────
 
 const SECTION_COLORS = [
   "hsl(262, 80%, 65%)",
@@ -86,7 +88,7 @@ function NoteSectionCard({
   );
 }
 
-// ─── Summary Block ────────────────────────────────────────────────────────────
+// ─── Summary Block ────────────────────────────────────────────────────────────────
 
 function SummaryBlock({ summary }: { summary: string }) {
   return (
@@ -110,7 +112,7 @@ function SummaryBlock({ summary }: { summary: string }) {
   );
 }
 
-// ─── Key Terms Block ──────────────────────────────────────────────────────────
+// ─── Key Terms Block ──────────────────────────────────────────────────────────────
 
 function KeyTermsBlock({ terms }: { terms: string[] }) {
   if (!terms?.length) return null;
@@ -139,7 +141,7 @@ function KeyTermsBlock({ terms }: { terms: string[] }) {
   );
 }
 
-// ─── Exam Tips Block ──────────────────────────────────────────────────────────
+// ─── Exam Tips Block ────────────────────────────────────────────────────────────────
 
 const DIFF_CONFIG = {
   easy:   { color: "hsl(160,70%,48%)",  label: "Easy" },
@@ -226,7 +228,7 @@ function ExamTipsBlock({ tips }: { tips: ExamTip[] }) {
   );
 }
 
-// ─── Mnemonics Block ──────────────────────────────────────────────────────────
+// ─── Mnemonics Block ────────────────────────────────────────────────────────────────
 
 function MnemonicsBlock({ mnemonics }: { mnemonics: Mnemonic[] }) {
   if (!mnemonics?.length) return null;
@@ -271,7 +273,7 @@ function MnemonicsBlock({ mnemonics }: { mnemonics: Mnemonic[] }) {
   );
 }
 
-// ─── Cheatsheet Block ─────────────────────────────────────────────────────────
+// ─── Cheatsheet Block ────────────────────────────────────────────────────────────────
 
 function CheatsheetBlock({ entries }: { entries: CheatsheetEntry[] }) {
   if (!entries?.length) return null;
@@ -317,7 +319,7 @@ function CheatsheetBlock({ entries }: { entries: CheatsheetEntry[] }) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main Page ──────────────────────────────────────────────────────────────────────────
 
 const Notes = () => {
   const [topic, setTopic] = useState("");
@@ -325,8 +327,10 @@ const Notes = () => {
   const [examMode, setExamMode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
+  const [smartApplied, setSmartApplied] = useState(false);
 
   const { notes, isGenerating, isResearching, saveStatus, error, generate } = useNotesGenerator();
+  const { suggestion, isAnalysing, dismiss, dismissed } = useSmartMode(topic, 'notes');
 
   const hasGenerated = !!notes;
   const hasExamContent = !!(notes?.exam_tips?.length || notes?.mnemonics?.length || notes?.cheatsheet?.length);
@@ -334,9 +338,15 @@ const Notes = () => {
   const handleGenerate = () => {
     if (!topic.trim() || isGenerating) return;
     generate({ topic: topic.trim(), depth });
-    // If exam depth selected, auto-switch to exam view once generated
     if (depth === 'exam') setExamMode(true);
     else setExamMode(false);
+  };
+
+  const handleSmartApply = (s: typeof suggestion) => {
+    if (!s) return;
+    if (s.depth) setDepth(s.depth);
+    setSmartApplied(true);
+    setTimeout(() => setSmartApplied(false), 2500);
   };
 
   const handleCopy = () => {
@@ -423,7 +433,6 @@ const Notes = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="flex items-center gap-2"
           >
-            {/* Exam Mode toggle — only shown if exam content exists */}
             {hasExamContent && (
               <button
                 onClick={() => setExamMode((v) => !v)}
@@ -524,6 +533,17 @@ const Notes = () => {
             </div>
           </div>
 
+          {/* ⚡ C8 Smart Mode Banner */}
+          <SmartModeBanner
+            suggestion={suggestion}
+            isAnalysing={isAnalysing}
+            dismissed={dismissed}
+            tool="notes"
+            onApply={handleSmartApply}
+            onDismiss={dismiss}
+            applied={smartApplied}
+          />
+
           <div className="glass-card rounded-2xl p-5">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Output Includes</p>
             <div className="flex flex-col gap-2">
@@ -559,9 +579,6 @@ const Notes = () => {
               background: depth === 'exam'
                 ? "linear-gradient(135deg, hsl(340,75%,50%), hsl(30,80%,52%))"
                 : "linear-gradient(135deg, hsl(160,70%,45%), hsl(220,85%,60%))",
-              boxShadow: depth === 'exam'
-                ? (isGenerating ? undefined : "0 0 0 0 transparent")
-                : undefined,
             }}
           >
             {isResearching ? (
@@ -664,7 +681,6 @@ const Notes = () => {
             notes && (
               <AnimatePresence mode="wait">
                 {examMode && hasExamContent ? (
-                  // ── EXAM MODE VIEW ──
                   <motion.div
                     key="exam"
                     initial={{ opacity: 0, y: 8 }}
@@ -674,7 +690,6 @@ const Notes = () => {
                     className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
                     style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(340,75%,55%,0.3) transparent" }}
                   >
-                    {/* Exam header banner */}
                     <div
                       className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0 border"
                       style={{ borderColor: "hsl(340,75%,55%,0.25)", background: "hsl(340,75%,55%,0.05)" }}
@@ -700,7 +715,6 @@ const Notes = () => {
                     <p className="text-[10px] text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
                   </motion.div>
                 ) : (
-                  // ── STANDARD NOTES VIEW ──
                   <motion.div
                     key="notes"
                     initial={{ opacity: 0, y: 8 }}

@@ -18,9 +18,11 @@ import {
 import { cn } from "@/lib/utils";
 import { exportAssignmentPDF } from "@/lib/pdfExport";
 import { useAssignmentGenerator } from "@/hooks/useAssignmentGenerator";
+import { useSmartMode } from "@/hooks/useSmartMode";
+import { SmartModeBanner } from "@/components/SmartModeBanner";
 import type { AssignmentTone } from "@/hooks/useAssignmentGenerator";
 
-// ─── Block renderer ───────────────────────────────────────────────────────────
+// ─── Block renderer ───────────────────────────────────────────────────────────────────
 
 const BLOCK_STYLES: Record<string, string> = {
   heading:    "font-display font-bold text-lg text-foreground mt-2",
@@ -38,7 +40,7 @@ const BLOCK_COLORS: Record<string, string> = {
   conclusion: "hsl(30, 80%, 58%)",
 };
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main Page ──────────────────────────────────────────────────────────────────────────
 
 const Assignments = () => {
   const [topic, setTopic]       = useState("");
@@ -46,6 +48,7 @@ const Assignments = () => {
   const [tone, setTone]         = useState<AssignmentTone>("academic");
   const [copied, setCopied]     = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
+  const [smartApplied, setSmartApplied]     = useState(false);
 
   const {
     assignment,
@@ -56,11 +59,21 @@ const Assignments = () => {
     generate,
   } = useAssignmentGenerator();
 
+  const { suggestion, isAnalysing, dismiss, dismissed } = useSmartMode(topic, 'assignment');
+
   const hasGenerated = !!assignment;
 
   const handleGenerate = () => {
     if (!topic.trim() || isGenerating) return;
     generate({ topic: topic.trim(), wordCount, tone });
+  };
+
+  const handleSmartApply = (s: typeof suggestion) => {
+    if (!s) return;
+    if (s.tone) setTone(s.tone);
+    if (s.wordCount) setWordCount(s.wordCount);
+    setSmartApplied(true);
+    setTimeout(() => setSmartApplied(false), 2500);
   };
 
   const handleCopy = () => {
@@ -75,7 +88,6 @@ const Assignments = () => {
     if (isPdfExporting || !assignment) return;
     setIsPdfExporting(true);
     try {
-      // Build legacy Paragraph[] shape for exportAssignmentPDF
       const paragraphs = assignment.blocks
         .filter((b) => b.type === "paragraph" || b.type === "conclusion")
         .map((b, i) => {
@@ -230,6 +242,17 @@ const Assignments = () => {
               ))}
             </div>
           </div>
+
+          {/* ⚡ C8 Smart Mode Banner */}
+          <SmartModeBanner
+            suggestion={suggestion}
+            isAnalysing={isAnalysing}
+            dismissed={dismissed}
+            tool="assignment"
+            onApply={handleSmartApply}
+            onDismiss={dismiss}
+            applied={smartApplied}
+          />
 
           <button
             onClick={handleGenerate}
