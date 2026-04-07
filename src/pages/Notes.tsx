@@ -25,6 +25,8 @@ import {
   RotateCcw,
   X,
   Search,
+  Edit3,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportNotesPDF, exportExamNotesPDF } from "@/lib/pdfExport";
@@ -501,6 +503,9 @@ const Notes = () => {
   const hasGenerated = !!notes;
   const hasExamContent = !!(notes?.exam_tips?.length || notes?.mnemonics?.length || notes?.cheatsheet?.length);
 
+  // Edit mode state
+  const [editMode, setEditMode] = useState(false);
+
   const handleGenerate = () => {
     if (!topic.trim() || isGenerating) return;
     generate({ 
@@ -663,6 +668,21 @@ const Notes = () => {
                 History
               </button>
             )}
+
+            {/* Edit Mode Toggle */}
+            <button
+              onClick={() => setEditMode(!editMode)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all",
+                editMode
+                  ? "bg-primary/15 border-primary/40 text-primary"
+                  : "bg-secondary border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
+              )}
+              title={editMode ? "Exit edit mode" : "Enter edit mode"}
+            >
+              {editMode ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
+              {editMode ? "View" : "Edit"}
+            </button>
 
             {saveStatus === 'saving' && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -1133,6 +1153,41 @@ const Notes = () => {
                     <MnemonicsBlock mnemonics={notes.mnemonics ?? []} />
                     <CheatsheetBlock entries={notes.cheatsheet ?? []} />
                     <p className="text-xs text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
+                  </motion.div>
+                ) : editMode ? (
+                  <motion.div
+                    key="edit"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.25 }}
+                    className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
+                    style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(160,70%,45%,0.3) transparent" }}
+                  >
+                    <div className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0">
+                      <Edit3 className="w-4 h-4 shrink-0" style={{ color: "hsl(160,70%,50%)" }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{notes.title} — Edit Mode</p>
+                        <p className="text-xs text-muted-foreground">Click sections to edit and regenerate content</p>
+                      </div>
+                      <span
+                        className="text-xs font-bold px-2.5 py-1 rounded-full border uppercase tracking-wider"
+                        style={{ background: "hsl(160,70%,45%,0.15)", borderColor: "hsl(160,70%,45%,0.3)", color: "hsl(160,70%,62%)" }}
+                      >
+                        Edit Mode
+                      </span>
+                    </div>
+
+                    {/* TODO: Add EditNotesSection component here */}
+                    <div className="glass-card rounded-2xl p-6 text-center">
+                      <Edit3 className="w-8 h-8 mx-auto mb-3 text-muted-foreground/40" />
+                      <p className="text-sm text-muted-foreground">Notes edit mode is coming soon!</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">
+                        Section-level editing and AI regeneration will be available here.
+                      </p>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground/40 text-center pb-2">Edit mode in development</p>
                   </motion.div>
                 ) : (
                   <motion.div
