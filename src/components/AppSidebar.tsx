@@ -25,6 +25,7 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getInitials, getDisplayName, getAvatarUrl } from "@/lib/userUtils";
 
 const mainItems = [
@@ -46,12 +47,14 @@ interface ProfileLinkProps {
 }
 
 function ProfileLink({ avatarUrl, displayName, initials, collapsed, active }: ProfileLinkProps) {
-  return (
+  const linkContent = (
     <NavLink
       to="/dashboard/profile"
       end
       aria-label="Profile"
-      className="flex items-center gap-3 px-3 rounded-xl text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      className={`flex items-center gap-3 rounded-xl text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+        collapsed ? 'justify-center px-2' : 'px-3'
+      }`}
       style={{
         height: 40,
         color:      active ? "hsl(262,80%,75%)" : "hsl(220,8%,58%)",
@@ -84,6 +87,21 @@ function ProfileLink({ avatarUrl, displayName, initials, collapsed, active }: Pr
       )}
     </NavLink>
   );
+
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {linkContent}
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          <p>{displayName}</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return linkContent;
 }
 
 // ── Desktop sidebar ─────────────────────────────────────────────────
@@ -166,42 +184,92 @@ export function AppSidebar() {
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
-                      <NavLink
-                        to={item.url}
-                        end={item.url === "/dashboard"}
-                        aria-label={item.title}
-                        className="flex items-center gap-3 px-3 rounded-xl text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                        style={{
-                          height: 38,
-                          color:      active ? "hsl(262,80%,75%)" : "hsl(220,8%,58%)",
-                          background: active ? "hsla(262,80%,62%,0.12)" : "transparent",
-                          fontWeight: active ? 600 : 400,
-                        }}
-                        activeClassName=""
-                      >
-                        <span
-                          className="flex items-center justify-center shrink-0"
-                          aria-hidden="true"
-                          style={{
-                            width: 22,
-                            color: active ? "hsl(262,80%,70%)" : "hsl(220,8%,50%)",
-                          }}
-                        >
-                          <item.icon size={16} />
-                        </span>
-                        {!collapsed && (
-                          <>
-                            <span className="flex-1 truncate">{item.title}</span>
-                            {active && (
+                      {collapsed ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <NavLink
+                              to={item.url}
+                              end={item.url === "/dashboard"}
+                              aria-label={item.title}
+                              className={`flex items-center gap-3 rounded-xl text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                                collapsed ? 'justify-center px-2' : 'px-3'
+                              }`}
+                              style={{
+                                height: 38,
+                                color:      active ? "hsl(262,80%,75%)" : "hsl(220,8%,58%)",
+                                background: active ? "hsla(262,80%,62%,0.12)" : "transparent",
+                                fontWeight: active ? 600 : 400,
+                              }}
+                              activeClassName=""
+                            >
                               <span
-                                className="w-1.5 h-1.5 rounded-full shrink-0"
+                                className="flex items-center justify-center shrink-0"
                                 aria-hidden="true"
-                                style={{ background: "hsl(262,80%,70%)" }}
-                              />
-                            )}
-                          </>
-                        )}
-                      </NavLink>
+                                style={{
+                                  width: 22,
+                                  color: active ? "hsl(262,80%,70%)" : "hsl(220,8%,50%)",
+                                }}
+                              >
+                                <item.icon size={16} />
+                              </span>
+                              {!collapsed && (
+                                <>
+                                  <span className="flex-1 truncate">{item.title}</span>
+                                  {active && (
+                                    <span
+                                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                                      aria-hidden="true"
+                                      style={{ background: "hsl(262,80%,70%)" }}
+                                    />
+                                  )}
+                                </>
+                              )}
+                            </NavLink>
+                          </TooltipTrigger>
+                          <TooltipContent side="right">
+                            <p>{item.title}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <NavLink
+                          to={item.url}
+                          end={item.url === "/dashboard"}
+                          aria-label={item.title}
+                          className={`flex items-center gap-3 rounded-xl text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                            collapsed ? 'justify-center px-2' : 'px-3'
+                          }`}
+                          style={{
+                            height: 38,
+                            color:      active ? "hsl(262,80%,75%)" : "hsl(220,8%,58%)",
+                            background: active ? "hsla(262,80%,62%,0.12)" : "transparent",
+                            fontWeight: active ? 600 : 400,
+                          }}
+                          activeClassName=""
+                        >
+                          <span
+                            className="flex items-center justify-center shrink-0"
+                            aria-hidden="true"
+                            style={{
+                              width: 22,
+                              color: active ? "hsl(262,80%,70%)" : "hsl(220,8%,50%)",
+                            }}
+                          >
+                            <item.icon size={16} />
+                          </span>
+                          {!collapsed && (
+                            <>
+                              <span className="flex-1 truncate">{item.title}</span>
+                              {active && (
+                                <span
+                                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                                  aria-hidden="true"
+                                  style={{ background: "hsl(262,80%,70%)" }}
+                                />
+                              )}
+                            </>
+                          )}
+                        </NavLink>
+                      )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
