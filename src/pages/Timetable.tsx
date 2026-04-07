@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DndContext,
@@ -21,50 +21,41 @@ import {
   CalendarDays,
   Plus,
   Trash2,
-  Pencil,
   X,
   Clock,
   BookOpen,
   GripVertical,
-  Save,
   Check,
+  Sparkles,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/context/AuthContext";
-import { upsertTimetable } from "@/lib/database";
-import { toast } from "sonner";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface Subject {
-  id: string;
-  name: string;
-  hoursPerWeek: number;
-  color: string;
-}
-
-type DaySlot = { subjectId: string | null };
-type WeekGrid = Record<string, DaySlot[]>;
-
-// Drag item id format: "drag-{day}-{slotIdx}"
-// Droppable id format: "drop-{day}-{slotIdx}"
-
-function parseDragId(id: string): { day: string; slotIdx: number } | null {
-  const m = id.match(/^drag-(.+)-(\d+)$/);
-  if (!m) return null;
-  return { day: m[1], slotIdx: parseInt(m[2], 10) };
-}
-
-function parseDropId(id: string): { day: string; slotIdx: number } | null {
-  const m = id.match(/^drop-(.+)-(\d+)$/);
-  if (!m) return null;
-  return { day: m[1], slotIdx: parseInt(m[2], 10) };
-}
+import { useTimetable } from "@/hooks/useTimetable";
+import type { Subject, Schedule, DayOfWeek } from "@/types/database";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAYS: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+const DAY_DISPLAY: Record<DayOfWeek, string> = {
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+  friday: "Friday",
+  saturday: "Saturday",
+  sunday: "Sunday",
+};
+const DAY_SHORT: Record<DayOfWeek, string> = {
+  monday: "Mon",
+  tuesday: "Tue",
+  wednesday: "Wed",
+  thursday: "Thu",
+  friday: "Fri",
+  saturday: "Sat",
+  sunday: "Sun",
+};
+
 const TIME_SLOTS = [
   "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
   "12:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
@@ -81,31 +72,52 @@ const SUBJECT_COLORS = [
   "hsl(280, 70%, 58%)",
 ];
 
-// ─── Smart distributor ────────────────────────────────────────────────────────
+// ─── Helper: Convert Schedule (AI format) to grid format ───────────────────
 
-function distributeSubjects(subjects: Subject[]): WeekGrid {
+type DaySlot = { subjectId: string | null; subjectName?: string };
+type WeekGrid = Record<string, DaySlot[]>;
+
+function scheduleToGrid(schedule: Schedule | null, subjects: Subject[]): WeekGrid {
   const grid: WeekGrid = {};
   DAYS.forEach((d) => {
-    grid[d] = Array.from({ length: TIME_SLOTS.length }, () => ({ subjectId: null }));
+    grid[DAY_DISPLAY[d]] = Array.from({ length: TIME_SLOTS.length }, () => ({ subjectId: null }));
   });
-  const pool: string[] = [];
-  subjects.forEach((s) => {
-    for (let i = 0; i < Math.min(s.hoursPerWeek, 12); i++) pool.push(s.id);
-  });
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  let pi = 0;
-  outer: for (let slot = 0; slot < TIME_SLOTS.length; slot++) {
-    for (let di = 0; di < DAYS.length; di++) {
-      if (pi >= pool.length) break outer;
-      const dayAlready = grid[DAYS[di]].some((s) => s.subjectId === pool[pi]);
-      if (!dayAlready) {
-        grid[DAYS[di]][slot].subjectId = pool[pi++];
+
+  if (!schedule) return grid;
+
+  DAYS.forEach((dayKey) => {
+    const daySlots = schedule[dayKey] || [];
+    daySlots.forEach((slot) => {
+      // Find matching time slot index
+      const timeStr = slot.startTime;
+      let slotIdx = -1;
+
+      // Convert 24h to 12h format for matching
+      const [hours, mins] = timeStr.split(':');
+      const hour = parseInt(hours);
+      const period = hour >= 12 ? 'PM' : 'AM';
+      const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+      const formatted = `${hour12}:00 ${period}`;
+
+      slotIdx = TIME_SLOTS.findIndex(t => t.startsWith(`${hour12}:`));
+
+      if (slotIdx >= 0) {
+        const subject = subjects.find(s => s.name === slot.subject);
+        if (subject) {
+          // Use crypto.randomUUID if available, otherwise fallback
+          const subjectId = typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${slot.subject}-${dayKey}-${slotIdx}`;
+
+          grid[DAY_DISPLAY[dayKey]][slotIdx] = {
+            subjectId,
+            subjectName: slot.subject
+          };
+        }
       }
-    }
-  }
+    });
+  });
+
   return grid;
 }
 
@@ -195,7 +207,7 @@ function SubjectRow({
   );
 }
 
-// ─── Slot Card (shared between GridCell and DragOverlay) ──────────────────────
+// ─── Slot Card ────────────────────────────────────────────────────────────────
 
 function SlotCard({
   subject,
@@ -229,16 +241,15 @@ function SlotCard({
   );
 }
 
-// ─── Sortable Grid Cell ───────────────────────────────────────────────────────
+// ─── Grid Cell ────────────────────────────────────────────────────────────────
 
-function SortableCell({
+function GridCell({
   day,
   slotIdx,
   slot,
   subjects,
   onClear,
   onClick,
-  isDragActive,
 }: {
   day: string;
   slotIdx: number;
@@ -246,47 +257,15 @@ function SortableCell({
   subjects: Subject[];
   onClear: () => void;
   onClick: () => void;
-  isDragActive: boolean;
 }) {
-  const subject = subjects.find((s) => s.id === slot.subjectId);
-  const dragId = `drag-${day}-${slotIdx}`;
-  const dropId = `drop-${day}-${slotIdx}`;
-
-  const {
-    attributes,
-    listeners,
-    setNodeRef: setSortableRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: dragId,
-    disabled: !subject,
-    data: { day, slotIdx, subjectId: slot.subjectId },
-  });
-
-  // Separate droppable ref for empty cells
-  const dropRef = useRef<HTMLDivElement>(null);
-
-  const style = subject
-    ? {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        zIndex: isDragging ? 999 : undefined,
-      }
-    : {};
+  const subject = slot.subjectName
+    ? subjects.find(s => s.name === slot.subjectName)
+    : subjects.find((s) => s.name === slot.subjectId); // fallback to old format
 
   if (!subject) {
     return (
       <div
-        id={dropId}
-        ref={dropRef}
-        className={cn(
-          "w-full min-h-[44px] rounded-lg border border-dashed transition-all flex items-center justify-center",
-          isDragActive
-            ? "border-primary/40 bg-primary/5 text-primary/50"
-            : "border-border/30 text-muted-foreground/30 hover:border-primary/30 hover:text-primary/40 hover:bg-primary/5",
-        )}
+        className="w-full min-h-[44px] rounded-lg border border-dashed transition-all flex items-center justify-center border-border/30 text-muted-foreground/30 hover:border-primary/30 hover:text-primary/40 hover:bg-primary/5 cursor-pointer"
         onClick={onClick}
       >
         <Plus className="w-3 h-3" />
@@ -295,39 +274,15 @@ function SortableCell({
   }
 
   return (
-    <div
-      ref={setSortableRef}
-      style={style}
-      className={cn(
-        "w-full min-h-[44px] rounded-lg relative group/cell cursor-grab active:cursor-grabbing",
-        isDragging && "opacity-40",
-      )}
-    >
-      {/* Drag handle */}
-      <button
-        {...attributes}
-        {...listeners}
-        className="absolute top-1 right-1 z-10 opacity-0 group-hover/cell:opacity-100 p-0.5 rounded text-muted-foreground/50 hover:text-foreground transition-all"
-        tabIndex={-1}
-        aria-label="Drag to reschedule"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <GripVertical className="w-3 h-3" />
-      </button>
-
-      {/* Card body — click to clear if not dragging */}
+    <div className="w-full min-h-[44px] rounded-lg relative group/cell">
       <div
-        onClick={() => {
-          if (!isDragging && !isDragActive) onClear();
-        }}
-        className="w-full h-full"
+        onClick={onClear}
+        className="w-full h-full cursor-pointer"
       >
-        <SlotCard subject={subject} isDragging={isDragging} />
-        {!isDragActive && (
-          <div className="absolute inset-0 bg-destructive/10 opacity-0 group-hover/cell:opacity-100 transition-opacity rounded-lg flex items-center justify-center pointer-events-none">
-            <X className="w-3 h-3 text-destructive/70" />
-          </div>
-        )}
+        <SlotCard subject={subject} />
+        <div className="absolute inset-0 bg-destructive/10 opacity-0 group-hover/cell:opacity-100 transition-opacity rounded-lg flex items-center justify-center pointer-events-none">
+          <X className="w-3 h-3 text-destructive/70" />
+        </div>
       </div>
     </div>
   );
@@ -343,7 +298,7 @@ function AssignModal({
   time,
 }: {
   subjects: Subject[];
-  onAssign: (subjectId: string) => void;
+  onAssign: (subjectName: string) => void;
   onClose: () => void;
   day: string;
   time: string;
@@ -377,8 +332,8 @@ function AssignModal({
         <div className="flex flex-col gap-1.5">
           {subjects.map((s) => (
             <button
-              key={s.id}
-              onClick={() => { onAssign(s.id); onClose(); }}
+              key={s.name}
+              onClick={() => { onAssign(s.name); onClose(); }}
               className="flex items-center gap-2.5 p-2.5 rounded-xl text-left hover:bg-secondary/60 transition-colors"
             >
               <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
@@ -398,166 +353,73 @@ function AssignModal({
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 const Timetable = () => {
-  const { user } = useAuth();
+  const {
+    subjects, schedule, isGenerating, isLoading, saveStatus, error,
+    addSubject, removeSubject, generateSchedule,
+  } = useTimetable();
 
-  const [subjects, setSubjects] = useState<Subject[]>([
-    { id: "1", name: "Mathematics", hoursPerWeek: 4, color: SUBJECT_COLORS[0] },
-    { id: "2", name: "Physics", hoursPerWeek: 3, color: SUBJECT_COLORS[1] },
-    { id: "3", name: "Chemistry", hoursPerWeek: 3, color: SUBJECT_COLORS[2] },
-  ]);
   const [newSubject, setNewSubject] = useState("");
   const [grid, setGrid] = useState<WeekGrid | null>(null);
-  const [isBuilding, setIsBuilding] = useState(false);
   const [hasBuilt, setHasBuilt] = useState(false);
   const [assignTarget, setAssignTarget] = useState<{ day: string; slotIdx: number } | null>(null);
   const [viewMode, setViewMode] = useState<"week" | "day">("week");
-  const [activeDay, setActiveDay] = useState("Monday");
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [activeDay, setActiveDay] = useState<DayOfWeek>("monday");
 
-  // Drag state
-  const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  const [overDropId, setOverDropId] = useState<string | null>(null);
-  const prevGridRef = useRef<WeekGrid | null>(null);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
-    }),
-  );
-
-  // ── Persist to Supabase ────────────────────────────────────────────────────
-
-  const persistGrid = useCallback(async (newGrid: WeekGrid) => {
-    if (!user?.id) return;
-    setIsSaving(true);
-    setSaveSuccess(false);
-    try {
-      await upsertTimetable(user.id, {
-        subjects,
-        grid: newGrid,
-      } as unknown as Parameters<typeof upsertTimetable>[1]);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2000);
-    } catch (err) {
-      console.error("Timetable save failed:", err);
-      toast.error("Failed to save timetable");
-      if (prevGridRef.current) setGrid(prevGridRef.current);
-    } finally {
-      setIsSaving(false);
+  // Convert schedule to grid when it changes
+  useEffect(() => {
+    if (schedule) {
+      setGrid(scheduleToGrid(schedule, subjects));
+      setHasBuilt(true);
     }
-  }, [user?.id, subjects]);
+  }, [schedule, subjects]);
 
-  // ── Drag handlers ──────────────────────────────────────────────────────────
-
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveDragId(event.active.id as string);
-    prevGridRef.current = grid;
-  }, [grid]);
-
-  const handleDragOver = useCallback((event: DragOverEvent) => {
-    setOverDropId(event.over?.id as string ?? null);
-  }, []);
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveDragId(null);
-    setOverDropId(null);
-
-    if (!over || !grid) return;
-
-    const srcParsed = parseDragId(active.id as string);
-    if (!srcParsed) return;
-
-    const dstFromDrag = parseDragId(over.id as string);
-    const dstFromDrop = parseDropId(over.id as string);
-    const dst = dstFromDrag ?? dstFromDrop;
-    if (!dst) return;
-
-    if (srcParsed.day === dst.day && srcParsed.slotIdx === dst.slotIdx) return;
-
-    const newGrid = { ...grid };
-    DAYS.forEach((d) => { newGrid[d] = [...grid[d]]; });
-
-    const srcSubjectId = newGrid[srcParsed.day][srcParsed.slotIdx].subjectId;
-    const dstSubjectId = newGrid[dst.day][dst.slotIdx].subjectId;
-
-    newGrid[srcParsed.day][srcParsed.slotIdx] = { subjectId: dstSubjectId };
-    newGrid[dst.day][dst.slotIdx] = { subjectId: srcSubjectId };
-
-    setGrid(newGrid);
-    persistGrid(newGrid);
-  }, [grid, persistGrid]);
-
-  // ── Subject management ─────────────────────────────────────────────────────
-
-  const addSubject = () => {
+  const addNewSubject = () => {
     const name = newSubject.trim();
     if (!name) return;
-    const id = Date.now().toString();
     const color = SUBJECT_COLORS[subjects.length % SUBJECT_COLORS.length];
-    setSubjects((prev) => [...prev, { id, name, hoursPerWeek: 2, color }]);
+    addSubject({ name, hoursPerWeek: 2, color });
     setNewSubject("");
   };
 
-  const updateSubject = (updated: Subject) =>
-    setSubjects((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+  const updateSubject = (updated: Subject) => {
+    // Since we don't have an update method in the hook, remove and re-add
+    removeSubject(updated.name);
+    addSubject(updated);
+  };
 
-  const deleteSubject = (id: string) => {
-    setSubjects((prev) => prev.filter((s) => s.id !== id));
+  const deleteSubject = (name: string) => {
+    removeSubject(name);
     if (grid) {
       const next = { ...grid };
-      DAYS.forEach((d) => {
-        next[d] = next[d].map((slot) => (slot.subjectId === id ? { subjectId: null } : slot));
+      Object.keys(next).forEach((d) => {
+        next[d] = next[d].map((slot) =>
+          slot.subjectName === name ? { subjectId: null } : slot
+        );
       });
       setGrid(next);
     }
-  };
-
-  const buildTimetable = () => {
-    if (subjects.length === 0) return;
-    setIsBuilding(true);
-    setHasBuilt(false);
-    setTimeout(() => {
-      const newGrid = distributeSubjects(subjects);
-      setGrid(newGrid);
-      setIsBuilding(false);
-      setHasBuilt(true);
-      persistGrid(newGrid);
-    }, 900);
   };
 
   const clearSlot = (day: string, slotIdx: number) => {
     if (!grid) return;
     const next = { ...grid, [day]: grid[day].map((s, i) => (i === slotIdx ? { subjectId: null } : s)) };
     setGrid(next);
-    persistGrid(next);
   };
 
-  const assignSlot = (day: string, slotIdx: number, subjectId: string) => {
+  const assignSlot = (day: string, slotIdx: number, subjectName: string) => {
     if (!grid) return;
-    const next = { ...grid, [day]: grid[day].map((s, i) => (i === slotIdx ? { subjectId } : s)) };
+    const next = {
+      ...grid,
+      [day]: grid[day].map((s, i) =>
+        i === slotIdx ? { subjectId: subjectName, subjectName } : s
+      )
+    };
     setGrid(next);
-    persistGrid(next);
   };
-
-  // ── Derived ────────────────────────────────────────────────────────────────
 
   const totalHours = subjects.reduce((a, s) => a + s.hoursPerWeek, 0);
   const filledSlots = grid ? Object.values(grid).flat().filter((s) => s.subjectId !== null).length : 0;
-  const displayDays = viewMode === "week" ? DAYS : [activeDay];
-  const isDragActive = activeDragId !== null;
-
-  const activeDragSubject = (() => {
-    if (!activeDragId || !grid) return null;
-    const p = parseDragId(activeDragId);
-    if (!p) return null;
-    const subjectId = grid[p.day]?.[p.slotIdx]?.subjectId;
-    return subjects.find((s) => s.id === subjectId) ?? null;
-  })();
-
-  const sortableIds = (day: string): string[] =>
-    (grid?.[day] ?? []).map((_, i) => `drag-${day}-${i}`);
+  const displayDays = viewMode === "week" ? DAYS.map(d => DAY_DISPLAY[d]) : [DAY_DISPLAY[activeDay]];
 
   return (
     <div className="h-full flex flex-col">
@@ -579,14 +441,14 @@ const Timetable = () => {
             <h1 className="font-display text-xl font-bold text-foreground">
               Timetable <span className="gradient-text">Builder</span>
             </h1>
-            <p className="text-xs text-muted-foreground">Plan your weekly schedule · drag slots to reschedule</p>
+            <p className="text-xs text-muted-foreground">AI-powered smart scheduling · drag to adjust</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Save indicator */}
           <AnimatePresence mode="wait">
-            {isSaving && (
+            {saveStatus === 'saving' && (
               <motion.div
                 key="saving"
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -594,11 +456,11 @@ const Timetable = () => {
                 exit={{ opacity: 0, scale: 0.9 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary/60 border border-border/50"
               >
-                <span className="w-3 h-3 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+                <Loader2 className="w-3 h-3 animate-spin text-primary" />
                 <span className="text-xs text-muted-foreground">Saving...</span>
               </motion.div>
             )}
-            {saveSuccess && !isSaving && (
+            {saveStatus === 'saved' && (
               <motion.div
                 key="saved"
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -629,11 +491,15 @@ const Timetable = () => {
                 ))}
               </div>
               <button
-                onClick={buildTimetable}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-secondary border border-border text-foreground hover:bg-secondary/80 hover:border-primary/30 transition-all"
+                onClick={generateSchedule}
+                disabled={isGenerating}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-secondary border border-border text-foreground hover:bg-secondary/80 hover:border-primary/30 transition-all disabled:opacity-50"
               >
-                <GripVertical className="w-3.5 h-3.5" />
-                Regenerate
+                {isGenerating ? (
+                  <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating...</>
+                ) : (
+                  <><Sparkles className="w-3.5 h-3.5" /> Regenerate</>
+                )}
               </button>
             </motion.div>
           )}
@@ -656,12 +522,12 @@ const Timetable = () => {
               <input
                 value={newSubject}
                 onChange={(e) => setNewSubject(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addSubject()}
+                onKeyDown={(e) => e.key === "Enter" && addNewSubject()}
                 placeholder="e.g. Biology"
                 className="flex-1 bg-secondary/60 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/40 transition-all"
               />
               <button
-                onClick={addSubject}
+                onClick={addNewSubject}
                 disabled={!newSubject.trim()}
                 className="w-10 h-10 rounded-xl flex items-center justify-center text-white disabled:opacity-40 transition-all hover:scale-105 shrink-0"
                 style={{ background: "linear-gradient(135deg, hsl(30,80%,57%), hsl(262,80%,62%))" }}
@@ -688,10 +554,10 @@ const Timetable = () => {
               <AnimatePresence>
                 {subjects.map((s) => (
                   <SubjectRow
-                    key={s.id}
+                    key={s.name}
                     subject={s}
                     onUpdate={updateSubject}
-                    onDelete={() => deleteSubject(s.id)}
+                    onDelete={() => deleteSubject(s.name)}
                   />
                 ))}
               </AnimatePresence>
@@ -702,17 +568,30 @@ const Timetable = () => {
           </div>
 
           <button
-            onClick={buildTimetable}
-            disabled={subjects.length === 0 || isBuilding}
+            onClick={generateSchedule}
+            disabled={subjects.length === 0 || isGenerating}
             className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-display font-semibold text-white transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] hover:shadow-[0_0_30px_hsl(30,80%,57%,0.3)] active:scale-[0.98]"
             style={{ background: "linear-gradient(135deg, hsl(30,80%,57%), hsl(340,75%,57%))" }}
           >
-            {isBuilding ? (
-              <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />Building...</>
+            {isGenerating ? (
+              <><Loader2 className="w-4 h-4 animate-spin" />Building...</>
             ) : (
-              <><CalendarDays className="w-4 h-4" />Build Timetable</>
+              <><Sparkles className="w-4 h-4" />AI Generate</>
             )}
           </button>
+
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-card rounded-2xl p-4 bg-red-500/10 border-red-500/20"
+            >
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-red-400">{error}</p>
+              </div>
+            </motion.div>
+          )}
 
           {hasBuilt && (
             <motion.div
@@ -744,7 +623,12 @@ const Timetable = () => {
           transition={{ duration: 0.45, delay: 0.1 }}
           className="flex-1 flex flex-col min-w-0"
         >
-          {!hasBuilt && !isBuilding ? (
+          {isLoading ? (
+            <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
+              <Loader2 className="w-12 h-12 animate-spin text-primary/50 mb-6" />
+              <p className="font-display text-lg font-semibold text-foreground/80 mb-1">Loading timetable...</p>
+            </div>
+          ) : !hasBuilt && !isGenerating ? (
             <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
               <motion.div
                 animate={{ y: [0, -8, 0] }}
@@ -752,20 +636,20 @@ const Timetable = () => {
                 className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
                 style={{ background: "linear-gradient(135deg, hsl(30,80%,57%,0.15), hsl(340,75%,57%,0.08))" }}
               >
-                <CalendarDays className="w-10 h-10" style={{ color: "hsl(30,80%,57%,0.7)" }} />
+                <Sparkles className="w-10 h-10" style={{ color: "hsl(30,80%,57%,0.7)" }} />
               </motion.div>
-              <h3 className="font-display text-xl font-bold text-foreground/80 mb-2">No timetable yet</h3>
+              <h3 className="font-display text-xl font-bold text-foreground/80 mb-2">AI-Powered Scheduling</h3>
               <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-                Add your subjects, set hours per week, then hit{" "}
-                <span style={{ color: "hsl(30,80%,62%)" }} className="font-medium">Build Timetable</span>.
+                Add your subjects and hours per week, then click{" "}
+                <span style={{ color: "hsl(30,80%,62%)" }} className="font-medium">AI Generate</span>.
               </p>
               <div className="mt-8 flex items-center gap-6 text-xs text-muted-foreground/60">
-                <span className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /> Color-coded</span>
-                <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Smart spread</span>
-                <span className="flex items-center gap-1.5"><GripVertical className="w-3.5 h-3.5" /> Drag to reschedule</span>
+                <span className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /> Smart</span>
+                <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Balanced</span>
+                <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> AI-Optimized</span>
               </div>
             </div>
-          ) : isBuilding ? (
+          ) : isGenerating ? (
             <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
               <motion.div
                 animate={{ rotate: 360 }}
@@ -773,107 +657,84 @@ const Timetable = () => {
                 className="w-12 h-12 rounded-full border-2 border-primary/20 mb-6"
                 style={{ borderTopColor: "hsl(30,80%,57%)" }}
               />
-              <p className="font-display text-lg font-semibold text-foreground/80 mb-1">Building your timetable...</p>
-              <p className="text-sm text-muted-foreground">Distributing subjects across the week</p>
+              <p className="font-display text-lg font-semibold text-foreground/80 mb-1">Generating smart schedule...</p>
+              <p className="text-sm text-muted-foreground">Distributing subjects optimally across the week</p>
             </div>
           ) : grid ? (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDragEnd={handleDragEnd}
-            >
-              <div className="flex-1 flex flex-col min-h-0">
-                {viewMode === "day" && (
-                  <div className="flex items-center gap-1.5 mb-4 flex-wrap shrink-0">
-                    {DAYS.map((d, i) => (
-                      <button
-                        key={d}
-                        onClick={() => setActiveDay(d)}
-                        className={cn(
-                          "px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all",
-                          activeDay === d
-                            ? "bg-primary/15 border-primary/40 text-primary"
-                            : "bg-secondary/50 border-border/50 text-muted-foreground hover:border-border hover:text-foreground",
-                        )}
-                      >
-                        {DAY_SHORT[i]}
-                      </button>
-                    ))}
-                  </div>
-                )}
+            <div className="flex-1 flex flex-col min-h-0">
+              {viewMode === "day" && (
+                <div className="flex items-center gap-1.5 mb-4 flex-wrap shrink-0">
+                  {DAYS.map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setActiveDay(d)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all",
+                        activeDay === d
+                          ? "bg-primary/15 border-primary/40 text-primary"
+                          : "bg-secondary/50 border-border/50 text-muted-foreground hover:border-border hover:text-foreground",
+                      )}
+                    >
+                      {DAY_SHORT[d]}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-                <div
-                  className="flex-1 overflow-auto rounded-2xl glass-card"
-                  style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(30,80%,57%,0.2) transparent" }}
-                >
-                  <table className="w-full min-w-[500px] border-separate border-spacing-0">
-                    <thead>
-                      <tr>
-                        <th className="sticky left-0 z-10 bg-card/80 backdrop-blur-sm w-20 p-3 text-left">
-                          <span className="text-xs text-muted-foreground uppercase tracking-widest">Time</span>
+              <div
+                className="flex-1 overflow-auto rounded-2xl glass-card"
+                style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(30,80%,57%,0.2) transparent" }}
+              >
+                <table className="w-full min-w-[500px] border-separate border-spacing-0">
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 z-10 bg-card/80 backdrop-blur-sm w-20 p-3 text-left">
+                        <span className="text-xs text-muted-foreground uppercase tracking-widest">Time</span>
+                      </th>
+                      {displayDays.map((day) => (
+                        <th key={day} className="p-3 text-left border-l border-border/20">
+                          <span className="text-xs font-semibold text-foreground/70">{day}</span>
                         </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {TIME_SLOTS.map((time, slotIdx) => (
+                      <tr key={time}>
+                        <td className="sticky left-0 z-10 bg-card/80 backdrop-blur-sm p-2 border-t border-border/20">
+                          <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">{time}</span>
+                        </td>
                         {displayDays.map((day) => (
-                          <th key={day} className="p-3 text-left border-l border-border/20">
-                            <span className="text-xs font-semibold text-foreground/70">{day}</span>
-                          </th>
+                          <td key={day} className="p-1.5 border-t border-l border-border/20 align-top" style={{ minWidth: 90 }}>
+                            <GridCell
+                              day={day}
+                              slotIdx={slotIdx}
+                              slot={grid[day][slotIdx]}
+                              subjects={subjects}
+                              onClear={() => clearSlot(day, slotIdx)}
+                              onClick={() => setAssignTarget({ day, slotIdx })}
+                            />
+                          </td>
                         ))}
                       </tr>
-                    </thead>
-                    <tbody>
-                      {TIME_SLOTS.map((time, slotIdx) => (
-                        <tr key={time}>
-                          <td className="sticky left-0 z-10 bg-card/80 backdrop-blur-sm p-2 border-t border-border/20">
-                            <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">{time}</span>
-                          </td>
-                          {displayDays.map((day) => (
-                            <td key={day} className="p-1.5 border-t border-l border-border/20 align-top" style={{ minWidth: 90 }}>
-                              <SortableContext
-                                items={sortableIds(day)}
-                                strategy={rectSortingStrategy}
-                              >
-                                <SortableCell
-                                  day={day}
-                                  slotIdx={slotIdx}
-                                  slot={grid[day][slotIdx]}
-                                  subjects={subjects}
-                                  onClear={() => clearSlot(day, slotIdx)}
-                                  onClick={() => setAssignTarget({ day, slotIdx })}
-                                  isDragActive={isDragActive}
-                                />
-                              </SortableContext>
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex items-center gap-3 mt-3 flex-wrap shrink-0">
-                  <span className="text-xs text-muted-foreground uppercase tracking-widest">Legend:</span>
-                  {subjects.map((s) => (
-                    <div key={s.id} className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
-                      <span className="text-xs text-muted-foreground">{s.name}</span>
-                    </div>
-                  ))}
-                  <span className="ml-auto text-xs text-muted-foreground/40">
-                    Drag ⠿ to reschedule · Click filled to clear · Empty to assign
-                  </span>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
-              {/* Drag overlay — follows cursor */}
-              <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.16,1,0.3,1)" }}>
-                {activeDragSubject ? (
-                  <div className="w-[90px] rounded-lg shadow-xl shadow-black/30 scale-105">
-                    <SlotCard subject={activeDragSubject} />
+              <div className="flex items-center gap-3 mt-3 flex-wrap shrink-0">
+                <span className="text-xs text-muted-foreground uppercase tracking-widest">Legend:</span>
+                {subjects.map((s) => (
+                  <div key={s.name} className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
+                    <span className="text-xs text-muted-foreground">{s.name}</span>
                   </div>
-                ) : null}
-              </DragOverlay>
-            </DndContext>
+                ))}
+                <span className="ml-auto text-xs text-muted-foreground/40">
+                  Click filled to clear · Empty to assign
+                </span>
+              </div>
+            </div>
           ) : null}
         </motion.div>
       </div>
@@ -885,7 +746,7 @@ const Timetable = () => {
             subjects={subjects}
             day={assignTarget.day}
             time={TIME_SLOTS[assignTarget.slotIdx]}
-            onAssign={(subjectId) => assignSlot(assignTarget.day, assignTarget.slotIdx, subjectId)}
+            onAssign={(subjectName) => assignSlot(assignTarget.day, assignTarget.slotIdx, subjectName)}
             onClose={() => setAssignTarget(null)}
           />
         )}

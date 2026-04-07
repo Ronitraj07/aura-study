@@ -2,10 +2,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   User, Mail, Calendar, LogOut, Presentation,
-  FileText, BookOpen, CheckSquare, Clock, Shield, Sparkles,
+  FileText, BookOpen, CheckSquare, Clock, Shield, Sparkles, ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useUserStats } from "@/hooks/useUserStats";
+import { useUserStats, type RecentItem } from "@/hooks/useUserStats";
 
 // ── Helpers ───────────────────────────────────────────────────
 function getInitials(s: string | null | undefined) {
@@ -20,6 +20,15 @@ function getDisplayName(user: ReturnType<typeof useAuth>["user"]) {
 function formatJoin(d?: string) {
   if (!d) return "";
   return new Date(d).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 // ── Avatar ────────────────────────────────────────────────────
@@ -129,7 +138,7 @@ function LogoutModal({
 export default function Profile() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { stats } = useUserStats();
+  const { stats, recentItems } = useUserStats();
   const [showLogout, setShowLogout] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -503,14 +512,89 @@ export default function Profile() {
             >
               Recent Activity
             </p>
-            <div
-              className="flex flex-col items-center justify-center text-center"
-              style={{ padding: "clamp(24px, 8vw, 40px) 0", gap: 8 }}
-            >
-              <Clock size={26} className="text-muted-foreground opacity-40" />
-              <p style={{ fontSize: 13, color: "hsl(var(--muted-foreground))" }}>Activity feed coming soon</p>
-              <p style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", opacity: 0.6 }}>Your recent actions will appear here</p>
-            </div>
+            {recentItems.length === 0 ? (
+              <div
+                className="flex flex-col items-center justify-center text-center"
+                style={{ padding: "clamp(24px, 8vw, 40px) 0", gap: 8 }}
+              >
+                <Clock size={26} className="text-muted-foreground opacity-40" />
+                <p style={{ fontSize: 13, color: "hsl(var(--muted-foreground))" }}>No recent activity</p>
+                <p style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", opacity: 0.6 }}>
+                  Create your first PPT, assignment, or notes to see them here
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {recentItems.map((item) => {
+                  const typeConfig = {
+                    ppt: {
+                      icon: Presentation,
+                      color: "hsl(262,80%,65%)",
+                      bg: "rgba(139,92,246,0.12)",
+                      border: "rgba(139,92,246,0.25)",
+                      route: "/dashboard/ppt",
+                    },
+                    assignment: {
+                      icon: FileText,
+                      color: "hsl(217,91%,60%)",
+                      bg: "rgba(59,130,246,0.12)",
+                      border: "rgba(59,130,246,0.25)",
+                      route: "/dashboard/assignments",
+                    },
+                    note: {
+                      icon: BookOpen,
+                      color: "hsl(160,84%,39%)",
+                      bg: "rgba(16,185,129,0.12)",
+                      border: "rgba(16,185,129,0.25)",
+                      route: "/dashboard/notes",
+                    },
+                  };
+                  const config = typeConfig[item.type];
+                  const Icon = config.icon;
+
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => navigate(config.route)}
+                      className="w-full rounded-xl p-3 flex items-center gap-3 transition-all duration-200 hover:-translate-y-0.5"
+                      style={{
+                        background: config.bg,
+                        border: `1px solid ${config.border}`,
+                        textAlign: "left",
+                      }}
+                    >
+                      <div
+                        className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{
+                          background: "rgba(255,255,255,0.08)",
+                          border: `1px solid ${config.border}`,
+                        }}
+                      >
+                        <Icon size={16} style={{ color: config.color }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="text-xs font-bold uppercase tracking-wider mb-0.5"
+                          style={{ color: config.color, fontSize: 9 }}
+                        >
+                          {item.type}
+                        </p>
+                        <p
+                          className="text-sm font-medium text-foreground truncate"
+                          style={{ lineHeight: 1.2 }}
+                        >
+                          {item.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {timeAgo(item.createdAt)}
+                        </p>
+                      </div>
+                      <ChevronRight size={14} className="text-muted-foreground flex-shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
