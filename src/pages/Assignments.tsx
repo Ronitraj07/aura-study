@@ -199,6 +199,13 @@ const Assignments = () => {
   const [historyOpen, setHistoryOpen]       = useState(false);
   const [restoring, setRestoring]           = useState(false);
 
+  // New enhanced options
+  const [subtopics, setSubtopics] = useState<string[]>([]);
+  const [requirements, setRequirements] = useState("");
+  const [citationStyle, setCitationStyle] = useState<'APA' | 'MLA' | 'none'>('none');
+  const [includeExamples, setIncludeExamples] = useState(true);
+  const [formatOption, setFormatOption] = useState<'structured' | 'essay' | 'bullet_points'>('structured');
+
   const {
     assignment, savedId, isGenerating, isResearching, saveStatus, error,
     versions, generate, loadVersions, restoreVersion,
@@ -210,7 +217,16 @@ const Assignments = () => {
 
   const handleGenerate = () => {
     if (!topic.trim() || isGenerating) return;
-    generate({ topic: topic.trim(), wordCount, tone });
+    generate({ 
+      topic: topic.trim(), 
+      wordCount, 
+      tone,
+      subtopics: subtopics.length > 0 ? subtopics : undefined,
+      requirements: requirements.trim() || undefined,
+      citationStyle: citationStyle !== 'none' ? citationStyle : undefined,
+      includeExamples,
+      formatOption
+    });
   };
 
   const handleSmartApply = (s: typeof suggestion) => {
@@ -416,6 +432,144 @@ const Assignments = () => {
                   </div>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Subtopics Selection */}
+          <div className="glass-card rounded-2xl p-5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
+              Subtopics (optional)
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                "Historical context",
+                "Current implications", 
+                "Economic impact",
+                "Social factors",
+                "Environmental effects",
+                "Policy recommendations",
+                "Case studies",
+                "Future prospects"
+              ].map(sub => (
+                <button
+                  key={sub}
+                  onClick={() => setSubtopics(prev => 
+                    prev.includes(sub) 
+                      ? prev.filter(s => s !== sub)
+                      : [...prev, sub]
+                  )}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all",
+                    subtopics.includes(sub)
+                      ? "bg-primary/15 border-primary/40 text-primary"
+                      : "bg-secondary/40 border-border text-muted-foreground hover:border-primary/20"
+                  )}
+                >
+                  {sub}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Requirements */}
+          <div className="glass-card rounded-2xl p-5">
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
+              Requirements (optional)
+            </label>
+            <textarea
+              value={requirements}
+              onChange={(e) => setRequirements(e.target.value)}
+              placeholder={`e.g. Include at least 3 academic sources
+Must include a comparison table
+Should address counterarguments
+Needs real-world examples`}
+              rows={4}
+              className="w-full bg-secondary/60 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/40 transition-all resize-none"
+            />
+            <p className="text-xs text-muted-foreground/60 mt-2">
+              Describe any specific requirements, formatting needs, or constraints
+            </p>
+          </div>
+
+          {/* Advanced Options */}
+          <div className="glass-card rounded-2xl p-5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
+              Advanced Options
+            </p>
+            
+            <div className="space-y-3">
+              {/* Citation Style */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-2">Citation Style</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['none', 'APA', 'MLA'] as const).map((style) => (
+                    <button
+                      key={style}
+                      onClick={() => setCitationStyle(style)}
+                      className={cn(
+                        "py-1.5 rounded-xl text-xs font-semibold border transition-all",
+                        citationStyle === style
+                          ? "bg-primary/15 border-primary/40 text-primary"
+                          : "bg-secondary/40 border-border text-muted-foreground hover:border-primary/20"
+                      )}
+                    >
+                      {style === 'none' ? 'None' : style}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Format Option */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-2">Format</label>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {([
+                    { value: 'structured', label: 'Structured Essay', desc: 'Traditional academic format' },
+                    { value: 'essay', label: 'Flowing Essay', desc: 'Narrative progression' },
+                    { value: 'bullet_points', label: 'Mixed Format', desc: 'Lists + paragraphs' }
+                  ] as const).map(({ value, label, desc }) => (
+                    <button
+                      key={value}
+                      onClick={() => setFormatOption(value)}
+                      className={cn(
+                        "flex items-center justify-between p-2 rounded-xl border transition-all text-left",
+                        formatOption === value
+                          ? "bg-primary/10 border-primary/40 text-primary"
+                          : "bg-secondary/40 border-border text-foreground hover:border-primary/20"
+                      )}
+                    >
+                      <div>
+                        <p className="text-xs font-semibold">{label}</p>
+                        <p className="text-xs text-muted-foreground">{desc}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Include Examples Toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-xs font-medium text-foreground">Include Examples</label>
+                  <p className="text-xs text-muted-foreground/60">Add real-world examples and case studies</p>
+                </div>
+                <button
+                  onClick={() => setIncludeExamples(prev => !prev)}
+                  className={cn(
+                    "w-11 h-6 rounded-full border-2 transition-all flex items-center",
+                    includeExamples 
+                      ? "bg-primary/20 border-primary/40" 
+                      : "bg-secondary/40 border-border"
+                  )}
+                >
+                  <div 
+                    className={cn(
+                      "w-4 h-4 rounded-full bg-white transition-all",
+                      includeExamples ? "translate-x-5" : "translate-x-0.5"
+                    )} 
+                  />
+                </button>
+              </div>
             </div>
           </div>
 

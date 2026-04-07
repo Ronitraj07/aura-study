@@ -37,6 +37,11 @@ export interface AssignmentInput {
   topic: string;
   wordCount: number;
   tone: AssignmentTone;
+  subtopics?: string[];
+  requirements?: string;
+  citationStyle?: 'APA' | 'MLA' | 'none';
+  includeExamples?: boolean;
+  formatOption?: 'structured' | 'essay' | 'bullet_points';
 }
 
 // ── Prompt builder ──────────────────────────────────────────────
@@ -51,11 +56,42 @@ function buildPrompt(input: AssignmentInput, researchPreamble: string): string {
     ? `${researchPreamble}write a well-researched assignment grounded in the facts above.\n\n`
     : '';
 
+  // Build subtopics section
+  const subtopicsSection = input.subtopics && input.subtopics.length > 0
+    ? `\nFocus Areas: ${input.subtopics.join(', ')}\nEnsure the assignment addresses these specific subtopics.`
+    : '';
+
+  // Build requirements section
+  const requirementsSection = input.requirements
+    ? `\nSpecific Requirements: ${input.requirements}`
+    : '';
+
+  // Build citation style section
+  const citationSection = input.citationStyle && input.citationStyle !== 'none'
+    ? `\nCitation Style: Use ${input.citationStyle} format for any references or citations.`
+    : '';
+
+  // Build examples section
+  const examplesSection = input.includeExamples
+    ? '\nInclude relevant real-world examples, case studies, or practical applications.'
+    : '';
+
+  // Build format section
+  const formatMap = {
+    structured: 'Use a traditional academic essay structure with introduction, body paragraphs with clear topic sentences, and conclusion.',
+    essay: 'Write in essay format with flowing narrative and logical progression.',
+    bullet_points: 'Use bullet points and numbered lists for clarity where appropriate, but maintain paragraph form for main content.'
+  };
+  
+  const formatSection = input.formatOption
+    ? `\nFormat Instructions: ${formatMap[input.formatOption]}`
+    : '';
+
   return `${researchSection}You are an expert academic writer. Write a structured ${input.wordCount}-word assignment.
 
 Topic: "${input.topic}"
 Tone: ${input.tone} — ${toneMap[input.tone]}
-Target word count: approximately ${input.wordCount} words
+Target word count: approximately ${input.wordCount} words${subtopicsSection}${requirementsSection}${citationSection}${examplesSection}${formatSection}
 
 Return ONLY valid JSON. No markdown, no explanation, no code blocks. Strict format:
 {
