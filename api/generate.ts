@@ -13,6 +13,10 @@
 //   'research'       — research pre-pass      (llama-3.1-8b-instant → Gemini 2.5 Flash on 429)
 // ============================================================
 
+declare const process: {
+  env: Record<string, string | undefined>;
+};
+
 export const config = { runtime: 'edge' };
 
 const GROQ_URL    = 'https://api.groq.com/openai/v1/chat/completions';
