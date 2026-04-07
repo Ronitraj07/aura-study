@@ -241,7 +241,8 @@ function SlideEditPanel({
 
         {slide.layout_type && (
           <div className="absolute top-2 left-2">
-            <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-medium uppercase tracking-wide ${
+            {/* text-xs (12px) — bumped from text-[9px] to meet 12px floor */}
+            <span className={`text-xs px-1 py-0.5 rounded-full border font-medium uppercase tracking-wide ${
               LAYOUT_COLORS[slide.layout_type] ?? 'bg-white/10 text-white/60 border-white/20'
             }`}>
               {slide.layout_type}
@@ -252,8 +253,9 @@ function SlideEditPanel({
 
       <div className="glass-card rounded-xl p-4 flex flex-col gap-3 flex-1 overflow-y-auto">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-mono text-muted-foreground">Slide {index + 1} / {total}</span>
-          <button onClick={copyContent} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+          {/* text-xs = 12px floor */}
+          <span className="text-xs font-mono text-muted-foreground">Slide {index + 1} / {total}</span>
+          <button onClick={copyContent} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" aria-label="Copy slide content">
             {copied
               ? <Check className="w-3.5 h-3.5 text-emerald-400" />
               : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
@@ -397,7 +399,8 @@ function SettingsPanelContent({
           value={[slideCount]} onValueChange={([v]) => setSlideCount(v)}
           className="[&>span:first-child]:bg-purple-500/20 [&_[role=slider]]:bg-purple-500 [&_[role=slider]]:border-purple-400"
         />
-        <div className="flex justify-between text-[10px] text-muted-foreground"><span>4</span><span>20</span></div>
+        {/* text-xs = 12px floor */}
+        <div className="flex justify-between text-xs text-muted-foreground"><span>4</span><span>20</span></div>
       </div>
 
       <div className="space-y-1.5">
@@ -417,7 +420,7 @@ function SettingsPanelContent({
           ))}
         </div>
         {mode === 'high_quality' && (
-          <p className="text-[10px] text-purple-400/70 leading-snug">
+          <p className="text-xs text-purple-400/70 leading-snug">
             Storytelling arc • Speaker notes • Visual suggestions
           </p>
         )}
@@ -472,7 +475,7 @@ function SettingsPanelContent({
             <span className="text-xs text-muted-foreground">{ppt.slides.length} slides</span>
             <div className="flex items-center gap-2">
               {fetchingImgs && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
-              <Badge variant="outline" className="text-[10px] border-white/10">{ppt.design_theme}</Badge>
+              <Badge variant="outline" className="text-xs border-white/10">{ppt.design_theme}</Badge>
             </div>
           </div>
           <div className="space-y-2 max-h-[32rem] overflow-y-auto pr-0.5">
@@ -666,7 +669,8 @@ export default function PPTPage() {
                     <History className="w-3.5 h-3.5" /> History
                   </Button>
                 </SheetTrigger>
-                <SheetContent className="bg-background border-white/10 w-80">
+                {/* Sheet width: w-[min(20rem,92vw)] prevents overflow on 375px phones */}
+                <SheetContent className="bg-background border-white/10 w-[min(20rem,92vw)]">
                   <SheetHeader><SheetTitle className="text-sm">Version History</SheetTitle></SheetHeader>
                   <div className="mt-4 space-y-2">
                     {versions.length === 0 ? (
@@ -676,8 +680,9 @@ export default function PPTPage() {
                         <div key={v.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/8">
                           <div>
                             <p className="text-xs font-medium">Version {v.version}</p>
-                            <p className="text-[10px] text-muted-foreground">{new Date(v.created_at).toLocaleString()}</p>
-                            <p className="text-[10px] text-muted-foreground/60">{v.slides?.length ?? 0} slides</p>
+                            {/* text-xs = 12px floor — bumped from text-[10px] */}
+                            <p className="text-xs text-muted-foreground">{new Date(v.created_at).toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground/60">{v.slides?.length ?? 0} slides</p>
                           </div>
                           <Button size="sm" variant="ghost" onClick={() => restoreVersion(v)} className="text-xs gap-1 h-7">
                             <RotateCcw className="w-3 h-3" /> Restore
@@ -786,6 +791,7 @@ export default function PPTPage() {
               onClick={() => setActiveSlide(i => Math.max(0, i - 1))}
               disabled={activeSlide === 0}
               className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              aria-label="Previous slide"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -796,6 +802,7 @@ export default function PPTPage() {
               onClick={() => setActiveSlide(i => Math.min(ppt.slides.length - 1, i + 1))}
               disabled={activeSlide === ppt.slides.length - 1}
               className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              aria-label="Next slide"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

@@ -117,7 +117,7 @@ function SummaryBlock({ summary }: { summary: string }) {
         <div className="flex items-center gap-2 mb-3">
           <Lightbulb className="w-4 h-4 text-primary" />
           <h3 className="font-display font-semibold text-base text-foreground">Summary</h3>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary font-medium">Key Takeaways</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary font-medium">Key Takeaways</span>
         </div>
         <p className="text-sm text-foreground/80 leading-relaxed">{summary}</p>
       </div>
@@ -177,7 +177,7 @@ function ExamTipsBlock({ tips }: { tips: ExamTip[] }) {
           <Target className="w-4 h-4" style={{ color: "hsl(340,75%,60%)" }} />
           <h3 className="font-display font-semibold text-base text-foreground">Exam Q&A</h3>
           <span
-            className="text-[10px] px-2 py-0.5 rounded-full font-medium border"
+            className="text-xs px-2 py-0.5 rounded-full font-medium border"
             style={{ background: "hsl(340,75%,58%,0.12)", borderColor: "hsl(340,75%,58%,0.3)", color: "hsl(340,75%,62%)" }}
           >
             {tips.length} questions
@@ -198,7 +198,7 @@ function ExamTipsBlock({ tips }: { tips: ExamTip[] }) {
                   className="w-full flex items-start gap-3 p-3.5 text-left"
                 >
                   <span
-                    className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 uppercase tracking-wide border"
+                    className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 uppercase tracking-wide border"
                     style={{
                       background: `${cfg.color}18`,
                       borderColor: `${cfg.color}40`,
@@ -264,7 +264,7 @@ function MnemonicsBlock({ mnemonics }: { mnemonics: Mnemonic[] }) {
               borderColor: "hsl(220,85%,60%,0.2)",
             }}
           >
-            <p className="text-[10px] font-semibold text-foreground/50 uppercase tracking-widest mb-1">
+            <p className="text-xs font-semibold text-foreground/50 uppercase tracking-widest mb-1">
               Concept
             </p>
             <p className="text-xs font-semibold mb-2" style={{ color: "hsl(220,85%,65%)" }}>
@@ -300,7 +300,7 @@ function CheatsheetBlock({ entries }: { entries: CheatsheetEntry[] }) {
           <ClipboardList className="w-4 h-4" style={{ color: "hsl(30,80%,60%)" }} />
           <h3 className="font-display font-semibold text-base text-foreground">Quick Reference</h3>
           <span
-            className="text-[10px] px-2 py-0.5 rounded-full font-medium border uppercase tracking-wide"
+            className="text-xs px-2 py-0.5 rounded-full font-medium border uppercase tracking-wide"
             style={{ background: "hsl(30,80%,58%,0.12)", borderColor: "hsl(30,80%,58%,0.3)", color: "hsl(30,80%,62%)" }}
           >
             Cheatsheet
@@ -363,17 +363,23 @@ function NotesHistorySheet({
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed right-0 top-0 h-full w-80 z-50 flex flex-col"
+            className="fixed right-0 top-0 h-full w-[min(20rem,92vw)] z-50 flex flex-col"
             style={{ background: "hsl(240,8%,7%)", borderLeft: "1px solid hsl(0,0%,15%)" }}
           >
+            {/* Drag handle indicator */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-white/10" />
+            </div>
+
             {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b border-border/30">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
               <div className="flex items-center gap-2">
                 <History className="w-4 h-4 text-primary" />
                 <span className="font-display font-semibold text-sm text-foreground">Version History</span>
               </div>
               <button
                 onClick={onClose}
+                aria-label="Close version history"
                 className="w-7 h-7 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary text-muted-foreground hover:text-foreground transition-all"
               >
                 <X className="w-3.5 h-3.5" />
@@ -399,19 +405,19 @@ function NotesHistorySheet({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <span
-                            className="text-[10px] font-bold px-1.5 py-0.5 rounded border"
+                            className="text-xs font-bold px-1.5 py-0.5 rounded border"
                             style={{ background: "hsl(160,70%,45%,0.15)", borderColor: "hsl(160,70%,45%,0.3)", color: "hsl(160,70%,55%)" }}
                           >
                             v{v.version}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">{timeAgo(v.created_at)}</span>
+                          <span className="text-xs text-muted-foreground">{timeAgo(v.created_at)}</span>
                         </div>
                         <p className="text-xs font-medium text-foreground/80 truncate">{v.topic}</p>
                       </div>
                       <button
                         onClick={() => onRestore(v)}
                         disabled={restoring}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border transition-all disabled:opacity-40"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all disabled:opacity-40"
                         style={{ background: "hsl(160,70%,45%,0.1)", borderColor: "hsl(160,70%,45%,0.3)", color: "hsl(160,70%,55%)" }}
                       >
                         <RotateCcw className="w-3 h-3" />
@@ -424,7 +430,7 @@ function NotesHistorySheet({
             </div>
 
             <div className="p-4 border-t border-border/30">
-              <p className="text-[10px] text-muted-foreground/50 text-center">
+              <p className="text-xs text-muted-foreground/50 text-center">
                 Restoring saves a new snapshot of your current version first
               </p>
             </div>
@@ -546,11 +552,12 @@ const Notes = () => {
         restoring={restoring}
       />
 
+      {/* ── Page header ── */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="flex items-center justify-between mb-6 shrink-0"
+        className="flex flex-wrap items-center justify-between gap-y-3 mb-6 shrink-0"
       >
         <div className="flex items-center gap-3">
           <div
@@ -560,10 +567,11 @@ const Notes = () => {
             <BookOpen className="w-4.5 h-4.5 text-white" />
           </div>
           <div>
-            <h1 className="font-display text-2xl font-bold text-foreground">
+            {/* text-xl caps at 36px — correct web app max per design system */}
+            <h1 className="font-display text-xl font-bold text-foreground">
               Notes <span className="gradient-text">Generator</span>
             </h1>
-            <p className="text-xs text-muted-foreground">AI-researched structured notes with headings, bullets & summary</p>
+            <p className="text-xs text-muted-foreground">AI-researched structured notes with headings, bullets &amp; summary</p>
           </div>
         </div>
 
@@ -571,7 +579,8 @@ const Notes = () => {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-2"
+            {/* flex-wrap so buttons wrap gracefully on narrow screens instead of overflowing */}
+            className="flex flex-wrap items-center gap-2"
           >
             {hasExamContent && (
               <button
@@ -589,12 +598,12 @@ const Notes = () => {
               </button>
             )}
 
-            {/* History button — only when a record exists */}
             {savedId && (
               <button
                 onClick={handleOpenHistory}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-secondary border-border text-muted-foreground hover:border-primary/30 hover:text-foreground transition-all"
                 title="Version history"
+                aria-label="Open version history"
               >
                 <History className="w-3.5 h-3.5" />
                 History
@@ -633,19 +642,36 @@ const Notes = () => {
         )}
       </motion.div>
 
-      <div className="flex-1 flex gap-5 min-h-0">
+      {/*
+        ── TWO-PANEL LAYOUT ──
+        Mobile (< md):  flex-col — left panel stacks above right panel
+        Desktop (≥ md): flex-row — side by side, left panel fixed at w-72
+
+        Left panel on mobile:
+          - max-h-[45dvh] + overflow-y-auto so it doesn't push the output panel off screen
+          - Full width (w-full)
+        Left panel on desktop:
+          - w-72 shrink-0 (original behaviour preserved)
+      */}
+      <div className="flex-1 flex flex-col md:flex-row gap-5 min-h-0">
+
         {/* ── LEFT PANEL ── */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.05 }}
-          className="w-72 shrink-0 flex flex-col gap-4"
+          className="w-full md:w-72 md:shrink-0 flex flex-col gap-4 max-h-[45dvh] md:max-h-none overflow-y-auto md:overflow-visible"
+          style={{ scrollbarWidth: "thin" }}
         >
           <div className="glass-card rounded-2xl p-5">
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
+            <label
+              htmlFor="notes-topic-input"
+              className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3"
+            >
               Topic
             </label>
             <textarea
+              id="notes-topic-input"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder="e.g. Photosynthesis and Plant Biology"
@@ -679,13 +705,13 @@ const Notes = () => {
                     }
                     <span className="text-xs font-semibold">{d.label}</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 ml-5.5">{d.desc}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 ml-5.5">{d.desc}</p>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* ⚡ C8 Smart Mode Banner */}
+          {/* Smart Mode Banner */}
           <SmartModeBanner
             suggestion={suggestion}
             isAnalysing={isAnalysing}
@@ -716,7 +742,7 @@ const Notes = () => {
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-foreground/80">{label}</p>
-                    <p className="text-[10px] text-muted-foreground">{desc}</p>
+                    <p className="text-xs text-muted-foreground">{desc}</p>
                   </div>
                 </div>
               ))}
@@ -757,12 +783,13 @@ const Notes = () => {
                 ].map((s) => (
                   <div key={s.label} className="bg-secondary/50 rounded-xl p-2.5 text-center">
                     <p className="font-display font-bold text-base" style={{ color: "hsl(160,70%,52%)" }}>{s.val}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{s.label}</p>
+                    {/* text-xs = 12px, the minimum floor */}
+                    <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
                   </div>
                 ))}
               </div>
               {notes.researchSource && notes.researchSource !== 'none' && (
-                <p className="text-[10px] text-muted-foreground/50 mt-2 text-center">
+                <p className="text-xs text-muted-foreground/50 mt-2 text-center">
                   Research via {notes.researchSource}
                 </p>
               )}
@@ -775,7 +802,7 @@ const Notes = () => {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.1 }}
-          className="flex-1 flex flex-col min-w-0"
+          className="flex-1 flex flex-col min-w-0 min-h-[50vh] md:min-h-0"
         >
           {error && (
             <motion.div
@@ -849,12 +876,12 @@ const Notes = () => {
                       <GraduationCap className="w-4 h-4 shrink-0" style={{ color: "hsl(340,75%,60%)" }} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate">{notes.title} — Exam Prep</p>
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {notes.exam_tips?.length ?? 0} exam Q&As · {notes.mnemonics?.length ?? 0} mnemonics · {notes.cheatsheet?.length ?? 0} cheatsheet entries
                         </p>
                       </div>
                       <span
-                        className="text-[10px] font-bold px-2.5 py-1 rounded-full border uppercase tracking-wider"
+                        className="text-xs font-bold px-2.5 py-1 rounded-full border uppercase tracking-wider"
                         style={{ background: "hsl(340,75%,55%,0.15)", borderColor: "hsl(340,75%,55%,0.3)", color: "hsl(340,75%,62%)" }}
                       >
                         Exam Mode
@@ -864,7 +891,7 @@ const Notes = () => {
                     <ExamTipsBlock tips={notes.exam_tips ?? []} />
                     <MnemonicsBlock mnemonics={notes.mnemonics ?? []} />
                     <CheatsheetBlock entries={notes.cheatsheet ?? []} />
-                    <p className="text-[10px] text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
+                    <p className="text-xs text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
                   </motion.div>
                 ) : (
                   <motion.div
@@ -880,7 +907,7 @@ const Notes = () => {
                       <Sparkles className="w-4 h-4 shrink-0" style={{ color: "hsl(160,70%,50%)" }} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate">{notes.title}</p>
-                        <p className="text-[10px] text-muted-foreground">{notes.headings.length} sections · {totalBullets} bullets · summary included</p>
+                        <p className="text-xs text-muted-foreground">{notes.headings.length} sections · {totalBullets} bullets · summary included</p>
                       </div>
                     </div>
 
@@ -901,7 +928,7 @@ const Notes = () => {
                     <SummaryBlock summary={notes.summary} />
                     <KeyTermsBlock terms={notes.keyTerms ?? []} />
 
-                    <p className="text-[10px] text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
+                    <p className="text-xs text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
                   </motion.div>
                 )}
               </AnimatePresence>
