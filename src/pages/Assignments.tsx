@@ -16,6 +16,7 @@ import {
   History,
   RotateCcw,
   X,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportAssignmentPDF } from "@/lib/pdfExport";
@@ -66,6 +67,13 @@ function AssignmentHistorySheet({
   onRestore: (v: (typeof versions)[0]) => void;
   restoring: boolean;
 }) {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredVersions = versions.filter((v) =>
+    v.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    v.tone.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (!open) return null;
   return (
     <AnimatePresence>
@@ -105,15 +113,35 @@ function AssignmentHistorySheet({
               </button>
             </div>
 
+            {/* Search bar */}
+            {versions.length > 0 && (
+              <div className="p-4 border-b border-border/30">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search versions..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm bg-secondary/60 border border-border/40 rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto p-4 space-y-2" style={{ scrollbarWidth: "thin" }}>
-              {versions.length === 0 ? (
+              {filteredVersions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-12">
                   <History className="w-8 h-8 mb-3 opacity-30" />
-                  <p className="text-sm">No versions yet</p>
-                  <p className="text-xs mt-1 opacity-60">Versions are saved each time you regenerate</p>
+                  <p className="text-sm">
+                    {searchQuery ? "No matching versions" : "No versions yet"}
+                  </p>
+                  <p className="text-xs mt-1 opacity-60">
+                    {searchQuery ? "Try a different search term" : "Versions are saved each time you regenerate"}
+                  </p>
                 </div>
               ) : (
-                versions.map((v) => (
+                filteredVersions.map((v) => (
                   <div
                     key={v.id}
                     className="rounded-xl border border-border/30 p-3.5 hover:border-primary/20 transition-all"
