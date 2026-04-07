@@ -33,6 +33,7 @@ import { exportNotesPDF, exportExamNotesPDF } from "@/lib/pdfExport";
 import { useNotesGenerator } from "@/hooks/useNotesGenerator";
 import { useSmartMode } from "@/hooks/useSmartMode";
 import { SmartModeBanner } from "@/components/SmartModeBanner";
+import { FollowUpPanel } from "@/components/FollowUpPanel";
 import type { NoteHeading, NoteBullet } from "@/types/database";
 import type { ExamTip, Mnemonic, CheatsheetEntry } from "@/hooks/useNotesGenerator";
 
@@ -1054,6 +1055,25 @@ const Notes = () => {
                   Research via {notes.researchSource}
                 </p>
               )}
+            </motion.div>
+          )}
+
+          {/* Follow-up Panel (when notes exist) */}
+          {hasGenerated && notes && savedId && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-card rounded-2xl overflow-hidden"
+            >
+              <FollowUpPanel
+                contentType="notes"
+                contentId={savedId}
+                contentTitle={notes.title}
+                onContentUpdated={() => {
+                  // Refresh the notes data when content is updated
+                  window.location.reload(); // Simple refresh for now
+                }}
+              />
             </motion.div>
           )}
         </motion.div>

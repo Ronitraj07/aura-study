@@ -32,8 +32,12 @@ import {
   Sparkles,
   AlertCircle,
   Timer,
+  Download,
+  FileText,
+  FileJson,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { exportChecklistCSV, exportChecklistJSON, exportChecklistMarkdown } from "@/lib/checklistExport";
 import type { AITask, AICategory } from "@/hooks/useChecklistGenerator";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -80,6 +84,8 @@ const Checklist = () => {
   const [pendingCollapsed, setPendingCollapsed] = useState(false);
   const [completedCollapsed, setCompletedCollapsed] = useState(false);
   const [filter, setFilter] = useState<"all" | Priority>("all");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // ── Load from Supabase on mount ──────────────────────────────────────────────
@@ -190,6 +196,51 @@ const Checklist = () => {
       });
     }
   }, [userId, tasks]);
+
+  // ── Export functions ─────────────────────────────────────────────────────────
+  const handleExport = async (format: 'csv' | 'json' | 'markdown') => {
+    if (tasks.length === 0) {
+      setExportError('No tasks to export');
+      return;
+    }
+
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      // Convert tasks to export format
+      const exportTasks = tasks.map(task => ({
+        id: task.id,
+        title: task.text,
+        completed: task.completed,
+        priority: task.priority,
+        category: task.category || 'personal',
+        due_date: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : undefined,
+        completed_at: task.completedAt ? new Date(task.completedAt).toISOString() : undefined,
+        estimated_minutes: task.estimatedMinutes,
+        position: tasks.indexOf(task)
+      }));
+
+      const title = `Checklist_${new Date().toLocaleDateString().replace(/\//g, '-')}`;
+
+      switch (format) {
+        case 'csv':
+          await exportChecklistCSV(exportTasks, title);
+          break;
+        case 'json':
+          await exportChecklistJSON(exportTasks, title);
+          break;
+        case 'markdown':
+          await exportChecklistMarkdown(exportTasks, title);
+          break;
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      setExportError(error instanceof Error ? error.message : 'Export failed');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // ── Derived state ────────────────────────────────────────────────────────────
   const filteredTasks = filter === "all" ? tasks : tasks.filter((t) => t.priority === filter);
@@ -423,6 +474,58 @@ const Checklist = () => {
               ))}
             </div>
           </div>
+
+          {/* Export panel */}
+          {tasks.length > 0 && (
+            <div className="glass-card rounded-2xl p-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-widest mb-3">Export</p>
+              <div className="flex flex-col gap-2">
+                {exportError && (
+                  <div className="flex items-start gap-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20 mb-2">
+                    <AlertCircle className="w-3 h-3 text-red-400 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-red-400">{exportError}</p>
+                    </div>
+                    <button 
+                      onClick={() => setExportError(null)} 
+                      className="text-red-400/60 hover:text-red-400 transition-colors shrink-0 text-xs"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-1">
+                  <button
+                    onClick={() => handleExport('csv')}
+                    disabled={isExporting}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-all disabled:opacity-50 text-xs"
+                    title="Export as CSV"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">CSV</span>
+                  </button>
+                  <button
+                    onClick={() => handleExport('json')}
+                    disabled={isExporting}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-all disabled:opacity-50 text-xs"
+                    title="Export as JSON"
+                  >
+                    <FileJson className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">JSON</span>
+                  </button>
+                  <button
+                    onClick={() => handleExport('markdown')}
+                    disabled={isExporting}
+                    className="flex flex-col items-center gap-1 p-2 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-all disabled:opacity-50 text-xs"
+                    title="Export as Markdown"
+                  >
+                    <Download className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">MD</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </motion.div>
 
         {/* RIGHT: Task list */}

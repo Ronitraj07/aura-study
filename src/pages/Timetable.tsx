@@ -29,9 +29,14 @@ import {
   Sparkles,
   Loader2,
   AlertCircle,
+  Download,
+  FileDown,
+  Calendar,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTimetable } from "@/hooks/useTimetable";
+import { exportTimetableCSV, exportTimetableICS, exportTimetableJSON, exportTimetablePDF } from "@/lib/timetableExport";
 import type { Subject, Schedule, DayOfWeek } from "@/types/database";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -364,6 +369,8 @@ const Timetable = () => {
   const [assignTarget, setAssignTarget] = useState<{ day: string; slotIdx: number } | null>(null);
   const [viewMode, setViewMode] = useState<"week" | "day">("week");
   const [activeDay, setActiveDay] = useState<DayOfWeek>("monday");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Convert schedule to grid when it changes
   useEffect(() => {
@@ -420,6 +427,50 @@ const Timetable = () => {
   const totalHours = subjects.reduce((a, s) => a + s.hoursPerWeek, 0);
   const filledSlots = grid ? Object.values(grid).flat().filter((s) => s.subjectId !== null).length : 0;
   const displayDays = viewMode === "week" ? DAYS.map(d => DAY_DISPLAY[d]) : [DAY_DISPLAY[activeDay]];
+
+  // Export functions
+  const handleExport = async (format: 'csv' | 'ical' | 'json' | 'pdf') => {
+    if (!schedule || !subjects.length) {
+      setExportError('No timetable data to export');
+      return;
+    }
+
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      // Convert current data to the export format
+      const timetable = {
+        subjects,
+        schedule,
+        mode: 'normal' as const, // You can add mode state if needed
+        preferred_study_time: '9:00-17:00', // Default or from settings
+        hours_per_day: Math.round(totalHours / 6) // Weekdays average
+      };
+
+      const title = `Timetable_${new Date().toLocaleDateString().replace(/\//g, '-')}`;
+
+      switch (format) {
+        case 'csv':
+          await exportTimetableCSV(timetable, title);
+          break;
+        case 'ical':
+          await exportTimetableICS(timetable, title);
+          break;
+        case 'json':
+          await exportTimetableJSON(timetable, title);
+          break;
+        case 'pdf':
+          await exportTimetablePDF(timetable, title);
+          break;
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      setExportError(error instanceof Error ? error.message : 'Export failed');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -501,10 +552,70 @@ const Timetable = () => {
                   <><Sparkles className="w-3.5 h-3.5" /> Regenerate</>
                 )}
               </button>
+              
+              {/* Export Buttons */}
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-secondary/60 border border-border/50">
+                <button
+                  onClick={() => handleExport('csv')}
+                  disabled={isExporting || !hasBuilt}
+                  className="p-2 rounded-lg text-xs font-semibold transition-all text-muted-foreground hover:text-foreground hover:bg-secondary/50 disabled:opacity-50"
+                  title="Export as CSV"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handleExport('ical')}
+                  disabled={isExporting || !hasBuilt}
+                  className="p-2 rounded-lg text-xs font-semibold transition-all text-muted-foreground hover:text-foreground hover:bg-secondary/50 disabled:opacity-50"
+                  title="Export as iCal (.ics)"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handleExport('pdf')}
+                  disabled={isExporting || !hasBuilt}
+                  className="p-2 rounded-lg text-xs font-semibold transition-all text-muted-foreground hover:text-foreground hover:bg-secondary/50 disabled:opacity-50"
+                  title="Export as PDF"
+                >
+                  <FileDown className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handleExport('json')}
+                  disabled={isExporting || !hasBuilt}
+                  className="p-2 rounded-lg text-xs font-semibold transition-all text-muted-foreground hover:text-foreground hover:bg-secondary/50 disabled:opacity-50"
+                  title="Export as JSON"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </motion.div>
           )}
         </div>
       </motion.div>
+
+      {/* Export Error */}
+      <AnimatePresence>
+        {exportError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-4"
+          >
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-red-400">Export failed</p>
+              <p className="text-xs text-red-400/80 mt-0.5 break-words">{exportError}</p>
+            </div>
+            <button 
+              onClick={() => setExportError(null)} 
+              className="text-red-400/60 hover:text-red-400 transition-colors shrink-0 text-xs"
+            >
+              ×
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Layout */}
       <div className="flex-1 flex flex-col md:flex-row gap-5 min-h-0">

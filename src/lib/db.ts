@@ -384,3 +384,30 @@ export async function createSmartOutput(
   if (error) { console.error('createSmartOutput:', error); return null; }
   return data;
 }
+
+// ─── CHECKLIST VERSIONS ───────────────────────────────────────────────
+export async function getChecklistVersions(userId: string, checklistId?: string): Promise<DbChecklistVersion[]> {
+  let query = supabase
+    .from('checklist_versions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  
+  if (checklistId) {
+    query = query.eq('checklist_id', checklistId);
+  }
+  
+  const { data, error } = await query;
+  if (error) { console.error('getChecklistVersions:', error); return []; }
+  return data ?? [];
+}
+
+export async function createChecklistVersion(payload: InsertChecklistVersion): Promise<DbChecklistVersion | null> {
+  const { data, error } = await supabase
+    .from('checklist_versions')
+    .insert(payload)
+    .select()
+    .single();
+  if (error) { console.error('createChecklistVersion:', error); return null; }
+  return data;
+}

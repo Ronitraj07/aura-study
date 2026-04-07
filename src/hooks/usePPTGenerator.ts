@@ -29,6 +29,7 @@ export interface GeneratedPPT {
 
 export interface PPTInput {
   topic: string;
+  subtopics?: string[];
   number_of_slides: number;
   mode: PPTMode;
   presentation_type: PresentationType;
@@ -80,12 +81,19 @@ Keep slides clean and educational:
     ? `${researchPreamble}create a compelling, research-backed presentation.\n\n`
     : '';
 
+  const subtopicsSection = input.subtopics && input.subtopics.length > 0
+    ? `Focus specifically on these subtopics:
+${input.subtopics.map(s => `- ${s}`).join('\n')}
+
+`
+    : '';
+
   return `${researchSection}You are a world-class presentation designer and subject matter expert. Create a compelling, factually rich, visually structured presentation.
 
 Create a ${input.number_of_slides}-slide presentation.
 
 Topic: "${input.topic}"
-Mode: ${input.mode === 'high_quality' ? 'HIGH QUALITY — Gamma.app level' : 'BASIC — Clean educational'}
+${subtopicsSection}Mode: ${input.mode === 'high_quality' ? 'HIGH QUALITY — Gamma.app level' : 'BASIC — Clean educational'}
 Audience tone: ${toneMap[input.presentation_type]}
 
 ${modeInstructions}

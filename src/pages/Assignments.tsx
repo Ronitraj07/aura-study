@@ -27,6 +27,7 @@ import { useAssignmentEditor } from "@/hooks/useAssignmentEditor";
 import { useSmartMode } from "@/hooks/useSmartMode";
 import { SmartModeBanner } from "@/components/SmartModeBanner";
 import { EditAssignmentBlocks } from "@/components/EditAssignmentBlocks";
+import { FollowUpPanel } from "@/components/FollowUpPanel";
 import type { AssignmentTone, AssignmentInput } from "@/hooks/useAssignmentGenerator";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -667,6 +668,25 @@ Needs real-world examples`}
                   Research via {assignment.researchSource}
                 </p>
               )}
+            </motion.div>
+          )}
+
+          {/* Follow-up Panel (when assignment exists) */}
+          {hasGenerated && assignment && savedId && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-card rounded-2xl overflow-hidden"
+            >
+              <FollowUpPanel
+                contentType="assignment"
+                contentId={savedId}
+                contentTitle={assignment.title}
+                onContentUpdated={() => {
+                  // Refresh the assignment data when content is updated
+                  window.location.reload(); // Simple refresh for now
+                }}
+              />
             </motion.div>
           )}
         </motion.div>

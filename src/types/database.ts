@@ -213,6 +213,32 @@ export interface DbChecklist {
   updated_at: string;
 }
 
+/** Checklist task data structure */
+export interface ChecklistTask {
+  id: string;
+  title: string;
+  completed: boolean;
+  priority: 'low' | 'medium' | 'high';
+  category: 'study' | 'personal' | 'project';
+  due_date?: string | null;
+  completed_at?: string | null;
+  estimated_minutes?: number;
+  position: number;
+}
+
+/** migration 010 — Checklist version snapshot */
+export interface DbChecklistVersion {
+  id: string;
+  checklist_id: string;
+  user_id: string;
+  version_name: string;
+  tasks: ChecklistTask[];
+  total_tasks: number;
+  completed_tasks: number;
+  completion_rate: number;
+  created_at: string;
+}
+
 /** migration 009 — Smart Mode session */
 export interface DbSmartSession {
   id: string;
@@ -246,6 +272,7 @@ export type InsertAssignment = Omit<DbAssignment, 'id' | 'created_at' | 'updated
 export type InsertNote = Omit<DbNote, 'id' | 'created_at' | 'updated_at'>;
 export type InsertTimetable = Omit<DbTimetable, 'id' | 'created_at' | 'updated_at'>;
 export type InsertChecklist = Omit<DbChecklist, 'id' | 'created_at' | 'updated_at'>;
+export type InsertChecklistVersion = Omit<DbChecklistVersion, 'id' | 'created_at'>;
 export type InsertSmartSession = Omit<DbSmartSession, 'id' | 'created_at' | 'updated_at'>;
 export type InsertSmartOutput = Omit<DbSmartOutput, 'id' | 'created_at'>;
 

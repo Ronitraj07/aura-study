@@ -36,6 +36,8 @@ import { exportToPPTX } from '@/lib/pptExport';
 import { SlideCanvas } from '@/components/SlideCanvas';
 import { SlideThumbnail } from '@/components/SlideThumbnail';
 import { SlidePreviewGrid } from '@/components/SlidePreviewGrid';
+import { FollowUpPanel } from '@/components/FollowUpPanel';
+import { SubtopicsInput } from '@/components/SubtopicsInput';
 import { fetchSlideImages } from '@/lib/pexels';
 
 const CANVAS_W = 800;
@@ -360,6 +362,7 @@ function SlideEditPanel({
 // ── Settings panel content (shared by sidebar and mobile bottom drawer) ──
 function SettingsPanelContent({
   topic, setTopic,
+  subtopics, setSubtopics, // NEW
   slideCount, setSlideCount,
   mode, setMode,
   presentationType, setPresentationType,
@@ -368,6 +371,7 @@ function SettingsPanelContent({
   ppt, fetchingImgs, slideImages, activeSlide, setActiveSlide,
 }: {
   topic: string; setTopic: (v: string) => void;
+  subtopics: string[]; setSubtopics: (v: string[]) => void; // NEW
   slideCount: number; setSlideCount: (v: number) => void;
   mode: PPTMode; setMode: (v: PPTMode) => void;
   presentationType: PresentationType; setPresentationType: (v: PresentationType) => void;
@@ -387,6 +391,16 @@ function SettingsPanelContent({
           onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleGenerate(); }}
           className="resize-none bg-white/5 border-white/10 focus:border-purple-500/60 text-sm h-20"
         />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+          Subtopics (Optional)
+        </Label>
+        <SubtopicsInput subtopics={subtopics} onChange={setSubtopics} />
+        <p className="text-xs text-muted-foreground leading-snug">
+          Focus on specific aspects of your topic
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -504,6 +518,7 @@ export default function PPTPage() {
   } = usePPTGenerator();
 
   const [topic,            setTopic]            = useState('');
+  const [subtopics,        setSubtopics]        = useState<string[]>([]);
   const [slideCount,       setSlideCount]       = useState(8);
   const [mode,             setMode]             = useState<PPTMode>('high_quality');
   const [presentationType, setPresentationType] = useState<PresentationType>('academic');
@@ -543,7 +558,13 @@ export default function PPTPage() {
   }, [savedPPTId, showVersions, loadVersions]);
 
   const handleGenerate = () =>
-    generate({ topic, number_of_slides: slideCount, mode, presentation_type: presentationType });
+    generate({ 
+      topic, 
+      subtopics: subtopics.length > 0 ? subtopics : undefined,
+      number_of_slides: slideCount, 
+      mode, 
+      presentation_type: presentationType 
+    });
 
   const handleExport = async () => {
     if (!ppt) return;
@@ -560,7 +581,13 @@ export default function PPTPage() {
 
   const handleRegenSlide = async () => {
     setIsRegenerating(true);
-    await regenerateSlide(activeSlide, { topic, number_of_slides: slideCount, mode, presentation_type: presentationType });
+    await regenerateSlide(activeSlide, { 
+      topic, 
+      subtopics: subtopics.length > 0 ? subtopics : undefined,
+      number_of_slides: slideCount, 
+      mode, 
+      presentation_type: presentationType 
+    });
     setIsRegenerating(false);
   };
 
@@ -591,7 +618,7 @@ export default function PPTPage() {
   const slide = ppt?.slides[activeSlide];
 
   const settingsProps = {
-    topic, setTopic, slideCount, setSlideCount, mode, setMode,
+    topic, setTopic, subtopics, setSubtopics, slideCount, setSlideCount, mode, setMode,
     presentationType, setPresentationType, isGenerating, handleGenerate,
     error: error ?? null, exportError, setExportError,
     ppt, fetchingImgs, slideImages, activeSlide, setActiveSlide,
@@ -601,12 +628,32 @@ export default function PPTPage() {
     <div className="flex h-full gap-0">
 
       {/* ── LEFT PANEL — hidden on mobile, visible md+ ──────── */}
-      <div className="hidden md:flex w-72 shrink-0 flex-col gap-4 p-5 border-r border-white/5 overflow-y-auto">
-        <div>
+      <div className="hidden md:flex w-72 shrink-0 flex-col gap-4 border-r border-white/5 overflow-y-auto">
+        <div className="p-5 pb-0">
           <h1 className="text-lg font-semibold gradient-text">PPT Generator</h1>
           <p className="text-xs text-muted-foreground mt-1">AI-powered Gamma-level presentations</p>
         </div>
-        <SettingsPanelContent {...settingsProps} />
+        <div className="px-5">
+          <SettingsPanelContent {...settingsProps} />
+        </div>
+        
+        {/* Follow-up Panel (when PPT exists) */}
+        {ppt && savedPPTId && (
+          <div className="px-5 pb-5">
+            <FollowUpPanel
+              contentType="ppt"
+              contentId={savedPPTId}
+              contentTitle={ppt.title}
+              onContentUpdated={() => {
+                // Refresh the PPT data when content is updated
+                if (savedPPTId) {
+                  // The hook will automatically reload when the content changes
+                  window.location.reload(); // Simple refresh for now
+                }
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* ── RIGHT PANEL ─────────────────────────────────────── */}
@@ -638,7 +685,25 @@ export default function PPTPage() {
                 <SheetHeader className="mb-4">
                   <SheetTitle className="text-sm gradient-text">PPT Settings</SheetTitle>
                 </SheetHeader>
-                <SettingsPanelContent {...settingsProps} />
+                <div className="space-y-6">
+                  <SettingsPanelContent {...settingsProps} />
+                  
+                  {/* Follow-up Panel for mobile */}
+                  {ppt && savedPPTId && (
+                    <>
+                      <hr className="border-white/10" />
+                      <FollowUpPanel
+                        contentType="ppt"
+                        contentId={savedPPTId}
+                        contentTitle={ppt.title}
+                        onContentUpdated={() => {
+                          setShowMobilePanel(false); // Close mobile panel
+                          window.location.reload(); // Simple refresh for now
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
               </SheetContent>
             </Sheet>
           </div>
@@ -746,7 +811,25 @@ export default function PPTPage() {
                   <SheetHeader className="mb-4">
                     <SheetTitle className="text-sm gradient-text">PPT Settings</SheetTitle>
                   </SheetHeader>
-                  <SettingsPanelContent {...settingsProps} />
+                  <div className="space-y-6">
+                    <SettingsPanelContent {...settingsProps} />
+                    
+                    {/* Follow-up Panel for mobile */}
+                    {ppt && savedPPTId && (
+                      <>
+                        <hr className="border-white/10" />
+                        <FollowUpPanel
+                          contentType="ppt"
+                          contentId={savedPPTId}
+                          contentTitle={ppt.title}
+                          onContentUpdated={() => {
+                            setShowMobilePanel(false); // Close mobile panel
+                            window.location.reload(); // Simple refresh for now
+                          }}
+                        />
+                      </>
+                    )}
+                  </div>
                 </SheetContent>
               </Sheet>
             </motion.div>

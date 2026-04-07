@@ -151,6 +151,7 @@ export default function Profile() {
     { id: "ppts",        label: "PPTs Created",    value: stats?.ppt_count           ?? 0, icon: Presentation, bg: "rgba(139,92,246,0.12)",  border: "rgba(139,92,246,0.25)",  gc: "hsl(262,80%,60%), hsl(220,85%,60%)" },
     { id: "assignments", label: "Assignments",      value: stats?.assignment_count    ?? 0, icon: FileText,     bg: "rgba(59,130,246,0.12)",   border: "rgba(59,130,246,0.25)",   gc: "hsl(217,91%,60%), hsl(189,94%,53%)" },
     { id: "notes",       label: "Notes Created",    value: stats?.note_count          ?? 0, icon: BookOpen,     bg: "rgba(16,185,129,0.12)",   border: "rgba(16,185,129,0.25)",   gc: "hsl(160,84%,39%), hsl(174,62%,47%)" },
+    { id: "timetables",  label: "Timetables",       value: stats?.timetable_count     ?? 0, icon: Calendar,     bg: "rgba(236,72,153,0.12)",   border: "rgba(236,72,153,0.25)",   gc: "hsl(320,65%,52%), hsl(340,75%,55%)" },
     { id: "tasks",       label: "Tasks Completed",  value: stats?.checklist_completed ?? 0, icon: CheckSquare,  bg: "rgba(249,115,22,0.12)",   border: "rgba(249,115,22,0.25)",   gc: "hsl(25,95%,53%), hsl(330,85%,60%)" },
   ];
 
