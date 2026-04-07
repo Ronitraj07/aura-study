@@ -44,8 +44,61 @@
     --sidebar-accent-foreground: 220 18% 90%;
     --sidebar-border: 240 10% 14%;
     --sidebar-ring: 262 80% 62%;
+  }
 
-    /* Fluid type scale — 12px absolute floor on all sizes */
+  .light {
+    /* Surfaces */
+    --background:  0 0% 100%;
+    --foreground:  224 71.4% 4.1%;
+    --card:        0 0% 100%;
+    --card-foreground: 224 71.4% 4.1%;
+    --popover:     0 0% 100%;
+    --popover-foreground: 224 71.4% 4.1%;
+
+    /* Brand */
+    --primary:     262 80% 50%;
+    --primary-foreground: 0 0% 98%;
+    --accent:      220 85% 50%;
+    --accent-foreground: 0 0% 98%;
+
+    /* Neutrals */
+    --secondary:   220 14.3% 95.9%;
+    --secondary-foreground: 220.9 39.3% 11%;
+    --muted:       220 14.3% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%;
+
+    /* Status */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border:      220 13% 91%;
+    --input:       220 13% 91%;
+    --ring:        262 80% 50%;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 224 71.4% 4.1%;
+    --sidebar-primary: 262 80% 50%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 220 14.3% 95.9%;
+    --sidebar-accent-foreground: 220.9 39.3% 11%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 262 80% 50%;
+
+    /* Glass */
+    --glass-bg:     hsla(0,0%,100%,0.85);
+    --glass-border: hsla(220,13%,91%,0.5);
+    --glass-blur:   20px;
+
+    /* Shadows */
+    --shadow-sm:   0 1px 3px hsla(0,0%,0%,0.12), 0 1px 2px hsla(0,0%,0%,0.08);
+    --shadow-md:   0 4px 16px hsla(0,0%,0%,0.15), 0 2px 4px hsla(0,0%,0%,0.1);
+    --shadow-lg:   0 12px 40px hsla(0,0%,0%,0.2), 0 4px 10px hsla(0,0%,0%,0.12);
+    --shadow-glow: 0 0 40px hsla(262,80%,50%,0.15);
+    --shadow-glow-sm: 0 0 20px hsla(262,80%,50%,0.1);
+  }
+
+  /* Fluid type scale — 12px absolute floor on all sizes */
+  :root {
     --text-xs:   clamp(0.75rem,  0.72rem + 0.25vw, 0.875rem);  /* 12px → 14px */
     --text-sm:   clamp(0.875rem, 0.84rem + 0.25vw, 0.9375rem); /* 14px → 15px */
     --text-base: clamp(1rem,     0.96rem + 0.2vw,  1.0625rem); /* 16px → 17px */

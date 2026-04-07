@@ -18,6 +18,7 @@
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   getInitials,
   getDisplayName,
@@ -63,7 +64,7 @@ const TopBar = () => {
         borderLeft: "none",
         borderRight: "none",
         borderRadius: 0,
-        borderBottomColor: "hsl(240,10%,14%)",
+        borderBottomColor: "hsl(var(--border))",
         gap: 12,
         flexShrink: 0,
       }}
@@ -81,7 +82,7 @@ const TopBar = () => {
           style={{
             width: 1,
             height: 18,
-            background: "hsl(240,10%,18%)",
+            background: "hsl(var(--muted))",
             flexShrink: 0,
           }}
         />
@@ -90,7 +91,7 @@ const TopBar = () => {
           className="font-display font-semibold truncate"
           style={{
             fontSize: "var(--text-sm)",
-            color: "hsl(220,15%,72%)",
+            color: "hsl(var(--muted-foreground))",
             margin: 0,
             lineHeight: 1,
           }}
@@ -99,12 +100,16 @@ const TopBar = () => {
         </h1>
       </div>
 
-      {/*
-        Avatar pill — DESKTOP ONLY (hidden on mobile).
-        On mobile the bottom nav Profile tab is the primary entry point.
-        Showing this pill too creates duplicate affordances on a small screen.
-      */}
-      <Link
+      {/* Right: theme toggle + avatar pill */}
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+        
+        {/*
+          Avatar pill — DESKTOP ONLY (hidden on mobile).
+          On mobile the bottom nav Profile tab is the primary entry point.
+          Showing this pill too creates duplicate affordances on a small screen.
+        */}
+        <Link
         to="/dashboard/profile"
         aria-label={`${displayName} — View profile`}
         className="hidden md:flex items-center gap-2 px-2.5 rounded-xl hover:bg-secondary transition-all"
@@ -156,6 +161,7 @@ const TopBar = () => {
           </span>
         </span>
       </Link>
+      </div>
     </header>
   );
 };
