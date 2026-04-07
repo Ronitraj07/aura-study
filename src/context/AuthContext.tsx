@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { upsertUser } from "@/lib/db";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type AuthStatus = "loading" | "unauthenticated" | "allowed" | "restricted";
@@ -24,42 +25,6 @@ interface AuthContextValue {
 // ── Context ────────────────────────────────────────────────────────────────
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/**
- * Calls the Supabase RPC `is_allowed_user` which checks the
- * `allowed_users` table server-side. The email list never ships
- * in the client bundle.
- *
- * SQL to create in Supabase Dashboard → SQL Editor:
- *
- *   create table if not exists public.allowed_users (
- *     email text primary key
- *   );
- *
- *   -- Seed your allowlist:
- *   insert into public.allowed_users (email) values
- *     ('sinharonitraj@gmail.com'),
- *     ('sinharomitraj@gmail.com'),
- *     ('radhikadidwania567@gmail.com');
- *
- *   -- RPC (runs as SECURITY DEFINER so anon role can call it
- *   --  but cannot SELECT the table directly):
- *   create or replace function public.is_allowed_user(lookup_email text)
- *   returns boolean
- *   language sql
- *   security definer
- *   set search_path = public
- *   as $$
- *     select exists (
- *       select 1 from allowed_users
- *       where lower(trim(email)) = lower(trim(lookup_email))
- *     );
- *   $$;
- *
- *   -- Revoke direct table access from anon & authenticated:
- *   revoke all on public.allowed_users from anon, authenticated;
- *   -- Grant execute on the function only:
- *   grant execute on function public.is_allowed_user(text) to anon, authenticated;
- */
 async function checkAllowedServer(email: string | undefined | null): Promise<boolean> {
   if (!email) return false;
   try {
@@ -82,15 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
 
-  /**
-   * Track the last user ID we ran resolveStatus for.
-   * Prevents duplicate RPC calls when both getSession() and
-   * onAuthStateChange (INITIAL_SESSION) fire for the same user.
-   */
   const resolvedForRef = useRef<string | null | undefined>(undefined);
 
   const resolveStatus = useCallback(async (u: User | null) => {
-    // Skip if we already resolved for this exact user ID (or null)
     const key = u?.id ?? null;
     if (resolvedForRef.current === key) return;
     resolvedForRef.current = key;
@@ -99,15 +58,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus("unauthenticated");
       return;
     }
+
     const allowed = await checkAllowedServer(u.email);
     setStatus(allowed ? "allowed" : "restricted");
+
+    // ── Ensure public.users row exists ──────────────────────────────────────
+    // This MUST happen after the allowlist check so only approved users get
+    // a row. Without this upsert every other table (checklists, ppts, etc.)
+    // will throw a FK violation because their user_id FK points here.
+    if (allowed) {
+      upsertUser({
+        id: u.id,
+        email: u.email ?? "",
+        full_name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? null,
+        avatar_url: u.user_metadata?.avatar_url ?? u.user_metadata?.picture ?? null,
+      }).catch((err) =>
+        console.error("[auth] upsertUser failed:", err)
+      );
+    }
   }, []);
 
   useEffect(() => {
-    // onAuthStateChange fires INITIAL_SESSION immediately with the
-    // persisted session — that alone is enough. getSession() is
-    // kept as a belt-and-suspenders fallback but the resolvedForRef
-    // guard above ensures the RPC is only called once per user change.
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
@@ -137,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    resolvedForRef.current = undefined; // reset so next sign-in resolves fresh
+    resolvedForRef.current = undefined;
     await supabase.auth.signOut();
   }, []);
 
