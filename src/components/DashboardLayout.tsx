@@ -1,13 +1,3 @@
-/**
- * DashboardLayout.tsx
- *
- * UI IMPROVEMENTS:
- * - overflow-x: hidden on the main scroll area to prevent child blowout
- * - paddingBottom uses env(safe-area-inset-bottom) for notched devices
- * - Landscape mobile: reduced bottom padding (less scroll waste)
- * - clamp() values tuned so desktop gets 24px bottom, mobile gets 88px
- */
-
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar, MobileBottomNav } from "@/components/AppSidebar";
 import TopBar from "@/components/TopBar";
@@ -52,14 +42,12 @@ const DashboardLayout = () => {
         Skip to main content
       </a>
 
-      {/* Outer shell — overflow:hidden prevents any child from causing h-scroll */}
       <div
         className="min-h-screen flex w-full bg-background"
         style={{ overflow: "hidden", maxWidth: "100vw" }}
       >
         <AppSidebar />
 
-        {/* Content column — min-w-0 prevents flex blowout */}
         <div
           className="flex-1 flex flex-col"
           style={{ overflow: "hidden", minWidth: 0 }}
@@ -76,21 +64,16 @@ const DashboardLayout = () => {
               overflowY: "auto",
               overflowX: "hidden",
               WebkitOverflowScrolling: "touch",
-              /*
-               * Mobile: 88px bottom padding clears the floating pill nav.
-               * Desktop (md+): no pill nav, so 24px is enough.
-               * We use a large clamp max to cap at 24px on wide screens,
-               * while staying 88px on narrow screens.
-               * Safe-area-inset-bottom adds space for iOS home indicator.
-               */
-              paddingBottom: "calc(clamp(88px, 15vw, 88px) + env(safe-area-inset-bottom, 0px))",
+              // Mobile (<1024px): 88px clears the floating pill nav + safe area
+              // Desktop (>=1024px): no pill nav, 24px is enough
+              // The @media override below handles the desktop case cleanly
+              paddingBottom: "calc(88px + env(safe-area-inset-bottom, 0px))",
               paddingTop: "clamp(0.75rem, 2vw, 1.5rem)",
               paddingInline: "clamp(0.75rem, 3.5vw, 2rem)",
             }}
           >
-            {/* Correct pb: desktop hides MobileBottomNav so we can drop to 24px */}
             <style>{`
-              @media (min-width: 768px) {
+              @media (min-width: 1024px) {
                 #main-content {
                   padding-bottom: 24px !important;
                 }
@@ -119,6 +102,7 @@ const DashboardLayout = () => {
         </div>
       </div>
 
+      {/* MobileBottomNav is hidden via lg:hidden in AppSidebar.tsx */}
       <MobileBottomNav />
     </SidebarProvider>
   );

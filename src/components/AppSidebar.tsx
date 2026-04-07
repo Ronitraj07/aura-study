@@ -211,9 +211,9 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Profile footer — DESKTOP ONLY */}
+      {/* Profile footer */}
       <SidebarFooter style={{ padding: "8px 8px 12px" }}>
-        <div className="hidden md:block">
+        <div>
           {!collapsed && (
             <div
               style={{
@@ -242,7 +242,8 @@ export function AppSidebar() {
   );
 }
 
-// ── Mobile bottom tab bar — Telegram-style floating pill ───────────────────────────────
+// ── Mobile bottom tab bar ─────────────────────────────────────────
+// Shown only on mobile/tablet (<1024px). Hidden on laptop and above.
 const mobileTabItems = [
   { title: "Home",      url: "/dashboard",           icon: LayoutDashboard },
   { title: "PPT",       url: "/dashboard/ppt",        icon: Presentation    },
@@ -262,24 +263,21 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Main navigation"
-      className="md:hidden fixed z-50"
+      // lg:hidden = hidden at 1024px and above (laptop+)
+      // Below 1024px the sidebar becomes a Sheet drawer, so the bottom nav takes over
+      className="lg:hidden fixed z-50"
       style={{
-        /* Floating pill — centred, not edge-to-edge */
         bottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)",
         left: "50%",
         transform: "translateX(-50%)",
-        /* Pill shape */
         borderRadius: 9999,
-        /* Width: fill on small phones, capped on larger */
         width: "min(calc(100vw - 32px), 360px)",
-        /* Glass surface */
         background: "hsl(240,14%,11%)",
         border: "1px solid hsl(240,10%,20%)",
         boxShadow:
           "0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
         backdropFilter: "blur(24px)",
         WebkitBackdropFilter: "blur(24px)",
-        /* Internal layout */
         display: "flex",
         alignItems: "center",
         justifyContent: "space-around",
@@ -297,7 +295,6 @@ export function MobileBottomNav() {
             activeClassName=""
             aria-label={item.title}
             style={{
-              /* Each tab item */
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
@@ -310,7 +307,6 @@ export function MobileBottomNav() {
               outline: "none",
             }}
           >
-            {/* Icon pill — active tab gets a small glowing chip */}
             <span
               aria-hidden="true"
               style={{
@@ -332,8 +328,6 @@ export function MobileBottomNav() {
                 strokeWidth={active ? 2.3 : 1.7}
               />
             </span>
-
-            {/* Label */}
             <span
               aria-hidden="true"
               style={{
