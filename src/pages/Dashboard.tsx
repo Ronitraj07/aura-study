@@ -193,7 +193,7 @@ const Dashboard = () => {
             4 columns only triggers at ≥ 1280px.
             640–1279px = 2 cols, <640px = 1 col.
           */}
-          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {quickActions.map((action, i) => (
               <Link
                 key={action.title}

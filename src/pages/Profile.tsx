@@ -356,13 +356,7 @@ export default function Profile() {
             2 cols on mobile (cards are compact enough),
             4 cols on md+
           */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: 10,
-            }}
-          >
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
             {STAT_CARDS.map(stat => {
               const Icon = stat.icon;
               return (

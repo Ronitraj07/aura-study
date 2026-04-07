@@ -105,7 +105,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" style={{ borderRight: "1px solid hsl(240,10%,14%)" }}>
       {/* Logo */}
-      <SidebarHeader style={{ padding: collapsed ? "14px 12px" : "16px 14px" }}>
+      <SidebarHeader style={{ padding: collapsed ? "16px 16px" : "16px 14px" }}>
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div
             className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
@@ -143,7 +143,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       {/* Main nav */}
-      <SidebarContent style={{ padding: "4px 8px" }}>
+      <SidebarContent style={{ padding: collapsed ? "8px 16px" : "4px 8px" }}>
         <SidebarGroup>
           {!collapsed && (
             <SidebarGroupLabel
@@ -212,7 +212,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       {/* Profile footer */}
-      <SidebarFooter style={{ padding: "8px 8px 12px" }}>
+      <SidebarFooter style={{ padding: collapsed ? "12px 16px" : "8px 8px 12px" }}>
         <div>
           {!collapsed && (
             <div
@@ -263,24 +263,21 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Main navigation"
-      // lg:hidden = hidden at 1024px and above (laptop+)
-      // Below 1024px the sidebar becomes a Sheet drawer, so the bottom nav takes over
-      className="lg:hidden fixed z-50"
+      // md:hidden = hidden at 768px and above (tablet+)
+      // Below 768px (mobile only) the sidebar becomes a Sheet drawer, so the bottom nav takes over
+      className="md:hidden fixed z-50 flex items-center justify-around"
       style={{
         bottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)",
         left: "50%",
         transform: "translateX(-50%)",
         borderRadius: 9999,
         width: "min(calc(100vw - 32px), 360px)",
-        background: "hsl(240,14%,11%)",
-        border: "1px solid hsl(240,10%,20%)",
+        background: "hsl(var(--card))",
+        border: "1px solid hsl(var(--border))",
         boxShadow:
           "0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
         backdropFilter: "blur(24px)",
         WebkitBackdropFilter: "blur(24px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-around",
         padding: "6px 8px",
         height: 62,
       }}

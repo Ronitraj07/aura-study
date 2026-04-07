@@ -64,8 +64,8 @@ const DashboardLayout = () => {
               overflowY: "auto",
               overflowX: "hidden",
               WebkitOverflowScrolling: "touch",
-              // Mobile (<1024px): 88px clears the floating pill nav + safe area
-              // Desktop (>=1024px): no pill nav, 24px is enough
+              // Mobile (<768px): 88px clears the floating pill nav + safe area
+              // Tablet/Desktop (>=768px): no pill nav, 24px is enough
               // The @media override below handles the desktop case cleanly
               paddingBottom: "calc(88px + env(safe-area-inset-bottom, 0px))",
               paddingTop: "clamp(0.75rem, 2vw, 1.5rem)",
@@ -73,7 +73,7 @@ const DashboardLayout = () => {
             }}
           >
             <style>{`
-              @media (min-width: 1024px) {
+              @media (min-width: 768px) {
                 #main-content {
                   padding-bottom: 24px !important;
                 }
@@ -102,7 +102,7 @@ const DashboardLayout = () => {
         </div>
       </div>
 
-      {/* MobileBottomNav is hidden via lg:hidden in AppSidebar.tsx */}
+      {/* MobileBottomNav is hidden via md:hidden in AppSidebar.tsx */}
       <MobileBottomNav />
     </SidebarProvider>
   );
