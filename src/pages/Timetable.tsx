@@ -172,7 +172,7 @@ function SubjectRow({
               key={h}
               onClick={() => onUpdate({ ...subject, hoursPerWeek: h })}
               className={cn(
-                "w-6 h-6 text-[10px] font-bold rounded transition-all",
+                "w-6 h-6 text-xs font-bold rounded transition-all",
                 subject.hoursPerWeek === h
                   ? "text-white"
                   : "text-muted-foreground hover:text-foreground",
@@ -183,7 +183,7 @@ function SubjectRow({
             </button>
           ))}
         </div>
-        <span className="text-[10px] text-muted-foreground ml-0.5">h/w</span>
+        <span className="text-xs text-muted-foreground ml-0.5">h/w</span>
       </div>
       <button
         onClick={onDelete}
@@ -220,7 +220,7 @@ function SlotCard({
         style={{ background: subject.color }}
       />
       <p
-        className="text-[10px] font-semibold leading-tight pl-1.5 truncate"
+        className="text-xs font-semibold leading-tight pl-1.5 truncate"
         style={{ color: subject.color }}
       >
         {subject.name}
@@ -383,7 +383,7 @@ function AssignModal({
             >
               <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
               <span className="text-sm font-medium text-foreground">{s.name}</span>
-              <span className="ml-auto text-[10px] text-muted-foreground">{s.hoursPerWeek}h/w</span>
+              <span className="ml-auto text-xs text-muted-foreground">{s.hoursPerWeek}h/w</span>
             </button>
           ))}
           {subjects.length === 0 && (
@@ -433,8 +433,6 @@ const Timetable = () => {
     setIsSaving(true);
     setSaveSuccess(false);
     try {
-      // Flatten grid to the shape upsertTimetable expects
-      // Store grid as JSON in the timetable_data column (assumes JSONB column)
       await upsertTimetable(user.id, {
         subjects,
         grid: newGrid,
@@ -444,7 +442,6 @@ const Timetable = () => {
     } catch (err) {
       console.error("Timetable save failed:", err);
       toast.error("Failed to save timetable");
-      // revert
       if (prevGridRef.current) setGrid(prevGridRef.current);
     } finally {
       setIsSaving(false);
@@ -472,13 +469,11 @@ const Timetable = () => {
     const srcParsed = parseDragId(active.id as string);
     if (!srcParsed) return;
 
-    // over.id could be a drag id (filled cell) or drop id (empty cell)
     const dstFromDrag = parseDragId(over.id as string);
     const dstFromDrop = parseDropId(over.id as string);
     const dst = dstFromDrag ?? dstFromDrop;
     if (!dst) return;
 
-    // Same cell → no-op
     if (srcParsed.day === dst.day && srcParsed.slotIdx === dst.slotIdx) return;
 
     const newGrid = { ...grid };
@@ -487,7 +482,6 @@ const Timetable = () => {
     const srcSubjectId = newGrid[srcParsed.day][srcParsed.slotIdx].subjectId;
     const dstSubjectId = newGrid[dst.day][dst.slotIdx].subjectId;
 
-    // Swap (works for both filled→filled and filled→empty)
     newGrid[srcParsed.day][srcParsed.slotIdx] = { subjectId: dstSubjectId };
     newGrid[dst.day][dst.slotIdx] = { subjectId: srcSubjectId };
 
@@ -554,7 +548,6 @@ const Timetable = () => {
   const displayDays = viewMode === "week" ? DAYS : [activeDay];
   const isDragActive = activeDragId !== null;
 
-  // Active drag subject for overlay
   const activeDragSubject = (() => {
     if (!activeDragId || !grid) return null;
     const p = parseDragId(activeDragId);
@@ -563,7 +556,6 @@ const Timetable = () => {
     return subjects.find((s) => s.id === subjectId) ?? null;
   })();
 
-  // Sortable ids per day (only filled slots — empty cells handled by droppable divs)
   const sortableIds = (day: string): string[] =>
     (grid?.[day] ?? []).map((_, i) => `drag-${day}-${i}`);
 
@@ -574,7 +566,7 @@ const Timetable = () => {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="flex items-center justify-between mb-6 shrink-0"
+        className="flex flex-wrap items-center justify-between gap-y-3 mb-6 shrink-0"
       >
         <div className="flex items-center gap-3">
           <div
@@ -584,7 +576,7 @@ const Timetable = () => {
             <CalendarDays className="w-4.5 h-4.5 text-white" />
           </div>
           <div>
-            <h1 className="font-display text-2xl font-bold text-foreground">
+            <h1 className="font-display text-xl font-bold text-foreground">
               Timetable <span className="gradient-text">Builder</span>
             </h1>
             <p className="text-xs text-muted-foreground">Plan your weekly schedule · drag slots to reschedule</p>
@@ -649,14 +641,14 @@ const Timetable = () => {
       </motion.div>
 
       {/* Layout */}
-      <div className="flex-1 flex gap-5 min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row gap-5 min-h-0">
 
         {/* LEFT: Subject manager */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.05 }}
-          className="w-72 shrink-0 flex flex-col gap-4"
+          className="w-full md:w-72 md:shrink-0 flex flex-col gap-4 max-h-[45dvh] md:max-h-none overflow-y-auto"
         >
           <div className="glass-card rounded-2xl p-5">
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Add Subject</label>
@@ -694,7 +686,7 @@ const Timetable = () => {
               style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(30,80%,57%,0.3) transparent" }}
             >
               <AnimatePresence>
-                {subjects.map((s, i) => (
+                {subjects.map((s) => (
                   <SubjectRow
                     key={s.id}
                     subject={s}
@@ -737,7 +729,7 @@ const Timetable = () => {
                 ].map((s) => (
                   <div key={s.label} className="bg-secondary/50 rounded-xl p-2.5 text-center">
                     <p className="font-display font-bold text-base" style={{ color: "hsl(30,80%,62%)" }}>{s.val}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{s.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
                   </div>
                 ))}
               </div>
@@ -750,7 +742,7 @@ const Timetable = () => {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.1 }}
-          className="flex-1 flex flex-col min-w-0"
+          className="flex-1 flex flex-col min-w-0 min-h-[40vh] md:min-h-0"
         >
           {!hasBuilt && !isBuilding ? (
             <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
@@ -820,7 +812,7 @@ const Timetable = () => {
                     <thead>
                       <tr>
                         <th className="sticky left-0 z-10 bg-card/80 backdrop-blur-sm w-20 p-3 text-left">
-                          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Time</span>
+                          <span className="text-xs text-muted-foreground uppercase tracking-widest">Time</span>
                         </th>
                         {displayDays.map((day) => (
                           <th key={day} className="p-3 text-left border-l border-border/20">
@@ -833,7 +825,7 @@ const Timetable = () => {
                       {TIME_SLOTS.map((time, slotIdx) => (
                         <tr key={time}>
                           <td className="sticky left-0 z-10 bg-card/80 backdrop-blur-sm p-2 border-t border-border/20">
-                            <span className="text-[10px] text-muted-foreground font-medium whitespace-nowrap">{time}</span>
+                            <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">{time}</span>
                           </td>
                           {displayDays.map((day) => (
                             <td key={day} className="p-1.5 border-t border-l border-border/20 align-top" style={{ minWidth: 90 }}>
@@ -860,14 +852,14 @@ const Timetable = () => {
                 </div>
 
                 <div className="flex items-center gap-3 mt-3 flex-wrap shrink-0">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Legend:</span>
+                  <span className="text-xs text-muted-foreground uppercase tracking-widest">Legend:</span>
                   {subjects.map((s) => (
                     <div key={s.id} className="flex items-center gap-1.5">
                       <div className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
-                      <span className="text-[10px] text-muted-foreground">{s.name}</span>
+                      <span className="text-xs text-muted-foreground">{s.name}</span>
                     </div>
                   ))}
-                  <span className="ml-auto text-[10px] text-muted-foreground/40">
+                  <span className="ml-auto text-xs text-muted-foreground/40">
                     Drag ⠿ to reschedule · Click filled to clear · Empty to assign
                   </span>
                 </div>
