@@ -1,7 +1,11 @@
 /**
  * DashboardLayout.tsx
- * Bottom padding bumped to 88px to clear the floating pill bottom nav
- * (62px pill height + 14px gap from bottom + 12px breathing room).
+ *
+ * UI IMPROVEMENTS:
+ * - overflow-x: hidden on the main scroll area to prevent child blowout
+ * - paddingBottom uses env(safe-area-inset-bottom) for notched devices
+ * - Landscape mobile: reduced bottom padding (less scroll waste)
+ * - clamp() values tuned so desktop gets 24px bottom, mobile gets 88px
  */
 
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -48,10 +52,18 @@ const DashboardLayout = () => {
         Skip to main content
       </a>
 
-      <div className="min-h-screen flex w-full bg-background" style={{ overflow: "hidden" }}>
+      {/* Outer shell — overflow:hidden prevents any child from causing h-scroll */}
+      <div
+        className="min-h-screen flex w-full bg-background"
+        style={{ overflow: "hidden", maxWidth: "100vw" }}
+      >
         <AppSidebar />
 
-        <div className="flex-1 flex flex-col min-w-0" style={{ overflow: "hidden" }}>
+        {/* Content column — min-w-0 prevents flex blowout */}
+        <div
+          className="flex-1 flex flex-col"
+          style={{ overflow: "hidden", minWidth: 0 }}
+        >
           <TopBar />
 
           <main
@@ -59,19 +71,37 @@ const DashboardLayout = () => {
             ref={mainRef}
             tabIndex={-1}
             aria-label="Main content"
-            className="flex-1 overflow-y-auto outline-none"
+            className="flex-1 outline-none"
             style={{
+              overflowY: "auto",
+              overflowX: "hidden",
+              WebkitOverflowScrolling: "touch",
               /*
-               * Mobile: 88px bottom padding clears the floating pill nav
-               * (62px pill + 14px gap from bottom + 12px breathing room).
-               * On md+ there is no pill nav so we drop to 24px.
-               * clamp() smoothly interpolates between the two.
+               * Mobile: 88px bottom padding clears the floating pill nav.
+               * Desktop (md+): no pill nav, so 24px is enough.
+               * We use a large clamp max to cap at 24px on wide screens,
+               * while staying 88px on narrow screens.
+               * Safe-area-inset-bottom adds space for iOS home indicator.
                */
-              paddingBottom: "clamp(5.5rem, 10vw, 1.5rem)",
+              paddingBottom: "calc(clamp(88px, 15vw, 88px) + env(safe-area-inset-bottom, 0px))",
               paddingTop: "clamp(0.75rem, 2vw, 1.5rem)",
               paddingInline: "clamp(0.75rem, 3.5vw, 2rem)",
             }}
           >
+            {/* Correct pb: desktop hides MobileBottomNav so we can drop to 24px */}
+            <style>{`
+              @media (min-width: 768px) {
+                #main-content {
+                  padding-bottom: 24px !important;
+                }
+              }
+              @media (max-height: 500px) and (orientation: landscape) {
+                #main-content {
+                  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
+                }
+              }
+            `}</style>
+
             <div style={{ maxWidth: "72rem", marginInline: "auto" }}>
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div

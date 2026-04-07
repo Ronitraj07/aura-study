@@ -3,10 +3,6 @@ import { ArrowRight, Sparkles, Zap } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const HeroSection = () => {
-  // FIX 1.3: Use auth status to route the primary CTA correctly.
-  // - Allowed (logged-in) users → /dashboard  (no point sending them to /login)
-  // - Everyone else            → /login
-  // The secondary "Sign In" button always goes to /login.
   const { status } = useAuth();
   const primaryTo = status === "allowed" ? "/dashboard" : "/login";
 
@@ -18,12 +14,14 @@ const HeroSection = () => {
         padding: "clamp(4rem,12vw,10rem) clamp(1rem,5vw,3rem) clamp(3rem,8vw,6rem)",
       }}
     >
-      {/* Ambient glows — explicit dimensions so blur renders correctly */}
+      {/* Ambient glows — clamped so they never trigger overflow on mobile */}
       <div
         className="hero-glow"
         style={{
-          width: 600, height: 600,
-          top: "-10%", left: "10%",
+          width: "min(600px, 90vw)",
+          height: "min(600px, 90vw)",
+          top: "-10%",
+          left: "10%",
           background: "hsl(262,80%,62%)",
           opacity: 0.18,
         }}
@@ -31,17 +29,16 @@ const HeroSection = () => {
       <div
         className="hero-glow"
         style={{
-          width: 500, height: 500,
-          top: "20%", right: "5%",
+          width: "min(500px, 80vw)",
+          height: "min(500px, 80vw)",
+          top: "20%",
+          right: "5%",
           background: "hsl(220,85%,62%)",
           opacity: 0.14,
         }}
       />
 
-      {/* Dot-grid pattern
-          FIX 1.3: Added -webkit-mask for Safari — without it the radial
-          fade-out mask has no effect in WebKit browsers, leaving a hard
-          rectangular grid edge visible. */}
+      {/* Dot-grid pattern */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -54,7 +51,7 @@ const HeroSection = () => {
 
       {/* Eyebrow */}
       <div
-        className="fade-up flex items-center gap-2 px-4 py-1.5 rounded-full mb-8"
+        className="fade-up flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 sm:mb-8"
         style={{
           animationDelay: "0ms",
           background: "hsla(262,80%,62%,0.1)",
@@ -70,12 +67,12 @@ const HeroSection = () => {
         </span>
       </div>
 
-      {/* Headline */}
+      {/* Headline — removed forced <br /> to allow natural responsive wrap */}
       <h1
         className="font-display font-bold fade-up"
         style={{
           animationDelay: "60ms",
-          fontSize: "clamp(2.5rem, 7vw, 5.5rem)",
+          fontSize: "clamp(2rem, 7vw, 5.5rem)",
           lineHeight: 1.08,
           letterSpacing: "-0.02em",
           maxWidth: "820px",
@@ -84,8 +81,7 @@ const HeroSection = () => {
       >
         Your{" "}
         <span className="gradient-text">AI Academic</span>
-        <br />
-        Assistant
+        {" "}Assistant
       </h1>
 
       {/* Subheadline */}
@@ -93,45 +89,74 @@ const HeroSection = () => {
         className="fade-up"
         style={{
           animationDelay: "120ms",
-          fontSize: "clamp(1rem, 2vw, 1.25rem)",
+          fontSize: "clamp(0.9375rem, 2vw, 1.25rem)",
           color: "hsl(var(--muted-foreground))",
           maxWidth: 560,
           lineHeight: 1.65,
-          marginTop: "clamp(1rem, 2.5vw, 1.75rem)",
+          marginTop: "clamp(0.75rem, 2vw, 1.75rem)",
+          paddingInline: "var(--sp-2)",
         }}
       >
         Generate PPTs, write assignments, create notes, and manage your
         academic life — all in one beautifully designed workspace.
       </p>
 
-      {/* CTA row
-          FIX 1.3: "Try Now" is the primary action — it routes to /dashboard
-          if the user is already signed in, otherwise to /login. The secondary
-          "Sign In" button is removed (redundant with Try Now for unauthenticated
-          users) and replaced with a "See Features" anchor that scrolls down to
-          FeaturesSection. This gives the two buttons distinct purposes. */}
+      {/*
+        CTA row — column on mobile (<480px), row on wider screens.
+        Both buttons are full-width on mobile for easy tapping.
+      */}
       <div
-        className="fade-up flex flex-wrap items-center justify-center gap-3"
+        className="fade-up"
         style={{
           animationDelay: "180ms",
-          marginTop: "clamp(1.5rem, 3vw, 2.5rem)",
+          marginTop: "clamp(1.25rem, 3vw, 2.5rem)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "var(--sp-3)",
+          width: "100%",
+          maxWidth: 400,
         }}
       >
-        <Link
-          to={primaryTo}
-          className="btn btn-primary"
-          style={{ padding: "12px 28px", fontSize: "var(--text-sm)", borderRadius: "0.75rem" }}
+        <style>{`
+          @media (min-width: 480px) {
+            .hero-cta-row {
+              flex-direction: row !important;
+              width: auto !important;
+              max-width: none !important;
+            }
+            .hero-cta-row .btn-primary,
+            .hero-cta-row .btn-secondary {
+              width: auto !important;
+            }
+          }
+        `}</style>
+        <div
+          className="hero-cta-row"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "var(--sp-3)",
+            width: "100%",
+          }}
         >
-          <Zap size={15} />
-          {status === "allowed" ? "Go to Dashboard" : "Try Now — it's free"}
-        </Link>
-        <a
-          href="#features"
-          className="btn btn-secondary"
-          style={{ padding: "12px 24px", fontSize: "var(--text-sm)", borderRadius: "0.75rem" }}
-        >
-          See Features <ArrowRight size={14} />
-        </a>
+          <Link
+            to={primaryTo}
+            className="btn btn-primary"
+            style={{ padding: "12px 28px", fontSize: "var(--text-sm)", borderRadius: "0.75rem", width: "100%", justifyContent: "center" }}
+          >
+            <Zap size={15} />
+            {status === "allowed" ? "Go to Dashboard" : "Try Now — it's free"}
+          </Link>
+          <a
+            href="#features"
+            className="btn btn-secondary"
+            style={{ padding: "12px 24px", fontSize: "var(--text-sm)", borderRadius: "0.75rem", width: "100%", justifyContent: "center" }}
+          >
+            See Features <ArrowRight size={14} />
+          </a>
+        </div>
       </div>
 
       {/* Social proof hint */}
@@ -141,8 +166,9 @@ const HeroSection = () => {
           animationDelay: "260ms",
           fontSize: "var(--text-xs)",
           color: "hsl(var(--muted-foreground))",
-          marginTop: "clamp(1rem, 2.5vw, 2rem)",
+          marginTop: "clamp(0.75rem, 2vw, 2rem)",
           opacity: 0.65,
+          paddingInline: "var(--sp-4)",
         }}
       >
         No credit card required · Free to use · Private &amp; secure

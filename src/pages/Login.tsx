@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ShieldX, ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
-// Inline Google SVG to avoid CDN issues
 const GoogleIcon = () => (
   <svg width="20" height="20" viewBox="0 0 48 48" fill="none" aria-hidden="true">
     <path d="M44.5 20H24v8.5h11.8C34.7 33.9 29.8 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 20-7.6 20-21 0-1.3-.2-2.7-.5-4z" fill="#FFC107"/>
@@ -22,10 +21,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // If arriving here from a restricted redirect, clear session + show denied
   const isRestricted = params.get("restricted") === "true" || status === "restricted";
 
-  // Redirect already-allowed users straight to dashboard
   useEffect(() => {
     if (status === "allowed") navigate("/dashboard", { replace: true });
   }, [status, navigate]);
@@ -35,7 +32,6 @@ export default function Login() {
       setLoading(true);
       setError(null);
       await signInWithGoogle();
-      // Page will redirect to /auth/callback — no navigation needed here
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
       setLoading(false);
@@ -57,18 +53,16 @@ export default function Login() {
   });
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden px-6">
-      {/*
-        FIX 1.4: Ambient glow divs previously had no explicit width/height,
-        so they rendered at 0×0 and were invisible. Added explicit dimensions
-        matching the HeroSection pattern. The .hero-glow class handles
-        border-radius:50% and filter:blur(90px).
-      */}
+    <div
+      className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden"
+      style={{ padding: "clamp(16px, 4vw, 32px)" }}
+    >
+      {/* Ambient glows — clamped to viewport */}
       <div
         className="hero-glow animate-pulse-glow"
         style={{
-          width: 480,
-          height: 480,
+          width: "min(480px, 80vw)",
+          height: "min(480px, 80vw)",
           background: "hsl(var(--primary))",
           opacity: 0.18,
           top: "15%",
@@ -78,8 +72,8 @@ export default function Login() {
       <div
         className="hero-glow animate-pulse-glow"
         style={{
-          width: 400,
-          height: 400,
+          width: "min(400px, 70vw)",
+          height: "min(400px, 70vw)",
           background: "hsl(var(--accent))",
           opacity: 0.13,
           bottom: "15%",
@@ -98,15 +92,8 @@ export default function Login() {
         }}
       />
 
-      {/*
-        FIX 1.5: aria-live="polite" on the outer container means screen readers
-        announce when the view switches between sign-in and restricted states.
-        The two <h1> elements are mutually exclusive (AnimatePresence mode="wait")
-        so only one is ever in the DOM at a time — this is correct at runtime.
-      */}
       <div aria-live="polite" aria-atomic="true" className="relative z-10 w-full flex justify-center">
         <AnimatePresence mode="wait">
-          {/* ── RESTRICTED ──────────────────────────────────────────── */}
           {isRestricted ? (
             <motion.div
               key="restricted"
@@ -114,7 +101,8 @@ export default function Login() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.97 }}
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="glass-card rounded-2xl p-8 w-full max-w-md text-center"
+              className="glass-card rounded-2xl w-full max-w-md text-center"
+              style={{ padding: "clamp(20px,5vw,32px)" }}
             >
               <div
                 className="absolute -inset-[1px] rounded-2xl opacity-40 pointer-events-none"
@@ -139,20 +127,21 @@ export default function Login() {
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="px-6 py-3 rounded-xl font-display font-medium text-sm bg-secondary border border-border text-foreground hover:bg-secondary/80 hover:border-primary/30 transition-all duration-300"
+                className="w-full px-6 py-3 rounded-xl font-display font-medium text-sm bg-secondary border border-border text-foreground hover:bg-secondary/80 hover:border-primary/30 transition-all duration-300"
+                style={{ minHeight: 44 }}
               >
                 Sign out &amp; try another account
               </button>
             </motion.div>
           ) : (
-            /* ── SIGN IN ─────────────────────────────────────────────── */
             <motion.div
               key="login"
               initial={{ opacity: 0, y: 20, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.97 }}
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="glass-card rounded-2xl p-8 w-full max-w-md"
+              className="glass-card rounded-2xl w-full max-w-md"
+              style={{ padding: "clamp(20px,5vw,32px)" }}
             >
               <div
                 className="absolute -inset-[1px] rounded-2xl opacity-50 pointer-events-none"
@@ -173,11 +162,10 @@ export default function Login() {
               </div>
 
               <div className="text-center mb-8">
-                <h1 className="font-display text-3xl font-bold gradient-text mb-2">Welcome Back</h1>
+                <h1 className="font-display text-2xl font-bold gradient-text mb-2">Welcome Back</h1>
                 <p className="text-sm text-muted-foreground">Sign in with your Google account to continue</p>
               </div>
 
-              {/* Error banner */}
               <AnimatePresence>
                 {error && (
                   <motion.div
@@ -192,12 +180,12 @@ export default function Login() {
                 )}
               </AnimatePresence>
 
-              {/* Google Sign-In button */}
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={loading || status === "loading"}
-                className="w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl bg-secondary border border-border text-foreground text-sm font-medium hover:bg-secondary/80 hover:border-primary/30 transition-all duration-300 group disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-3 px-4 rounded-xl bg-secondary border border-border text-foreground text-sm font-medium hover:bg-secondary/80 hover:border-primary/30 transition-all duration-300 group disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{ minHeight: 52, fontSize: "var(--text-sm)" }}
               >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin text-primary" />
