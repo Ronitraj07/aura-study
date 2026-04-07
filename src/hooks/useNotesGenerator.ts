@@ -53,13 +53,23 @@ export interface GeneratedNotes {
 export interface NotesInput {
   topic: string;
   depth?: 'overview' | 'detailed' | 'exam';
+  subtopics?: string[];
+  format?: 'cornell' | 'outline' | 'concept_map' | 'flashcards' | 'traditional';
+  studentLevel?: 'high_school' | 'undergraduate' | 'graduate';
+  examType?: 'multiple_choice' | 'essay' | 'practical' | 'mixed';
+  includeQuestions?: boolean;
+  includeDiagrams?: boolean;
+  studyDuration?: '1_hour' | '1_day' | '1_week';
+  includeExamTips?: boolean;
+  includeMnemonics?: boolean;
+  includeCheatsheet?: boolean;
 }
 
 // ── Prompt builder ──────────────────────────────────────────────
 function buildPrompt(input: NotesInput, researchPreamble: string): string {
-  const isExam = input.depth === 'exam';
+  const isExam = input.depth === 'exam' || input.includeExamTips || input.includeMnemonics || input.includeCheatsheet;
 
-  const depthNote = isExam
+  const depthNote = input.depth === 'exam'
     ? 'Provide comprehensive exam-focused coverage with 4-6 major sections, 4-6 bullets per section.'
     : input.depth === 'detailed'
     ? 'Provide comprehensive coverage with 4-6 major sections, 4-6 bullets per section.'
@@ -69,34 +79,95 @@ function buildPrompt(input: NotesInput, researchPreamble: string): string {
     ? `${researchPreamble}create accurate, well-grounded study notes using the facts above as your foundation.\n\n`
     : '';
 
-  const examJsonFields = isExam ? `,
-  "exam_tips": [
+  // Build subtopics section
+  const subtopicsSection = input.subtopics && input.subtopics.length > 0
+    ? `\nFocus Areas: Focus specifically on these subtopics: ${input.subtopics.join(', ')}`
+    : '';
+
+  // Build format section
+  const formatMap = {
+    cornell: 'Structure notes in Cornell format with clear sections for notes, cues, and summary.',
+    outline: 'Use hierarchical outline format with numbered sections and subsections.',
+    concept_map: 'Create conceptual connections showing relationships between topics.',
+    flashcards: 'Format content suitable for flashcard creation with key terms and definitions.',
+    traditional: 'Use traditional note-taking format with headers and bullet points.'
+  };
+  
+  const formatSection = input.format && input.format !== 'traditional'
+    ? `\nFormat Instructions: ${formatMap[input.format]}`
+    : '';
+
+  // Build student level section
+  const levelMap = {
+    high_school: 'Use foundational concepts and clear explanations suitable for high school level.',
+    undergraduate: 'Use intermediate depth with college-level terminology and concepts.',
+    graduate: 'Use advanced, specialized terminology and in-depth analysis suitable for graduate level.'
+  };
+
+  const levelSection = input.studentLevel
+    ? `\nStudent Level: ${levelMap[input.studentLevel]}`
+    : '';
+
+  // Build exam type section
+  const examTypeSection = input.examType
+    ? `\nExam Preparation: Structure content for ${input.examType.replace('_', ' ')} exam format.`
+    : '';
+
+  // Build study duration section
+  const durationMap = {
+    '1_hour': 'Optimize for quick review session (1 hour study time).',
+    '1_day': 'Structure for day-long study session with detailed coverage.',
+    '1_week': 'Create comprehensive notes for extended study period.'
+  };
+
+  const durationSection = input.studyDuration
+    ? `\nStudy Duration: ${durationMap[input.studyDuration]}`
+    : '';
+
+  // Build additional features sections
+  const questionsSection = input.includeQuestions
+    ? '\nInclude practice questions and review questions throughout the notes.'
+    : '';
+
+  const diagramsSection = input.includeDiagrams
+    ? '\nInclude descriptions of key diagrams and visual explanations where appropriate.'
+    : '';
+
+  // Determine which exam features to include
+  const includeExamTips = isExam || input.includeExamTips;
+  const includeMnemonics = isExam || input.includeMnemonics;
+  const includeCheatsheet = isExam || input.includeCheatsheet;
+
+  const examJsonFields = (includeExamTips || includeMnemonics || includeCheatsheet) ? `,
+  ${includeExamTips ? `"exam_tips": [
     {
       "question": "<likely exam question>",
       "answer": "<concise 1-2 sentence answer>",
       "difficulty": "easy" | "medium" | "hard"
     }
-  ],
-  "mnemonics": [
+  ]` : ''}${includeExamTips && (includeMnemonics || includeCheatsheet) ? ',' : ''}
+  ${includeMnemonics ? `"mnemonics": [
     {
       "concept": "<concept or list to remember>",
       "device": "<mnemonic device e.g. acronym, rhyme, story>",
       "explanation": "<what each part stands for>"
     }
-  ],
-  "cheatsheet": [
+  ]` : ''}${includeMnemonics && includeCheatsheet ? ',' : ''}
+  ${includeCheatsheet ? `"cheatsheet": [
     { "label": "<term or formula or date>", "value": "<one-line definition or value>" }
-  ]` : '';
+  ]` : ''}` : '';
 
-  const examInstructions = isExam ? `
-- exam_tips: 5-8 likely exam questions with concise answers and difficulty ratings
-- mnemonics: 2-4 memory devices for key concepts, lists, or sequences
-- cheatsheet: 8-12 key facts, formulas, dates, or definitions in label:value pairs` : '';
+  const examInstructions = [];
+  if (includeExamTips) examInstructions.push('- exam_tips: 5-8 likely exam questions with concise answers and difficulty ratings');
+  if (includeMnemonics) examInstructions.push('- mnemonics: 2-4 memory devices for key concepts, lists, or sequences');
+  if (includeCheatsheet) examInstructions.push('- cheatsheet: 8-12 key facts, formulas, dates, or definitions in label:value pairs');
+  
+  const examInstructionsText = examInstructions.length > 0 ? `\n${examInstructions.join('\n')}` : '';
 
   return `${researchSection}You are an expert academic note-taker. Create structured study notes.
 
 Topic: "${input.topic}"
-Depth: ${input.depth ?? 'overview'} — ${depthNote}
+Depth: ${input.depth ?? 'overview'} — ${depthNote}${subtopicsSection}${formatSection}${levelSection}${examTypeSection}${durationSection}${questionsSection}${diagramsSection}
 
 Return ONLY valid JSON. No markdown, no explanation, no code blocks. Strict format:
 {
@@ -120,11 +191,13 @@ Rules:
 - Level 1 headings are major sections, level 2 are subsections
 - Bullets should be concise, scannable (max 20 words each)
 - keyTerms: 5-8 important vocabulary words or concepts from the topic
-- Summary must be written as complete sentences, not bullets${examInstructions}`;
+- Summary must be written as complete sentences, not bullets${examInstructionsText}`;
 }
 
 // ── Groq generation caller — routes through /api/generate ──────
-async function callGroq(prompt: string, isExam: boolean): Promise<GeneratedNotes> {
+async function callGroq(prompt: string, input: NotesInput): Promise<GeneratedNotes> {
+  const isExam = input.depth === 'exam' || input.includeExamTips || input.includeMnemonics || input.includeCheatsheet;
+  
   const res = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -234,7 +307,7 @@ export function useNotesGenerator() {
 
       const preamble = buildResearchPreamble(research);
       const prompt = buildPrompt(input, preamble);
-      const result = await callGroq(prompt, input.depth === 'exam');
+      const result = await callGroq(prompt, input);
 
       result.researchSource = research.source;
 

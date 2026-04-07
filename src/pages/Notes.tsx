@@ -480,6 +480,18 @@ const Notes = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
 
+  // Enhanced notes options
+  const [subtopics, setSubtopics] = useState<string[]>([]);
+  const [format, setFormat] = useState<'cornell' | 'outline' | 'concept_map' | 'flashcards' | 'traditional'>('traditional');
+  const [studentLevel, setStudentLevel] = useState<'high_school' | 'undergraduate' | 'graduate'>('undergraduate');
+  const [examType, setExamType] = useState<'multiple_choice' | 'essay' | 'practical' | 'mixed'>('mixed');
+  const [includeQuestions, setIncludeQuestions] = useState(false);
+  const [includeDiagrams, setIncludeDiagrams] = useState(false);
+  const [studyDuration, setStudyDuration] = useState<'1_hour' | '1_day' | '1_week'>('1_day');
+  const [includeExamTips, setIncludeExamTips] = useState(false);
+  const [includeMnemonics, setIncludeMnemonics] = useState(false);
+  const [includeCheatsheet, setIncludeCheatsheet] = useState(false);
+
   const {
     notes, savedId, isGenerating, isResearching, saveStatus, error,
     versions, generate, loadVersions, restoreVersion,
@@ -491,9 +503,25 @@ const Notes = () => {
 
   const handleGenerate = () => {
     if (!topic.trim() || isGenerating) return;
-    generate({ topic: topic.trim(), depth });
-    if (depth === 'exam') setExamMode(true);
-    else setExamMode(false);
+    generate({ 
+      topic: topic.trim(), 
+      depth,
+      subtopics: subtopics.length > 0 ? subtopics : undefined,
+      format: format !== 'traditional' ? format : undefined,
+      studentLevel: studentLevel !== 'undergraduate' ? studentLevel : undefined,
+      examType: examType !== 'mixed' ? examType : undefined,
+      includeQuestions: includeQuestions || undefined,
+      includeDiagrams: includeDiagrams || undefined,
+      studyDuration: studyDuration !== '1_day' ? studyDuration : undefined,
+      includeExamTips: includeExamTips || undefined,
+      includeMnemonics: includeMnemonics || undefined,
+      includeCheatsheet: includeCheatsheet || undefined
+    });
+    if (depth === 'exam' || includeExamTips || includeMnemonics || includeCheatsheet) {
+      setExamMode(true);
+    } else {
+      setExamMode(false);
+    }
   };
 
   const handleSmartApply = (s: typeof suggestion) => {
@@ -734,6 +762,194 @@ const Notes = () => {
                   <p className="text-xs text-muted-foreground mt-0.5 ml-5.5">{d.desc}</p>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Subtopics Selection */}
+          <div className="glass-card rounded-2xl p-5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
+              Subtopics (optional)
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                "Key concepts",
+                "Historical context",
+                "Mechanisms", 
+                "Applications",
+                "Examples",
+                "Formulas",
+                "Processes",
+                "Relationships"
+              ].map(sub => (
+                <button
+                  key={sub}
+                  onClick={() => setSubtopics(prev => 
+                    prev.includes(sub) 
+                      ? prev.filter(s => s !== sub)
+                      : [...prev, sub]
+                  )}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all",
+                    subtopics.includes(sub)
+                      ? "bg-primary/15 border-primary/40 text-primary"
+                      : "bg-secondary/40 border-border text-muted-foreground hover:border-primary/20"
+                  )}
+                >
+                  {sub}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Format Selection */}
+          <div className="glass-card rounded-2xl p-5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Format</p>
+            <div className="grid grid-cols-1 gap-2">
+              {([
+                { value: 'traditional', label: 'Traditional', desc: 'Standard headers & bullets' },
+                { value: 'cornell', label: 'Cornell Notes', desc: 'Cues, notes, summary' },
+                { value: 'outline', label: 'Outline', desc: 'Hierarchical structure' },
+                { value: 'concept_map', label: 'Concept Map', desc: 'Connected concepts' },
+                { value: 'flashcards', label: 'Flashcard Ready', desc: 'Terms & definitions' }
+              ] as const).map(({ value, label, desc }) => (
+                <button
+                  key={value}
+                  onClick={() => setFormat(value)}
+                  className={cn(
+                    "flex items-center justify-between p-2.5 rounded-xl border transition-all text-left",
+                    format === value
+                      ? "bg-primary/10 border-primary/40 text-primary"
+                      : "bg-secondary/40 border-border text-foreground hover:border-primary/20"
+                  )}
+                >
+                  <div>
+                    <p className="text-xs font-semibold">{label}</p>
+                    <p className="text-xs text-muted-foreground">{desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Student Level */}
+          <div className="glass-card rounded-2xl p-5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Student Level</p>
+            <div className="grid grid-cols-1 gap-2">
+              {([
+                { value: 'high_school', label: 'High School', desc: 'Foundational concepts' },
+                { value: 'undergraduate', label: 'Undergraduate', desc: 'Intermediate depth' },
+                { value: 'graduate', label: 'Graduate', desc: 'Advanced, specialized' }
+              ] as const).map(({ value, label, desc }) => (
+                <button
+                  key={value}
+                  onClick={() => setStudentLevel(value)}
+                  className={cn(
+                    "flex items-center justify-between p-2.5 rounded-xl border transition-all text-left",
+                    studentLevel === value
+                      ? "bg-primary/10 border-primary/40 text-primary"
+                      : "bg-secondary/40 border-border text-foreground hover:border-primary/20"
+                  )}
+                >
+                  <div>
+                    <p className="text-xs font-semibold">{label}</p>
+                    <p className="text-xs text-muted-foreground">{desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Exam Features */}
+          <div className="glass-card rounded-2xl p-5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
+              Exam Features
+            </p>
+            
+            <div className="space-y-3">
+              {/* Exam Type */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-2">Exam Type</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {([
+                    { value: 'multiple_choice', label: 'Multiple Choice' },
+                    { value: 'essay', label: 'Essay' },
+                    { value: 'practical', label: 'Practical' },
+                    { value: 'mixed', label: 'Mixed' }
+                  ] as const).map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => setExamType(value)}
+                      className={cn(
+                        "py-1.5 rounded-xl text-xs font-semibold border transition-all",
+                        examType === value
+                          ? "bg-primary/15 border-primary/40 text-primary"
+                          : "bg-secondary/40 border-border text-muted-foreground hover:border-primary/20"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Study Duration */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-2">Study Duration</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {([
+                    { value: '1_hour', label: '1 Hour' },
+                    { value: '1_day', label: '1 Day' },
+                    { value: '1_week', label: '1 Week' }
+                  ] as const).map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => setStudyDuration(value)}
+                      className={cn(
+                        "py-1.5 rounded-xl text-xs font-semibold border transition-all",
+                        studyDuration === value
+                          ? "bg-primary/15 border-primary/40 text-primary"
+                          : "bg-secondary/40 border-border text-muted-foreground hover:border-primary/20"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Feature Toggles */}
+              <div className="space-y-2.5">
+                {[
+                  { state: includeExamTips, setter: setIncludeExamTips, label: 'Practice Questions', desc: 'Exam Q&A with difficulty levels' },
+                  { state: includeMnemonics, setter: setIncludeMnemonics, label: 'Mnemonics', desc: 'Memory devices and acronyms' },
+                  { state: includeCheatsheet, setter: setIncludeCheatsheet, label: 'Cheat Sheet', desc: 'Key facts and formulas' },
+                  { state: includeQuestions, setter: setIncludeQuestions, label: 'Review Questions', desc: 'Questions throughout notes' },
+                  { state: includeDiagrams, setter: setIncludeDiagrams, label: 'Diagram Descriptions', desc: 'Visual explanations' }
+                ].map(({ state, setter, label, desc }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <div>
+                      <label className="text-xs font-medium text-foreground">{label}</label>
+                      <p className="text-xs text-muted-foreground/60">{desc}</p>
+                    </div>
+                    <button
+                      onClick={() => setter(prev => !prev)}
+                      className={cn(
+                        "w-11 h-6 rounded-full border-2 transition-all flex items-center",
+                        state 
+                          ? "bg-primary/20 border-primary/40" 
+                          : "bg-secondary/40 border-border"
+                      )}
+                    >
+                      <div 
+                        className={cn(
+                          "w-4 h-4 rounded-full bg-white transition-all",
+                          state ? "translate-x-5" : "translate-x-0.5"
+                        )} 
+                      />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
