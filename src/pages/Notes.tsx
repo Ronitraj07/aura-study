@@ -567,7 +567,6 @@ const Notes = () => {
             <BookOpen className="w-4.5 h-4.5 text-white" />
           </div>
           <div>
-            {/* text-xl caps at 36px — correct web app max per design system */}
             <h1 className="font-display text-xl font-bold text-foreground">
               Notes <span className="gradient-text">Generator</span>
             </h1>
@@ -579,7 +578,6 @@ const Notes = () => {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            {/* flex-wrap so buttons wrap gracefully on narrow screens instead of overflowing */}
             className="flex flex-wrap items-center gap-2"
           >
             {hasExamContent && (
@@ -783,7 +781,6 @@ const Notes = () => {
                 ].map((s) => (
                   <div key={s.label} className="bg-secondary/50 rounded-xl p-2.5 text-center">
                     <p className="font-display font-bold text-base" style={{ color: "hsl(160,70%,52%)" }}>{s.val}</p>
-                    {/* text-xs = 12px, the minimum floor */}
                     <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
                   </div>
                 ))}
