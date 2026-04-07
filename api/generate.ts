@@ -3,12 +3,13 @@
 // Handles all AI generation server-side — keys never reach client
 //
 // Supported types:
-//   'ppt'        — slide generation       (llama-3.3-70b)
-//   'assignment' — assignment generation  (llama-3.3-70b)
-//   'notes'      — notes generation       (llama-3.3-70b)
-//   'timetable'  — schedule generation    (llama-3.3-70b)
-//   'checklist'  — checklist generation   (llama-3.3-70b)
-//   'research'   — research pre-pass      (llama-3.1-8b-instant → Gemini 2.5 Flash on 429)
+//   'ppt'            — slide generation       (llama-3.3-70b)
+//   'assignment'     — assignment generation  (llama-3.3-70b)
+//   'assignment_block' — single block regeneration (llama-3.3-70b)
+//   'notes'          — notes generation       (llama-3.3-70b)
+//   'timetable'      — schedule generation    (llama-3.3-70b)
+//   'checklist'      — checklist generation   (llama-3.3-70b)
+//   'research'       — research pre-pass      (llama-3.1-8b-instant → Gemini 2.5 Flash on 429)
 // ============================================================
 
 export const config = { runtime: 'edge' };
@@ -17,12 +18,13 @@ const GROQ_URL    = 'https://api.groq.com/openai/v1/chat/completions';
 const GEMINI_URL  = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
 const MODEL_MAP: Record<string, string> = {
-  research:   'llama-3.1-8b-instant',
-  ppt:        'llama-3.3-70b-versatile',
-  assignment: 'llama-3.3-70b-versatile',
-  notes:      'llama-3.3-70b-versatile',
-  timetable:  'llama-3.3-70b-versatile',
-  checklist:  'llama-3.3-70b-versatile',
+  research:         'llama-3.1-8b-instant',
+  ppt:              'llama-3.3-70b-versatile',
+  assignment:       'llama-3.3-70b-versatile',
+  assignment_block: 'llama-3.3-70b-versatile',
+  notes:            'llama-3.3-70b-versatile',
+  timetable:        'llama-3.3-70b-versatile',
+  checklist:        'llama-3.3-70b-versatile',
 };
 
 const FALLBACK_MODEL = 'llama3-8b-8192';

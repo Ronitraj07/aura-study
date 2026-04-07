@@ -17,13 +17,17 @@ import {
   RotateCcw,
   X,
   Search,
+  Edit3,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportAssignmentPDF } from "@/lib/pdfExport";
 import { useAssignmentGenerator } from "@/hooks/useAssignmentGenerator";
+import { useAssignmentEditor } from "@/hooks/useAssignmentEditor";
 import { useSmartMode } from "@/hooks/useSmartMode";
 import { SmartModeBanner } from "@/components/SmartModeBanner";
-import type { AssignmentTone } from "@/hooks/useAssignmentGenerator";
+import { EditAssignmentBlocks } from "@/components/EditAssignmentBlocks";
+import type { AssignmentTone, AssignmentInput } from "@/hooks/useAssignmentGenerator";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -206,10 +210,36 @@ const Assignments = () => {
   const [includeExamples, setIncludeExamples] = useState(true);
   const [formatOption, setFormatOption] = useState<'structured' | 'essay' | 'bullet_points'>('structured');
 
+  // Edit mode state
+  const [editMode, setEditMode] = useState(false);
+  
+  // Current input for editor
+  const currentInput: AssignmentInput = {
+    topic: topic.trim(),
+    wordCount,
+    tone,
+    subtopics: subtopics.length > 0 ? subtopics : undefined,
+    requirements: requirements.trim() || undefined,
+    citationStyle: citationStyle !== 'none' ? citationStyle : undefined,
+    includeExamples,
+    formatOption
+  };
+
   const {
     assignment, savedId, isGenerating, isResearching, saveStatus, error,
     versions, generate, loadVersions, restoreVersion,
   } = useAssignmentGenerator();
+
+  // Edit mode integration
+  const editor = assignment ? useAssignmentEditor(
+    assignment,
+    currentInput,
+    async (updatedAssignment) => {
+      // Handle save - this would typically call updateContent or similar
+      console.log('Assignment updated:', updatedAssignment);
+      // For now, we'll just log. In full implementation, this would save to DB
+    }
+  ) : null;
 
   const { suggestion, isAnalysing, dismiss, dismissed } = useSmartMode(topic, 'assignment');
 
@@ -332,6 +362,21 @@ const Assignments = () => {
                 History
               </button>
             )}
+
+            {/* Edit Mode Toggle */}
+            <button
+              onClick={() => setEditMode(!editMode)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all",
+                editMode
+                  ? "bg-primary/15 border-primary/40 text-primary"
+                  : "bg-secondary border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
+              )}
+              title={editMode ? "Exit edit mode" : "Enter edit mode"}
+            >
+              {editMode ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
+              {editMode ? "View" : "Edit"}
+            </button>
 
             {saveStatus === 'saving' && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -689,44 +734,58 @@ Needs real-world examples`}
                   </div>
                 </div>
 
-                <motion.div
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                  className="glass-card rounded-2xl p-6 flex flex-col gap-4"
-                >
-                  <AnimatePresence>
-                    {assignment.blocks.map((block, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25, delay: i * 0.03, ease: [0.16, 1, 0.3, 1] }}
-                      >
-                        {(block.type === "heading" || block.type === "subheading") && (
-                          <div
-                            className="flex items-center gap-2"
-                            style={{ color: BLOCK_COLORS[block.type] }}
+                {editMode && editor ? (
+                  // Edit Mode
+                  <EditAssignmentBlocks
+                    editState={editor}
+                    editActions={editor}
+                    onReset={editor.resetToOriginal}
+                    onSave={editor.saveEdits}
+                    hasUnsavedChanges={editor.hasUnsavedChanges()}
+                  />
+                ) : (
+                  // Display Mode  
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0, y: 16 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                      className="glass-card rounded-2xl p-6 flex flex-col gap-4"
+                    >
+                      <AnimatePresence>
+                        {assignment.blocks.map((block, i) => (
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.25, delay: i * 0.03, ease: [0.16, 1, 0.3, 1] }}
                           >
-                            <div
-                              className="w-1 rounded-full shrink-0"
-                              style={{
-                                height: block.type === "heading" ? "20px" : "16px",
-                                background: BLOCK_COLORS[block.type],
-                              }}
-                            />
-                            <span className={BLOCK_STYLES[block.type]}>{block.text}</span>
-                          </div>
-                        )}
-                        {(block.type === "paragraph" || block.type === "conclusion" || block.type === "quote") && (
-                          <p className={BLOCK_STYLES[block.type]}>{block.text}</p>
-                        )}
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </motion.div>
+                            {(block.type === "heading" || block.type === "subheading") && (
+                              <div
+                                className="flex items-center gap-2"
+                                style={{ color: BLOCK_COLORS[block.type] }}
+                              >
+                                <div
+                                  className="w-1 rounded-full shrink-0"
+                                  style={{
+                                    height: block.type === "heading" ? "20px" : "16px",
+                                    background: BLOCK_COLORS[block.type],
+                                  }}
+                                />
+                                <span className={BLOCK_STYLES[block.type]}>{block.text}</span>
+                              </div>
+                            )}
+                            {(block.type === "paragraph" || block.type === "conclusion" || block.type === "quote") && (
+                              <p className={BLOCK_STYLES[block.type]}>{block.text}</p>
+                            )}
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </motion.div>
 
-                <p className="text-xs text-muted-foreground/40 text-center py-4">AI-generated · auto-saved to your account</p>
+                    <p className="text-xs text-muted-foreground/40 text-center py-4">AI-generated · auto-saved to your account</p>
+                  </>
+                )}
               </div>
             )
           )}
