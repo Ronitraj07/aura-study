@@ -209,12 +209,12 @@ const Checklist = () => {
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="h-full flex flex-col">
-      {/* Page header */}
+      {/* Page header — flex-wrap so progress row wraps on narrow screens */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="flex items-center justify-between mb-6 shrink-0"
+        className="flex flex-wrap items-center justify-between gap-y-3 mb-6 shrink-0"
       >
         <div className="flex items-center gap-3">
           <div
@@ -225,7 +225,8 @@ const Checklist = () => {
             <CheckSquare className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h1 className="font-display text-2xl font-bold text-foreground">
+            {/* text-xl — web app heading cap (24-36px) */}
+            <h1 className="font-display text-xl font-bold text-foreground">
               Checklist <span className="gradient-text">Manager</span>
             </h1>
             <p className="text-xs text-muted-foreground">Track tasks and stay on top of deadlines</p>
@@ -259,8 +260,9 @@ const Checklist = () => {
                 {progress}%
               </p>
             </div>
+            {/* Progress bar: narrower on mobile (w-24) → normal on desktop (w-32) */}
             <div
-              className="w-32 h-2 rounded-full bg-secondary overflow-hidden"
+              className="w-24 md:w-32 h-2 rounded-full bg-secondary overflow-hidden"
               role="progressbar"
               aria-valuenow={progress}
               aria-valuemin={0}
@@ -283,15 +285,25 @@ const Checklist = () => {
         )}
       </motion.div>
 
-      {/* Two-column layout */}
-      <div className="flex-1 flex gap-5 min-h-0">
+      {/*
+        TWO-COLUMN LAYOUT
+        Mobile (<md):  flex-col — left panel stacks above task list
+        Desktop (≥md): flex-row — side by side, left panel w-72
+
+        Left panel on mobile:
+          - w-full, max-h-[45dvh], overflow-y-auto (scrollable, won't push right panel off)
+        Left panel on desktop:
+          - w-72 shrink-0 (original behaviour)
+      */}
+      <div className="flex-1 flex flex-col md:flex-row gap-5 min-h-0">
 
         {/* LEFT: Add task + filter + overview */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.05 }}
-          className="w-72 shrink-0 flex flex-col gap-4"
+          className="w-full md:w-72 md:shrink-0 flex flex-col gap-4 max-h-[45dvh] md:max-h-none overflow-y-auto md:overflow-visible"
+          style={{ scrollbarWidth: "thin" }}
         >
           {/* Add task card */}
           <div className="glass-card rounded-2xl p-5">
@@ -313,7 +325,8 @@ const Checklist = () => {
             />
             {/* Priority selector */}
             <div className="flex items-center gap-1.5 mb-3" role="group" aria-label="Select priority">
-              <span className="text-[10px] text-muted-foreground uppercase tracking-widest mr-1" aria-hidden="true">Priority:</span>
+              {/* text-xs = 12px floor — minimum label size */}
+              <span className="text-xs text-muted-foreground uppercase tracking-widest mr-1" aria-hidden="true">Priority:</span>
               {(Object.keys(PRIORITY_CONFIG) as Priority[]).map((p) => {
                 const cfg = PRIORITY_CONFIG[p];
                 return (
@@ -323,7 +336,7 @@ const Checklist = () => {
                     aria-pressed={priority === p}
                     aria-label={`${cfg.label} priority`}
                     className={cn(
-                      "flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-all",
+                      "flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all",
                       priority === p ? "scale-105" : "opacity-50 hover:opacity-80",
                     )}
                     style={{
@@ -383,7 +396,7 @@ const Checklist = () => {
                       <Flag className="w-3.5 h-3.5" style={{ color }} aria-hidden="true" />
                     )}
                     <span>{isAll ? "All tasks" : `${cfg!.label} priority`}</span>
-                    <span className="ml-auto text-[10px] font-bold text-muted-foreground" aria-label={`${isAll ? tasks.length : tasks.filter((t) => t.priority === f).length} tasks`}>
+                    <span className="ml-auto text-xs font-bold text-muted-foreground" aria-label={`${isAll ? tasks.length : tasks.filter((t) => t.priority === f).length} tasks`}>
                       {isAll ? tasks.length : tasks.filter((t) => t.priority === f).length}
                     </span>
                   </button>
@@ -404,7 +417,8 @@ const Checklist = () => {
               ].map((s) => (
                 <div key={s.label} className="bg-secondary/50 rounded-xl p-2.5 text-center" role="listitem">
                   <p className="font-display font-bold text-lg" style={{ color: s.color }} aria-label={`${s.val} ${s.label}`}>{s.val}</p>
-                  <p className="text-[10px] text-muted-foreground" aria-hidden="true">{s.label}</p>
+                  {/* text-xs = 12px minimum floor */}
+                  <p className="text-xs text-muted-foreground" aria-hidden="true">{s.label}</p>
                 </div>
               ))}
             </div>
@@ -416,7 +430,7 @@ const Checklist = () => {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.1 }}
-          className="flex-1 flex flex-col min-w-0"
+          className="flex-1 flex flex-col min-w-0 min-h-[40vh] md:min-h-0"
         >
           <div
             className="flex-1 overflow-y-auto flex flex-col gap-5 pr-1"
@@ -522,7 +536,7 @@ const Checklist = () => {
                   <button
                     onClick={clearCompleted}
                     aria-label={`Clear all ${completed.length} completed tasks`}
-                    className="ml-2 shrink-0 text-[10px] text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded-lg hover:bg-destructive/10"
+                    className="ml-2 shrink-0 text-xs text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded-lg hover:bg-destructive/10"
                   >
                     Clear all
                   </button>
@@ -556,7 +570,7 @@ const Checklist = () => {
           </div>
 
           {tasks.length > 0 && !isLoading && (
-            <p className="text-[10px] text-muted-foreground/40 text-center mt-3 shrink-0" aria-hidden="true">
+            <p className="text-xs text-muted-foreground/40 text-center mt-3 shrink-0" aria-hidden="true">
               Hover task to change priority · Press Enter to add · Click ✓ to complete
             </p>
           )}
