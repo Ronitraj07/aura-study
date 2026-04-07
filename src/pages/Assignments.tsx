@@ -35,7 +35,7 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-// ─── Block renderer styles ───────────────────────────────────────────────────────────
+// ─── Block renderer styles ────────────────────────────────────────────────────
 const BLOCK_STYLES: Record<string, string> = {
   heading:    "font-display font-bold text-lg text-foreground mt-2",
   subheading: "font-display font-semibold text-base text-foreground/90 mt-1",
@@ -52,7 +52,7 @@ const BLOCK_COLORS: Record<string, string> = {
   conclusion: "hsl(30, 80%, 58%)",
 };
 
-// ─── History Sheet ────────────────────────────────────────────────────────────────────
+// ─── History Sheet ────────────────────────────────────────────────────────────
 function AssignmentHistorySheet({
   open,
   onClose,
@@ -84,9 +84,14 @@ function AssignmentHistorySheet({
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed right-0 top-0 h-full w-80 z-50 flex flex-col"
+            className="fixed right-0 top-0 h-full w-[min(20rem,92vw)] z-50 flex flex-col"
             style={{ background: "hsl(240,8%,7%)", borderLeft: "1px solid hsl(0,0%,15%)" }}
           >
+            {/* Drag handle indicator */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-8 h-1 rounded-full bg-border/40" />
+            </div>
+
             <div className="flex items-center justify-between p-5 border-b border-border/30">
               <div className="flex items-center gap-2">
                 <History className="w-4 h-4 text-primary" />
@@ -118,20 +123,20 @@ function AssignmentHistorySheet({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <span
-                            className="text-[10px] font-bold px-1.5 py-0.5 rounded border"
+                            className="text-xs font-bold px-1.5 py-0.5 rounded border"
                             style={{ background: "hsl(220,85%,60%,0.15)", borderColor: "hsl(220,85%,60%,0.3)", color: "hsl(220,85%,65%)" }}
                           >
                             v{v.version}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">{timeAgo(v.created_at)}</span>
+                          <span className="text-xs text-muted-foreground">{timeAgo(v.created_at)}</span>
                         </div>
                         <p className="text-xs font-medium text-foreground/80 truncate">{v.topic}</p>
-                        <p className="text-[10px] text-muted-foreground">{v.word_count} words · {v.tone}</p>
+                        <p className="text-xs text-muted-foreground">{v.word_count} words · {v.tone}</p>
                       </div>
                       <button
                         onClick={() => onRestore(v)}
                         disabled={restoring}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border transition-all disabled:opacity-40"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all disabled:opacity-40"
                         style={{ background: "hsl(220,85%,60%,0.1)", borderColor: "hsl(220,85%,60%,0.3)", color: "hsl(220,85%,65%)" }}
                       >
                         <RotateCcw className="w-3 h-3" />
@@ -144,7 +149,7 @@ function AssignmentHistorySheet({
             </div>
 
             <div className="p-4 border-t border-border/30">
-              <p className="text-[10px] text-muted-foreground/50 text-center">
+              <p className="text-xs text-muted-foreground/50 text-center">
                 Restoring saves a new snapshot of your current version first
               </p>
             </div>
@@ -155,7 +160,7 @@ function AssignmentHistorySheet({
   );
 }
 
-// ─── Main Page ──────────────────────────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 const Assignments = () => {
   const [topic, setTopic]       = useState("");
   const [wordCount, setWordCount] = useState(500);
@@ -250,7 +255,7 @@ const Assignments = () => {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="flex items-center justify-between mb-6 shrink-0"
+        className="flex flex-wrap items-center justify-between gap-3 mb-6 shrink-0"
       >
         <div className="flex items-center gap-3">
           <div
@@ -260,7 +265,7 @@ const Assignments = () => {
             <FileText className="w-4.5 h-4.5 text-white" />
           </div>
           <div>
-            <h1 className="font-display text-2xl font-bold text-foreground">
+            <h1 className="font-display text-xl font-bold text-foreground">
               Assignment <span className="gradient-text">Generator</span>
             </h1>
             <p className="text-xs text-muted-foreground">AI-researched structured academic writing in seconds</p>
@@ -271,9 +276,8 @@ const Assignments = () => {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 flex-wrap"
           >
-            {/* History button — only when a record exists */}
             {savedId && (
               <button
                 onClick={handleOpenHistory}
@@ -317,13 +321,13 @@ const Assignments = () => {
         )}
       </motion.div>
 
-      <div className="flex-1 flex gap-5 min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row gap-5 min-h-0">
         {/* ── LEFT PANEL ── */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.05 }}
-          className="w-72 shrink-0 flex flex-col gap-4"
+          className="w-full md:w-72 md:shrink-0 flex flex-col gap-4 max-h-[45dvh] md:max-h-none overflow-y-auto"
         >
           <div className="glass-card rounded-2xl p-5">
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
@@ -380,14 +384,14 @@ const Assignments = () => {
                   <Icon className="w-4 h-4 shrink-0" />
                   <div>
                     <p className="text-xs font-semibold">{label}</p>
-                    <p className="text-[10px] text-muted-foreground">{desc}</p>
+                    <p className="text-xs text-muted-foreground">{desc}</p>
                   </div>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* ⚡ C8 Smart Mode Banner */}
+          {/* ⚡ Smart Mode Banner */}
           <SmartModeBanner
             suggestion={suggestion}
             isAnalysing={isAnalysing}
@@ -427,12 +431,12 @@ const Assignments = () => {
                 ].map((s) => (
                   <div key={s.label} className="bg-secondary/50 rounded-xl p-2.5 text-center">
                     <p className="font-display font-bold text-base" style={{ color: "hsl(220,85%,65%)" }}>{s.val}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{s.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
                   </div>
                 ))}
               </div>
               {assignment.researchSource && assignment.researchSource !== 'none' && (
-                <p className="text-[10px] text-muted-foreground/50 mt-2 text-center">
+                <p className="text-xs text-muted-foreground/50 mt-2 text-center">
                   Research via {assignment.researchSource}
                 </p>
               )}
@@ -499,7 +503,7 @@ const Assignments = () => {
                   <Sparkles className="w-4 h-4 shrink-0" style={{ color: "hsl(220,85%,65%)" }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground truncate">{assignment.title}</p>
-                    <p className="text-[10px] text-muted-foreground">{assignment.wordCount} words · {tone} tone · auto-saved</p>
+                    <p className="text-xs text-muted-foreground">{assignment.wordCount} words · {tone} tone · auto-saved</p>
                   </div>
                 </div>
 
@@ -540,7 +544,7 @@ const Assignments = () => {
                   </AnimatePresence>
                 </motion.div>
 
-                <p className="text-[10px] text-muted-foreground/40 text-center py-4">AI-generated · auto-saved to your account</p>
+                <p className="text-xs text-muted-foreground/40 text-center py-4">AI-generated · auto-saved to your account</p>
               </div>
             )
           )}
