@@ -59,7 +59,7 @@ const DashboardLayout = () => {
             ref={mainRef}
             tabIndex={-1}
             aria-label="Main content"
-            className="flex-1 outline-none"
+            className="md:flex-1 outline-none"
             style={{
               overflowY: "auto",
               overflowX: "hidden",
