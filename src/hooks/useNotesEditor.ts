@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
-import type { GeneratedNotes, NoteHeading, NoteBullet, NotesInput } from './useNotesGenerator';
+import type { GeneratedNotes, NotesInput } from './useNotesGenerator';
+import type { NoteHeading, NoteBullet } from '@/types/database';
 
 // ── Edit State Interfaces ──────────────────────────────────────────────
 export interface NotesEditState {

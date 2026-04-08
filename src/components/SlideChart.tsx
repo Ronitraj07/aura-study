@@ -135,7 +135,7 @@ function ChartContainer({ children, width, height, theme }: ChartContainerProps)
       overflow: 'hidden',
     }}>
       <ResponsiveContainer width="100%" height="100%">
-        {children}
+        {children as React.ReactElement<any>}
       </ResponsiveContainer>
     </div>
   );

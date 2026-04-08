@@ -11,8 +11,10 @@ import { supabase } from './supabase';
 import type {
   DbUser, DbPPT, DbPPTVersion, DbAssignment, DbAssignmentVersion,
   DbNote, DbNoteVersion, DbTimetable, DbTimetableVersion, DbChecklist,
+  DbChecklistVersion,
   DbSmartSession, DbSmartOutput,
   InsertPPT, InsertAssignment, InsertNote, InsertTimetable, InsertChecklist,
+  InsertChecklistVersion,
   InsertSmartSession, InsertSmartOutput,
   UpdatePPT, UpdateAssignment, UpdateNote, UpdateTimetable, UpdateChecklist,
   UpdateSmartSession,
