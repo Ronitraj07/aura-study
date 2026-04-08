@@ -645,10 +645,14 @@ export default function PPTPage() {
     ppt, fetchingImgs, slideImages, activeSlide, setActiveSlide,
   };
 
+  // On mobile: show settings form when no ppt and not generating;
+  // show slide panel only when ppt exists or is generating.
+  const hasPPTContent = !!(ppt || isGenerating);
+
   return (
     <div className="flex h-full gap-0">
 
-      {/* ── LEFT PANEL — hidden on mobile, visible md+ ──────── */}
+      {/* ── LEFT PANEL — desktop sidebar (always visible md+) ──────── */}
       <div className="hidden md:flex w-72 shrink-0 flex-col gap-4 border-r border-white/5 overflow-y-auto">
         <div className="p-5 pb-0">
           <h1 className="text-lg font-semibold gradient-text">PPT Generator</h1>
@@ -666,10 +670,8 @@ export default function PPTPage() {
               contentId={savedPPTId}
               contentTitle={ppt.title}
               onContentUpdated={() => {
-                // Refresh the PPT data when content is updated
                 if (savedPPTId) {
-                  // The hook will automatically reload when the content changes
-                  window.location.reload(); // Simple refresh for now
+                  window.location.reload();
                 }
               }}
             />
@@ -677,189 +679,180 @@ export default function PPTPage() {
         )}
       </div>
 
-      {/* ── RIGHT PANEL ─────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      {/* ── MOBILE: Settings form — shown only when no PPT yet ──────── */}
+      {!hasPPTContent && (
+        <div className="flex md:hidden flex-col w-full overflow-y-auto">
+          <div className="p-5 pb-0">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                <Presentation className="w-4 h-4 text-purple-400" />
+              </div>
+              <h1 className="text-base font-semibold gradient-text">PPT Generator</h1>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 mb-4">AI-powered Gamma-level presentations</p>
+          </div>
+          <div className="px-5 pb-8">
+            <SettingsPanelContent {...settingsProps} />
+          </div>
+        </div>
+      )}
 
-        {/* Mobile header row */}
-        <div className="flex md:hidden items-center justify-between px-4 py-3 border-b border-white/5 shrink-0">
-          <h1 className="text-sm font-semibold gradient-text">PPT Generator</h1>
-          <div className="flex items-center gap-2">
-            {ppt && (
-              <Button size="sm" onClick={handleExport} disabled={isExporting}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5 h-8">
-                {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                Export
-              </Button>
+      {/* ── RIGHT PANEL — hidden on mobile until PPT is generated ─────── */}
+      {hasPPTContent && (
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+
+          {/* Mobile header row */}
+          <div className="flex md:hidden items-center justify-between px-4 py-3 border-b border-white/5 shrink-0">
+            <h1 className="text-sm font-semibold gradient-text">PPT Generator</h1>
+            <div className="flex items-center gap-2">
+              {ppt && (
+                <Button size="sm" onClick={handleExport} disabled={isExporting}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5 h-8">
+                  {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  Export
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Desktop toolbar (shown when ppt exists) */}
+          {ppt && (
+            <div className="hidden md:flex items-center justify-between px-6 py-3 border-b border-white/5 shrink-0">
+              <div className="flex items-center gap-3">
+                <Presentation className="w-4 h-4 text-purple-400" />
+                <h2 className="text-sm font-semibold truncate max-w-xs">{ppt.title}</h2>
+                <SaveIndicator status={saveStatus} />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm"
+                  onClick={() => setShowGridView(true)}
+                  className="text-xs gap-1.5 text-muted-foreground hover:text-foreground">
+                  <LayoutGrid className="w-3.5 h-3.5" /> Overview
+                </Button>
+                <Button variant="ghost" size="sm"
+                  onClick={() => openFullscreen(activeSlide)}
+                  className="text-xs gap-1.5 text-muted-foreground hover:text-foreground">
+                  <Maximize2 className="w-3.5 h-3.5" /> Preview
+                </Button>
+                <Sheet open={showVersions} onOpenChange={setShowVersions}>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-muted-foreground hover:text-foreground">
+                      <History className="w-3.5 h-3.5" /> History
+                    </Button>
+                  </SheetTrigger>
+                  {/* Sheet width: w-[min(20rem,92vw)] prevents overflow on 375px phones */}
+                  <SheetContent className="bg-background border-white/10 w-[min(20rem,92vw)]">
+                    <SheetHeader><SheetTitle className="text-sm">Version History</SheetTitle></SheetHeader>
+                    <div className="mt-4 space-y-2">
+                      {versions.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-8">No versions saved yet.</p>
+                      ) : (
+                        versions.map(v => (
+                          <div key={v.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/8">
+                            <div>
+                              <p className="text-xs font-medium">Version {v.version}</p>
+                              {/* text-xs = 12px floor — bumped from text-[10px] */}
+                              <p className="text-xs text-muted-foreground">{new Date(v.created_at).toLocaleString()}</p>
+                              <p className="text-xs text-muted-foreground/60">{v.slides?.length ?? 0} slides</p>
+                            </div>
+                            <Button size="sm" variant="ghost" onClick={() => restoreVersion(v)} className="text-xs gap-1 h-7">
+                              <RotateCcw className="w-3 h-3" /> Restore
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </SheetContent>
+                </Sheet>
+                <Button size="sm" onClick={handleExport} disabled={isExporting}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5">
+                  {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  Download PPTX
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile ppt title bar */}
+          {ppt && (
+            <div className="flex md:hidden items-center justify-between px-4 py-2 border-b border-white/5 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <Presentation className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                <span className="text-xs font-medium truncate">{ppt.title}</span>
+                <SaveIndicator status={saveStatus} />
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button onClick={() => setShowGridView(true)}
+                  className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" aria-label="Overview">
+                  <LayoutGrid className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+                <button onClick={() => openFullscreen(activeSlide)}
+                  className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" aria-label="Fullscreen">
+                  <Maximize2 className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-hidden p-3 md:p-5">
+            {isGenerating && (
+              <div className="h-full flex flex-col gap-4 animate-pulse">
+                <div className="glass-card rounded-2xl" style={{ aspectRatio: '16/9' }}>
+                  <div className="h-full bg-white/5 rounded-2xl" />
+                </div>
+                <p className="text-center text-xs text-muted-foreground">
+                  Generating {slideCount} slides with {mode === 'high_quality' ? 'Gamma-level' : 'basic'} quality…
+                </p>
+              </div>
+            )}
+
+            {ppt && slide && !isGenerating && (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeSlide}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.18 }}
+                  className="h-full"
+                >
+                  <SlideEditPanel
+                    slide={slide} index={activeSlide} total={ppt.slides.length} mode={mode}
+                    onUpdate={(field, value) => updateSlide(activeSlide, field, value)}
+                    onRegenerate={handleRegenSlide} isRegenerating={isRegenerating}
+                    ppt={ppt} slideImage={slideImages[activeSlide] ?? null}
+                    onOpenFullscreen={() => openFullscreen(activeSlide)}
+                  />
+                </motion.div>
+              </AnimatePresence>
             )}
           </div>
-        </div>
 
-        {/* Desktop toolbar (shown when ppt exists) */}
-        {ppt && (
-          <div className="hidden md:flex items-center justify-between px-6 py-3 border-b border-white/5 shrink-0">
-            <div className="flex items-center gap-3">
-              <Presentation className="w-4 h-4 text-purple-400" />
-              <h2 className="text-sm font-semibold truncate max-w-xs">{ppt.title}</h2>
-              <SaveIndicator status={saveStatus} />
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm"
-                onClick={() => setShowGridView(true)}
-                className="text-xs gap-1.5 text-muted-foreground hover:text-foreground">
-                <LayoutGrid className="w-3.5 h-3.5" /> Overview
-              </Button>
-              <Button variant="ghost" size="sm"
-                onClick={() => openFullscreen(activeSlide)}
-                className="text-xs gap-1.5 text-muted-foreground hover:text-foreground">
-                <Maximize2 className="w-3.5 h-3.5" /> Preview
-              </Button>
-              <Sheet open={showVersions} onOpenChange={setShowVersions}>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-muted-foreground hover:text-foreground">
-                    <History className="w-3.5 h-3.5" /> History
-                  </Button>
-                </SheetTrigger>
-                {/* Sheet width: w-[min(20rem,92vw)] prevents overflow on 375px phones */}
-                <SheetContent className="bg-background border-white/10 w-[min(20rem,92vw)]">
-                  <SheetHeader><SheetTitle className="text-sm">Version History</SheetTitle></SheetHeader>
-                  <div className="mt-4 space-y-2">
-                    {versions.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-8">No versions saved yet.</p>
-                    ) : (
-                      versions.map(v => (
-                        <div key={v.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/8">
-                          <div>
-                            <p className="text-xs font-medium">Version {v.version}</p>
-                            {/* text-xs = 12px floor — bumped from text-[10px] */}
-                            <p className="text-xs text-muted-foreground">{new Date(v.created_at).toLocaleString()}</p>
-                            <p className="text-xs text-muted-foreground/60">{v.slides?.length ?? 0} slides</p>
-                          </div>
-                          <Button size="sm" variant="ghost" onClick={() => restoreVersion(v)} className="text-xs gap-1 h-7">
-                            <RotateCcw className="w-3 h-3" /> Restore
-                          </Button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </SheetContent>
-              </Sheet>
-              <Button size="sm" onClick={handleExport} disabled={isExporting}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5">
-                {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                Download PPTX
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Mobile ppt title bar */}
-        {ppt && (
-          <div className="flex md:hidden items-center justify-between px-4 py-2 border-b border-white/5 shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <Presentation className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-              <span className="text-xs font-medium truncate">{ppt.title}</span>
-              <SaveIndicator status={saveStatus} />
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button onClick={() => setShowGridView(true)}
-                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" aria-label="Overview">
-                <LayoutGrid className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-              <button onClick={() => openFullscreen(activeSlide)}
-                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" aria-label="Fullscreen">
-                <Maximize2 className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-hidden p-3 md:p-5">
-          {!ppt && !isGenerating && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="h-full flex flex-col items-center justify-center gap-4 text-center md:gap-4">
-              
-              {/* Desktop empty state */}
-              <div className="hidden md:flex flex-col items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
-                  <LayoutGrid className="w-7 h-7 text-purple-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Your slides will appear here</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">Use the settings panel to enter a topic</p>
-                </div>
-              </div>
-              
-              {/* Mobile inline settings */}
-              <div className="md:hidden w-full max-w-sm space-y-4">
-                <div className="text-center">
-                  <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto mb-3">
-                    <Presentation className="w-6 h-6 text-purple-400" />
-                  </div>
-                  <h2 className="text-base font-semibold gradient-text mb-1">Create Presentation</h2>
-                  <p className="text-xs text-muted-foreground">Enter your topic below to get started</p>
-                </div>
-                <SettingsPanelContent {...settingsProps} />
-              </div>
-            </motion.div>
-          )}
-
-          {isGenerating && (
-            <div className="h-full flex flex-col gap-4 animate-pulse">
-              <div className="glass-card rounded-2xl" style={{ aspectRatio: '16/9' }}>
-                <div className="h-full bg-white/5 rounded-2xl" />
-              </div>
-              <p className="text-center text-xs text-muted-foreground">
-                Generating {slideCount} slides with {mode === 'high_quality' ? 'Gamma-level' : 'basic'} quality…
-              </p>
-            </div>
-          )}
-
-          {ppt && slide && !isGenerating && (
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeSlide}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.18 }}
-                className="h-full"
+          {ppt && (
+            <div className="flex items-center justify-center gap-4 py-3 border-t border-white/5 shrink-0 mb-16 md:mb-0">
+              <button
+                onClick={() => setActiveSlide(i => Math.max(0, i - 1))}
+                disabled={activeSlide === 0}
+                className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                aria-label="Previous slide"
               >
-                <SlideEditPanel
-                  slide={slide} index={activeSlide} total={ppt.slides.length} mode={mode}
-                  onUpdate={(field, value) => updateSlide(activeSlide, field, value)}
-                  onRegenerate={handleRegenSlide} isRegenerating={isRegenerating}
-                  ppt={ppt} slideImage={slideImages[activeSlide] ?? null}
-                  onOpenFullscreen={() => openFullscreen(activeSlide)}
-                />
-              </motion.div>
-            </AnimatePresence>
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-xs font-mono text-muted-foreground">
+                {activeSlide + 1} / {ppt.slides.length}
+              </span>
+              <button
+                onClick={() => setActiveSlide(i => Math.min(ppt.slides.length - 1, i + 1))}
+                disabled={activeSlide === ppt.slides.length - 1}
+                className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                aria-label="Next slide"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           )}
         </div>
-
-        {ppt && (
-          <div className="flex items-center justify-center gap-4 py-3 border-t border-white/5 shrink-0 mb-16 md:mb-0">
-            <button
-              onClick={() => setActiveSlide(i => Math.max(0, i - 1))}
-              disabled={activeSlide === 0}
-              className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-              aria-label="Previous slide"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-xs font-mono text-muted-foreground">
-              {activeSlide + 1} / {ppt.slides.length}
-            </span>
-            <button
-              onClick={() => setActiveSlide(i => Math.min(ppt.slides.length - 1, i + 1))}
-              disabled={activeSlide === ppt.slides.length - 1}
-              className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-              aria-label="Next slide"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Fullscreen modal */}
       <AnimatePresence>
