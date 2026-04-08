@@ -1,18 +1,29 @@
 // ============================================================
 // File Parsing API Endpoint
 // Extracts text content from uploaded files (PDF, DOCX, TXT, MD, Images)
+// Uses Node.js runtime for better file handling support
 // ============================================================
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
+import { IncomingForm } from 'formidable';
+import { readFile } from 'fs/promises';
+import { tmpdir } from 'os';
 
-export const config = { runtime: 'edge' };
+export const config = {
+  runtime: 'nodejs',
+  maxDuration: 30,
+  api: {
+    bodyParser: false, // Disable automatic body parsing for multipart
+  },
+};
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': process.env.VERCEL_ENV === 'production'
+// CORS helper
+const setCORSHeaders = (res: VercelResponse) => {
+  res.setHeader('Access-Control-Allow-Origin', process.env.VERCEL_ENV === 'production'
     ? 'https://studyai-ronitraj.vercel.app'
-    : 'http://localhost:3000',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+    : 'http://localhost:3000');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 };
 
 // Maximum file size (10MB)
@@ -33,16 +44,13 @@ interface ParseResult {
 }
 
 /**
- * Extract text from PDF using browser's text extraction
+ * Extract text from PDF - placeholder for future integration with pdf-parse
  */
-async function parsePDF(buffer: ArrayBuffer, fileName: string): Promise<ParseResult> {
+async function parsePDF(buffer: Buffer, fileName: string): Promise<ParseResult> {
   try {
-    // For Edge runtime, we'll use a simple text extraction approach
-    // In production, you might want to use a more robust PDF parsing library
-    
-    // Convert buffer to text (this is a simplified approach)
-    // In a real implementation, you'd use pdf-parse or similar
-    const text = 'PDF parsing not yet implemented in Edge runtime. Please convert to text format.';
+    // TODO: In production, integrate pdf-parse or pdfjs-dist for actual PDF parsing
+    // For now, return placeholder with file info
+    const text = 'PDF parsing requires external library. Supported file types: TXT, MD, DOCX detection via filename.';
     
     return {
       success: true,
@@ -50,9 +58,9 @@ async function parsePDF(buffer: ArrayBuffer, fileName: string): Promise<ParseRes
       metadata: {
         fileName,
         fileType: 'application/pdf',
-        fileSize: buffer.byteLength,
-        wordCount: text.split(/\s+/).length,
-        extractionMethod: 'simplified-pdf'
+        fileSize: buffer.length,
+        wordCount: text.split(/\s+/).filter(w => w.length > 0).length,
+        extractionMethod: 'pdf-placeholder'
       }
     };
   } catch (error) {
@@ -64,13 +72,12 @@ async function parsePDF(buffer: ArrayBuffer, fileName: string): Promise<ParseRes
 }
 
 /**
- * Extract text from DOCX files
+ * Extract text from DOCX files - placeholder for future integration with mammoth
  */
-async function parseDOCX(buffer: ArrayBuffer, fileName: string): Promise<ParseResult> {
+async function parseDOCX(buffer: Buffer, fileName: string): Promise<ParseResult> {
   try {
-    // For Edge runtime, we'll use a simple approach
-    // In production, you'd use mammoth.js or similar
-    const text = 'DOCX parsing not yet implemented in Edge runtime. Please convert to text format.';
+    // TODO: In production, integrate mammoth.js for DOCX parsing
+    const text = 'DOCX parsing requires external library (mammoth.js recommended).';
     
     return {
       success: true,
@@ -78,9 +85,9 @@ async function parseDOCX(buffer: ArrayBuffer, fileName: string): Promise<ParseRe
       metadata: {
         fileName,
         fileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        fileSize: buffer.byteLength,
-        wordCount: text.split(/\s+/).length,
-        extractionMethod: 'simplified-docx'
+        fileSize: buffer.length,
+        wordCount: text.split(/\s+/).filter(w => w.length > 0).length,
+        extractionMethod: 'docx-placeholder'
       }
     };
   } catch (error) {
@@ -94,10 +101,19 @@ async function parseDOCX(buffer: ArrayBuffer, fileName: string): Promise<ParseRe
 /**
  * Extract text from plain text files
  */
-async function parseText(buffer: ArrayBuffer, fileName: string, fileType: string): Promise<ParseResult> {
+async function parseText(buffer: Buffer, fileName: string, fileType: string): Promise<ParseResult> {
   try {
-    const decoder = new TextDecoder('utf-8');
-    const text = decoder.decode(buffer);
+    // Try UTF-8 first, fall back to latin1
+    let text: string;
+    try {
+      text = buffer.toString('utf-8');
+      // Verify it's valid UTF-8
+      if (text.includes('\ufffd')) {
+        text = buffer.toString('latin1');
+      }
+    } catch {
+      text = buffer.toString('latin1');
+    }
     
     return {
       success: true,
@@ -105,7 +121,7 @@ async function parseText(buffer: ArrayBuffer, fileName: string, fileType: string
       metadata: {
         fileName,
         fileType,
-        fileSize: buffer.byteLength,
+        fileSize: buffer.length,
         wordCount: text.split(/\s+/).filter(word => word.length > 0).length,
         extractionMethod: 'text-decoder'
       }
@@ -119,13 +135,12 @@ async function parseText(buffer: ArrayBuffer, fileName: string, fileType: string
 }
 
 /**
- * Extract text from images using OCR (placeholder)
+ * Extract text from images using OCR - placeholder for Tesseract.js
  */
-async function parseImage(buffer: ArrayBuffer, fileName: string, fileType: string): Promise<ParseResult> {
+async function parseImage(buffer: Buffer, fileName: string, fileType: string): Promise<ParseResult> {
   try {
-    // OCR is complex for Edge runtime
-    // In production, you'd use Tesseract.js or a cloud OCR service
-    const text = 'Image OCR not yet implemented. Please convert image to text format.';
+    // TODO: Integrate Tesseract.js or similar for OCR
+    const text = 'Image OCR not implemented. Upload a text-based file instead.';
     
     return {
       success: true,
@@ -133,8 +148,8 @@ async function parseImage(buffer: ArrayBuffer, fileName: string, fileType: strin
       metadata: {
         fileName,
         fileType,
-        fileSize: buffer.byteLength,
-        wordCount: text.split(/\s+/).length,
+        fileSize: buffer.length,
+        wordCount: text.split(/\s+/).filter(w => w.length > 0).length,
         extractionMethod: 'ocr-placeholder'
       }
     };
@@ -149,7 +164,7 @@ async function parseImage(buffer: ArrayBuffer, fileName: string, fileType: strin
 /**
  * Route file to appropriate parser based on MIME type
  */
-async function parseFile(buffer: ArrayBuffer, fileName: string, contentType: string): Promise<ParseResult> {
+async function parseFile(buffer: Buffer, fileName: string, contentType: string): Promise<ParseResult> {
   switch (contentType) {
     case 'application/pdf':
       return parsePDF(buffer, fileName);
@@ -169,42 +184,53 @@ async function parseFile(buffer: ArrayBuffer, fileName: string, contentType: str
     default:
       return {
         success: false,
-        error: `Unsupported file type: ${contentType}`
+        error: `Unsupported file type: ${contentType}. Supported: PDF, DOCX, TXT, MD, JPG, PNG, WebP`
       };
   }
 }
 
-export default async function handler(req: Request): Promise<Response> {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  setCORSHeaders(res);
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
+    return res.status(204).end();
   }
 
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-    });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
+    // Parse the incoming form data using formidable
+    const form = new IncomingForm({
+      uploadDir: tmpdir(),
+      keepExtensions: true,
+      maxFileSize: MAX_FILE_SIZE,
+      maxFiles: 1,
+    });
 
-    if (!file) {
-      return new Response(JSON.stringify({ 
+    const [fields, files] = await form.parse(req);
+    
+    // Get the first (and only) file from the files object
+    const fileArray = files['file'];
+    if (!fileArray || fileArray.length === 0) {
+      return res.status(400).json({ 
         success: false, 
-        error: 'No file provided' 
-      }), {
-        status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        error: 'No file provided. Use form field name "file".' 
       });
     }
 
+    const file = fileArray[0];
+    const fileName = file.originalFilename || 'unknown';
+    const fileType = file.mimetype || 'application/octet-stream';
+    
+    console.log(`📄 Parsing file: ${fileName} (${fileType}, ${Math.round(file.size / 1024)}KB)`);
+
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
-      return new Response(JSON.stringify({ 
+      return res.status(400).json({ 
         success: false, 
         error: `File too large. Maximum size is ${Math.round(MAX_FILE_SIZE / (1024 * 1024))}MB` 
-      }), {
-        status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       });
     }
 
@@ -212,6 +238,7 @@ export default async function handler(req: Request): Promise<Response> {
     const supportedTypes = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
       'text/plain',
       'text/markdown',
       'image/jpeg',
@@ -219,43 +246,43 @@ export default async function handler(req: Request): Promise<Response> {
       'image/webp'
     ];
 
-    if (!supportedTypes.includes(file.type)) {
-      return new Response(JSON.stringify({ 
+    if (!supportedTypes.includes(fileType)) {
+      return res.status(400).json({ 
         success: false, 
-        error: `Unsupported file type: ${file.type}` 
-      }), {
-        status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        error: `Unsupported file type: ${fileType}. Supported: PDF, DOCX, TXT, MD, JPG, PNG, WebP`
       });
     }
 
-    console.log(`📄 Parsing file: ${file.name} (${file.type}, ${Math.round(file.size / 1024)}KB)`);
-
-    // Convert file to ArrayBuffer
-    const buffer = await file.arrayBuffer();
-
+    // Read file from temporary location
+    const buffer = await readFile(file.filepath);
+    
     // Parse the file
-    const result = await parseFile(buffer, file.name, file.type);
+    const result = await parseFile(buffer, fileName, fileType);
 
     if (!result.success) {
-      return new Response(JSON.stringify(result), {
-        status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      });
+      return res.status(500).json(result);
     }
 
-    console.log(`✅ Successfully parsed ${file.name} - ${result.metadata?.wordCount} words`);
+    console.log(`✅ Successfully parsed ${fileName} - ${result.metadata?.wordCount} words`);
 
-    return new Response(JSON.stringify(result), {
-      status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-    });
+    return res.status(200).json(result);
 
   } catch (error) {
     console.error('❌ File parsing error:', error);
-    return new Response(JSON.stringify({ 
+    
+    // Handle specific errors
+    if (error instanceof Error) {
+      if (error.message.includes('too large')) {
+        return res.status(413).json({ 
+          success: false, 
+          error: `File too large. Maximum size is ${Math.round(MAX_FILE_SIZE / (1024 * 1024))}MB` 
+        });
+      }
+    }
+    
+    return res.status(500).json({ 
       success: false, 
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }), {
-      status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      error: error instanceof Error ? error.message : 'Internal server error'
     });
   }
 }
