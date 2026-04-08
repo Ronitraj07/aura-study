@@ -1,13 +1,14 @@
 // ============================================================
-// research.ts — research pre-pass, proxied through /api/generate
-// Groq (llama-3.1-8b-instant) → Gemini 2.5 Flash on 429
-// Both keys live server-side — nothing exposed to client bundle
-// buildResearchPreamble unchanged — callers unaffected
+// research.ts — dual-AI research pre-pass
+// Groq 8b + Gemini 2.5 Flash fire in PARALLEL server-side
+// Results are MERGED in /api/generate (deduped facts/stats/defs)
+// Client receives a single enriched ResearchResult
+// _sources field tells the UI which models contributed
 // ============================================================
 
 export interface ResearchResult {
   content: string;
-  source: 'groq' | 'gemini' | 'none';
+  source: 'groq' | 'gemini' | 'groq+gemini' | 'none';
   facts: string[];
   keyTerms: string[];
 }
@@ -16,7 +17,7 @@ const RESEARCH_SYSTEM_PROMPT =
   'You are a research assistant. Output ONLY valid JSON. No markdown. No explanation. No code blocks.';
 
 function buildResearchUserPrompt(topic: string): string {
-  return `You are a factual research assistant. Your job is to produce a structured research brief about the topic below.
+  return `You are a factual research assistant. Produce a structured research brief about the topic below.
 
 Topic: "${topic}"
 
@@ -54,10 +55,9 @@ Rules:
 - If the topic is current/niche and you are uncertain, still provide your best structured knowledge`;
 }
 
-// ── Parse raw JSON from either Groq or Gemini into ResearchResult ──
+// ── Parse merged JSON from server into ResearchResult ──────────
 function parseResearchJson(
   raw: Record<string, unknown>,
-  source: 'groq' | 'gemini',
 ): ResearchResult {
   const facts: string[]    = Array.isArray(raw.facts)    ? (raw.facts as string[])    : [];
   const keyTerms: string[] = Array.isArray(raw.keyTerms) ? (raw.keyTerms as string[]) : [];
@@ -65,15 +65,22 @@ function parseResearchJson(
   const definitions        = (raw.definitions ?? {}) as Record<string, string>;
   const context            = typeof raw.context === 'string' ? raw.context : '';
 
+  // Determine source from _sources hint injected by mergeResearch()
+  const sourcesHint = typeof raw._sources === 'string' ? raw._sources : '';
+  const source: ResearchResult['source'] =
+    sourcesHint === 'groq+gemini' ? 'groq+gemini' :
+    sourcesHint === 'gemini'      ? 'gemini' :
+    'groq';
+
   const defLines = Object.entries(definitions)
     .map(([term, def]) => `• ${term}: ${def}`)
     .join('\n');
 
   const content = [
-    context     ? `[Context]\n${context}` : '',
-    facts.length    > 0 ? `[Key Facts]\n${facts.map(f => `• ${f}`).join('\n')}`       : '',
+    context       ? `[Context]\n${context}` : '',
+    facts.length    > 0 ? `[Key Facts]\n${facts.map(f => `• ${f}`).join('\n')}`            : '',
     keyStats.length > 0 ? `[Statistics & Data]\n${keyStats.map(s => `• ${s}`).join('\n')}` : '',
-    defLines        ? `[Key Definitions]\n${defLines}` : '',
+    defLines          ? `[Key Definitions]\n${defLines}` : '',
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -107,13 +114,7 @@ export async function fetchResearch(topic: string): Promise<ResearchResult> {
     }
 
     const raw = await res.json() as Record<string, unknown>;
-
-    // Detect which model responded by checking for a 'source' hint
-    // The edge function doesn't send a source tag — we infer from structure:
-    // Gemini responses omit 'definitions' key; Groq always includes it.
-    const source: 'groq' | 'gemini' = 'definitions' in raw ? 'groq' : 'gemini';
-
-    return parseResearchJson(raw, source);
+    return parseResearchJson(raw);
 
   } catch (e: any) {
     console.warn('[research] fetchResearch error:', e?.message);
@@ -125,7 +126,12 @@ export async function fetchResearch(topic: string): Promise<ResearchResult> {
 export function buildResearchPreamble(research: ResearchResult): string {
   if (!research.content || research.source === 'none') return '';
 
-  return `VERIFIED RESEARCH DATA (treat this as your factual foundation — do not contradict these facts):
+  const sourceLabel =
+    research.source === 'groq+gemini' ? 'Groq + Gemini (dual-verified)' :
+    research.source === 'gemini'      ? 'Gemini 2.5 Flash' :
+    'Groq';
+
+  return `VERIFIED RESEARCH DATA — sourced from ${sourceLabel} (treat this as your factual foundation — do not contradict these facts):
 ${research.content}
 
 ---

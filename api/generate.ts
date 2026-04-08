@@ -1,19 +1,28 @@
 // ============================================================
 // Vercel Edge Function — /api/generate
-// Handles all AI generation server-side — keys never reach client
+// Dual-AI strategy: Groq + Gemini ALWAYS run in parallel
+//
+// Research pass  → Groq 8b + Gemini 2.5 Flash fire simultaneously
+//                  Results are MERGED (deduped facts, defs, stats)
+//                  Merged brief feeds Groq 70b for main generation
+//
+// Generation pass → Groq 70b (primary, fastest structured JSON)
+//                   On hard failure → Gemini 2.5 Flash full generation
+//                   On rate-limit   → Groq fallback 8b
 //
 // Supported types:
-//   'ppt'                — slide generation       (llama-3.3-70b)
-//   'assignment'         — assignment generation  (llama-3.3-70b)
-//   'assignment_block'   — single block regeneration (llama-3.3-70b)
-//   'notes'              — notes generation       (llama-3.3-70b)
-//   'notes_section'      — single section regeneration (llama-3.3-70b)
-//   'timetable'          — schedule generation    (llama-3.3-70b)
-//   'checklist'          — checklist generation   (llama-3.3-70b)
-//   'research'           — research pre-pass      (llama-3.1-8b-instant → Gemini 2.5 Flash on 429)
-//   'ppt_follow_up'      — PPT follow-up modifications (llama-3.3-70b)
-//   'assignment_follow_up' — Assignment follow-up modifications (llama-3.3-70b)
-//   'notes_follow_up'    — Notes follow-up modifications (llama-3.3-70b)
+//   'ppt'                — slide generation       (Groq 70b)
+//   'assignment'         — assignment generation  (Groq 70b)
+//   'assignment_block'   — single block regen     (Groq 70b)
+//   'notes'              — notes generation       (Groq 70b)
+//   'notes_section'      — single section regen   (Groq 70b)
+//   'timetable'          — schedule generation    (Groq 70b)
+//   'checklist'          — checklist generation   (Groq 70b)
+//   'research'           — dual research pre-pass (Groq 8b ‖ Gemini merged)
+//   'smart_mode'         — topic analysis         (Groq 8b)
+//   'ppt_follow_up'      — PPT modifications      (Groq 70b)
+//   'assignment_follow_up' — assignment mods      (Groq 70b)
+//   'notes_follow_up'    — notes modifications    (Groq 70b)
 // ============================================================
 
 declare const process: {
@@ -22,28 +31,28 @@ declare const process: {
 
 export const config = { runtime: 'edge' };
 
-const GROQ_URL    = 'https://api.groq.com/openai/v1/chat/completions';
-const GEMINI_URL  = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
 const MODEL_MAP: Record<string, string> = {
-  research:           'llama-3.1-8b-instant',
-  ppt:                'llama-3.3-70b-versatile',
-  assignment:         'llama-3.3-70b-versatile',
-  assignment_block:   'llama-3.3-70b-versatile',
-  notes:              'llama-3.3-70b-versatile',
-  notes_section:      'llama-3.3-70b-versatile',
-  timetable:          'llama-3.3-70b-versatile',
-  checklist:          'llama-3.3-70b-versatile',
-  // Follow-up system types
-  ppt_follow_up:      'llama-3.3-70b-versatile',
+  research:             'llama-3.1-8b-instant',
+  smart_mode:           'llama-3.1-8b-instant',
+  ppt:                  'llama-3.3-70b-versatile',
+  assignment:           'llama-3.3-70b-versatile',
+  assignment_block:     'llama-3.3-70b-versatile',
+  notes:                'llama-3.3-70b-versatile',
+  notes_section:        'llama-3.3-70b-versatile',
+  timetable:            'llama-3.3-70b-versatile',
+  checklist:            'llama-3.3-70b-versatile',
+  ppt_follow_up:        'llama-3.3-70b-versatile',
   assignment_follow_up: 'llama-3.3-70b-versatile',
-  notes_follow_up:    'llama-3.3-70b-versatile',
+  notes_follow_up:      'llama-3.3-70b-versatile',
 };
 
 const FALLBACK_MODEL = 'llama3-8b-8192';
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin':  process.env.VERCEL_ENV === 'production'
+  'Access-Control-Allow-Origin': process.env.VERCEL_ENV === 'production'
     ? 'https://studyai-ronitraj.vercel.app'
     : 'http://localhost:5173',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -79,27 +88,33 @@ async function callGroq(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { error?: { message?: string } };
-    const status = res.status;
     throw Object.assign(
-      new Error(err.error?.message ?? `Groq HTTP ${status}`),
-      { status },
+      new Error(err.error?.message ?? `Groq HTTP ${res.status}`),
+      { status: res.status },
     );
   }
 
   const data = await res.json() as { choices: { message: { content: string } }[] };
-  return data.choices[0]?.message?.content ?? '';
+  return data.choices[0]?.message?.content ?? '{}';
 }
 
-// ── Gemini fallback (research only — 429 rate-limit escape) ───
-async function callGeminiResearch(apiKey: string, userPrompt: string): Promise<string> {
+// ── Gemini caller (JSON mode) ──────────────────────────────────
+async function callGemini(
+  apiKey: string,
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens = 6000,
+  temperature = 0.75,
+): Promise<string> {
   const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemPrompt }] },
       contents: [{ parts: [{ text: userPrompt }] }],
       generationConfig: {
-        temperature: 0.15,
-        maxOutputTokens: 1200,
+        temperature,
+        maxOutputTokens: maxTokens,
         responseMimeType: 'application/json',
       },
     }),
@@ -116,6 +131,82 @@ async function callGeminiResearch(apiKey: string, userPrompt: string): Promise<s
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
 }
 
+// ── Merge two research JSON strings into one richer brief ─────
+function mergeResearch(
+  groqRaw: string | null,
+  geminiRaw: string | null,
+): string {
+  const parse = (s: string | null) => {
+    if (!s) return null;
+    try { return JSON.parse(s) as Record<string, unknown>; } catch { return null; }
+  };
+
+  const g = parse(groqRaw);
+  const m = parse(geminiRaw);
+
+  if (!g && !m) return '{}';
+  if (!g) return geminiRaw!;
+  if (!m) return groqRaw!;
+
+  // Merge arrays — deduplicate by lowercased first 40 chars
+  const mergeArr = (a: unknown, b: unknown): string[] => {
+    const arr = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])] as string[];
+    const seen = new Set<string>();
+    return arr.filter(s => {
+      const key = String(s).toLowerCase().slice(0, 40);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  // Merge definitions objects
+  const mergeDefs = (a: unknown, b: unknown): Record<string, string> => ({
+    ...((typeof b === 'object' && b !== null) ? b as Record<string, string> : {}),
+    ...((typeof a === 'object' && a !== null) ? a as Record<string, string> : {}),
+  });
+
+  const merged = {
+    facts:       mergeArr(g.facts,    m.facts).slice(0, 12),
+    keyStats:    mergeArr(g.keyStats, m.keyStats).slice(0, 6),
+    keyTerms:    mergeArr(g.keyTerms, m.keyTerms).slice(0, 8),
+    definitions: mergeDefs(g.definitions, m.definitions),
+    // Prefer Gemini context (usually richer); fall back to Groq
+    context: (typeof m.context === 'string' && m.context.length > 10)
+      ? m.context
+      : (typeof g.context === 'string' ? g.context : ''),
+    _sources: 'groq+gemini',
+  };
+
+  return JSON.stringify(merged);
+}
+
+// ── Dual research: fires Groq 8b + Gemini simultaneously ──────
+async function dualResearch(
+  groqKey: string,
+  geminiKey: string | undefined,
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<string> {
+  const groqPromise = callGroq(groqKey, 'llama-3.1-8b-instant', systemPrompt, userPrompt, 1500, 0.15)
+    .catch((e) => { console.warn('[research] Groq 8b failed:', e?.message); return null; });
+
+  const geminiPromise = geminiKey
+    ? callGemini(geminiKey, systemPrompt, userPrompt, 1500, 0.15)
+        .catch((e) => { console.warn('[research] Gemini research failed:', e?.message); return null; })
+    : Promise.resolve(null);
+
+  const [groqRaw, geminiRaw] = await Promise.all([groqPromise, geminiPromise]);
+
+  if (!groqRaw && !geminiRaw) {
+    // Both failed — try fallback 8b synchronously
+    return callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, 1500, 0.15)
+      .catch(() => '{}');
+  }
+
+  return mergeResearch(groqRaw, geminiRaw);
+}
+
 // ── Main handler ───────────────────────────────────────────────
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
@@ -128,7 +219,9 @@ export default async function handler(req: Request): Promise<Response> {
     });
   }
 
-  const groqKey = process.env.GROQ_API_KEY;
+  const groqKey   = process.env.GROQ_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+
   if (!groqKey) {
     return new Response(JSON.stringify({ error: 'GROQ_API_KEY not configured on server' }), {
       status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
@@ -160,35 +253,43 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   const primaryModel = MODEL_MAP[type] ?? MODEL_MAP.ppt;
-
   let raw: string;
 
   try {
-    // ── Primary Groq call ────────────────────────────────────
-    try {
-      raw = await callGroq(groqKey, primaryModel, systemPrompt, userPrompt, maxTokens, temperature);
-    } catch (e: any) {
-      // For non-research types: try fallback 8b model
-      if (type !== 'research') {
-        if (primaryModel === FALLBACK_MODEL) throw e;
-        console.warn(`[generate] ${primaryModel} failed, trying fallback...`);
-        raw = await callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, maxTokens, temperature);
-      } else {
-        // For research: on 429 try Gemini, otherwise try fallback 8b
+
+    // ── RESEARCH: dual parallel pass ─────────────────────────
+    if (type === 'research') {
+      raw = await dualResearch(groqKey, geminiKey, systemPrompt, userPrompt);
+
+    // ── GENERATION: Groq 70b primary, Gemini full fallback ───
+    } else {
+      try {
+        raw = await callGroq(groqKey, primaryModel, systemPrompt, userPrompt, maxTokens, temperature);
+      } catch (e: any) {
         const is429 = e?.status === 429 || String(e?.message).includes('429');
-        if (is429) {
-          const geminiKey = process.env.GEMINI_API_KEY;
-          if (!geminiKey) {
-            console.warn('[generate] Groq rate-limited but GEMINI_API_KEY not set — falling back to 8b');
+
+        if (is429 && geminiKey) {
+          // Rate-limited: try Gemini as full generation fallback
+          console.warn(`[generate] Groq ${primaryModel} rate-limited — trying Gemini 2.5 Flash`);
+          try {
+            raw = await callGemini(geminiKey, systemPrompt, userPrompt, maxTokens, temperature);
+          } catch (geminiErr: any) {
+            // Gemini also failed — last resort: Groq 8b fallback
+            console.warn('[generate] Gemini fallback failed — trying Groq 8b:', geminiErr?.message);
             raw = await callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, maxTokens, temperature);
-          } else {
-            console.warn('[generate] Groq rate-limited — falling back to Gemini');
-            raw = await callGeminiResearch(geminiKey, userPrompt);
           }
         } else {
-          // Non-429 research failure — try fallback 8b before giving up
+          // Non-rate-limit failure or no Gemini key — try Groq 8b
           if (primaryModel === FALLBACK_MODEL) throw e;
-          raw = await callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, maxTokens, temperature);
+          console.warn(`[generate] ${primaryModel} failed — trying Groq fallback 8b`);
+          try {
+            raw = await callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, maxTokens, temperature);
+          } catch (fallbackErr: any) {
+            // 8b also failed — last chance: Gemini
+            if (!geminiKey) throw fallbackErr;
+            console.warn('[generate] Groq 8b also failed — trying Gemini 2.5 Flash');
+            raw = await callGemini(geminiKey, systemPrompt, userPrompt, maxTokens, temperature);
+          }
         }
       }
     }
