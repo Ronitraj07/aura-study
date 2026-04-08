@@ -1,285 +1,126 @@
 // ============================================================
-// AI Router — Intelligent routing for optimal AI service selection
-// Routes requests to the best AI service based on content type and requirements
+// AI Router — Intelligent service selection with fallback
 // ============================================================
 
-import { callGroq, groqTechnical, groqCreative, groqFast } from './groq';
-import { callGemini, geminiFast, geminiPro, geminiExam, geminiResearch } from './gemini';
-import { validateService } from './ai-health';
+import { callGroq, groqTechnical, groqFast, groqCreative } from './groq.js';
+import { callGemini, geminiFast, geminiPro } from './gemini.js';
+import { validateService } from './ai-health.js';
+
+export type ContentType =
+  | 'notes' | 'notes_exam' | 'notes_section'
+  | 'ppt_creative' | 'ppt_basic' | 'ppt_follow_up'
+  | 'assignment' | 'assignment_block' | 'assignment_follow_up'
+  | 'research' | 'checklist' | 'timetable' | 'subtopic_suggestions';
 
 export interface AIMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
 
-export interface AIResponse {
+export interface AIResult {
   success: boolean;
   content?: string;
   error?: string;
   service?: string;
-  usage?: any;
   fallbackUsed?: boolean;
-  validationSkipped?: boolean;
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
 }
 
-export type AIService = 'groq-70b' | 'groq-8b' | 'groq-fast' | 'gemini-flash' | 'gemini-pro' | 'groq-creative';
+interface RouteOptions {
+  forceService?: string;
+  skipValidation?: boolean;
+  skipFallback?: boolean;
+}
 
-export type ContentType = 
-  | 'notes' 
-  | 'notes_exam' 
-  | 'notes_section'
-  | 'ppt_creative' 
-  | 'ppt_basic'
-  | 'ppt_follow_up'
-  | 'assignment' 
-  | 'assignment_block'
-  | 'assignment_follow_up'
-  | 'research' 
-  | 'checklist'
-  | 'timetable'
-  | 'subtopic_suggestions';
-
-// Updated Multi-AI Routing Matrix - FREE SERVICES ONLY
-const AI_ROUTING: Record<ContentType, { 
-  primary: AIService; 
-  fallback: AIService; 
-  emergencyFallback?: AIService;
-  reason: string; 
-}> = {
-  // Notes Generation
-  'notes': { 
-    primary: 'groq-70b', 
-    fallback: 'gemini-flash',
-    emergencyFallback: 'groq-fast',
-    reason: 'Technical accuracy and structured content' 
-  },
-  'notes_exam': { 
-    primary: 'gemini-flash', 
-    fallback: 'groq-70b', 
-    emergencyFallback: 'groq-fast',
-    reason: 'Academic reasoning and exam-focused content' 
-  },
-  'notes_section': { 
-    primary: 'groq-70b', 
-    fallback: 'gemini-flash', 
-    emergencyFallback: 'groq-fast',
-    reason: 'Detailed section regeneration' 
-  },
-
-  // PPT Generation - Use Groq Creative for creative content
-  'ppt_creative': { 
-    primary: 'groq-creative',  // Use Groq with creative settings
-    fallback: 'groq-70b',  
-    emergencyFallback: 'groq-fast',
-    reason: 'Creative, engaging presentation content via Groq creative mode' 
-  },
-  'ppt_basic': { 
-    primary: 'groq-70b', 
-    fallback: 'gemini-flash', 
-    emergencyFallback: 'groq-fast',
-    reason: 'Structured, professional slides' 
-  },
-  'ppt_follow_up': { 
-    primary: 'groq-creative',  // Creative modifications
-    fallback: 'groq-70b', 
-    emergencyFallback: 'groq-fast',
-    reason: 'Creative modifications and improvements' 
-  },
-
-  // Assignment Generation
-  'assignment': { 
-    primary: 'groq-70b', 
-    fallback: 'gemini-flash',
-    emergencyFallback: 'groq-fast',
-    reason: 'Academic tone and proper citations' 
-  },
-  'assignment_block': { 
-    primary: 'groq-70b', 
-    fallback: 'gemini-flash', 
-    emergencyFallback: 'groq-fast',
-    reason: 'Consistent academic writing' 
-  },
-  'assignment_follow_up': { 
-    primary: 'groq-70b', 
-    fallback: 'gemini-flash', 
-    emergencyFallback: 'groq-fast',
-    reason: 'Academic improvements and refinements' 
-  },
-
-  // Utility Functions
-  'research': { 
-    primary: 'gemini-flash', 
-    fallback: 'groq-fast', 
-    emergencyFallback: 'groq-70b',
-    reason: 'Fast, high-context research gathering' 
-  },
-  'checklist': { 
-    primary: 'groq-fast',  // Simple tasks
-    fallback: 'gemini-flash', 
-    emergencyFallback: 'groq-70b',
-    reason: 'Simple, fast task enumeration' 
-  },
-  'timetable': { 
-    primary: 'groq-fast',  // Simple scheduling
-    fallback: 'gemini-flash', 
-    emergencyFallback: 'groq-70b',
-    reason: 'Lightweight scheduling logic' 
-  },
-  'subtopic_suggestions': { 
-    primary: 'groq-fast', 
-    fallback: 'gemini-flash', 
-    emergencyFallback: 'groq-70b',
-    reason: 'Quick, contextual suggestions' 
-  },
+// Service priority map per content type
+const SERVICE_ROUTES: Record<ContentType, string[]> = {
+  ppt_creative:          ['groq-creative', 'groq-70b', 'gemini-flash'],
+  ppt_basic:             ['groq-70b', 'gemini-flash', 'groq-fast'],
+  ppt_follow_up:         ['groq-creative', 'groq-70b', 'gemini-flash'],
+  assignment:            ['groq-70b', 'gemini-flash', 'groq-fast'],
+  assignment_block:      ['groq-70b', 'gemini-flash', 'groq-fast'],
+  assignment_follow_up:  ['groq-70b', 'gemini-flash', 'groq-fast'],
+  notes:                 ['groq-70b', 'gemini-flash', 'groq-fast'],
+  notes_exam:            ['gemini-flash', 'groq-70b', 'groq-fast'],
+  notes_section:         ['groq-70b', 'gemini-flash', 'groq-fast'],
+  timetable:             ['gemini-flash', 'groq-fast', 'groq-70b'],
+  checklist:             ['gemini-flash', 'groq-fast', 'groq-70b'],
+  research:              ['gemini-flash', 'groq-fast', 'groq-70b'],
+  subtopic_suggestions:  ['groq-fast', 'gemini-flash', 'groq-70b'],
 };
 
-// Service call mapping - Updated without Grok
-const SERVICE_CALLS: Record<AIService, (messages: AIMessage[]) => Promise<any>> = {
-  'groq-70b': groqTechnical,
-  'groq-8b': groqFast,
-  'groq-fast': groqFast,
-  'groq-creative': groqCreative,  // Use Groq with high creativity settings
-  'gemini-flash': geminiFast,
-  'gemini-pro': geminiPro,
+const SERVICE_FUNCTIONS: Record<string, (messages: AIMessage[]) => Promise<AIResult>> = {
+  'groq-70b':      groqTechnical as any,
+  'groq-fast':     groqFast as any,
+  'groq-creative': groqCreative as any,
+  'gemini-flash':  geminiFast as any,
+  'gemini-pro':    geminiPro as any,
 };
 
-/**
- * Routes AI requests to the optimal service with validation and robust fallbacks
- */
 export async function routeToAI(
-  type: ContentType, 
+  contentType: ContentType,
   messages: AIMessage[],
-  options: { 
-    forceService?: AIService;
-    skipValidation?: boolean;
-    skipFallback?: boolean;
-    timeout?: number;
-  } = {}
-): Promise<AIResponse> {
-  
-  const route = AI_ROUTING[type];
-  if (!route) {
-    return {
-      success: false,
-      error: `Unknown content type: ${type}`
-    };
-  }
+  options: RouteOptions = {}
+): Promise<AIResult> {
+  const { forceService, skipValidation = false, skipFallback = false } = options;
 
-  const primaryService = options.forceService || route.primary;
-  const fallbackService = route.fallback;
-  const emergencyFallback = route.emergencyFallback;
+  const services = forceService
+    ? [forceService, ...(skipFallback ? [] : (SERVICE_ROUTES[contentType] || []).filter(s => s !== forceService))]
+    : SERVICE_ROUTES[contentType] || ['groq-70b'];
 
-  console.log(`🎯 Routing ${type} to ${primaryService} (fallback: ${fallbackService}${emergencyFallback ? `, emergency: ${emergencyFallback}` : ''})`);
+  let lastError = '';
 
-  // Helper function to try a service
-  const tryService = async (serviceName: AIService, isEmergency = false): Promise<AIResponse> => {
-    try {
-      // Validate service availability (unless skipped)
-      if (!options.skipValidation) {
+  for (const serviceName of services) {
+    const serviceFunc = SERVICE_FUNCTIONS[serviceName];
+    if (!serviceFunc) {
+      console.warn(`Unknown service: ${serviceName}`);
+      continue;
+    }
+
+    if (!skipValidation && serviceName !== services[0]) {
+      try {
         const isValid = await validateService(serviceName);
         if (!isValid) {
-          console.log(`⚠️ Service validation failed for ${serviceName}`);
-          return {
-            success: false,
-            error: `Service ${serviceName} validation failed`,
-            service: serviceName,
-            validationSkipped: false
-          };
+          console.warn(`Service ${serviceName} failed validation, skipping`);
+          continue;
         }
+      } catch {
+        console.warn(`Validation error for ${serviceName}, skipping`);
+        continue;
       }
+    }
 
-      const serviceCall = SERVICE_CALLS[serviceName];
-      if (!serviceCall) {
-        throw new Error(`Service ${serviceName} not implemented`);
-      }
+    try {
+      console.log(`🤖 Trying ${serviceName} for ${contentType}`);
+      const result = await serviceFunc(messages);
 
-      const result = await serviceCall(messages);
-      
       if (result.success) {
         return {
-          success: true,
-          content: result.content,
-          service: isEmergency ? `${serviceName} (emergency)` : serviceName,
-          usage: result.usage,
-          fallbackUsed: serviceName !== primaryService,
-          validationSkipped: options.skipValidation || false
+          ...result,
+          service: serviceName,
+          fallbackUsed: serviceName !== services[0],
         };
       }
 
-      return {
-        success: false,
-        error: result.error || 'Service returned failure',
-        service: serviceName
-      };
+      lastError = result.error || `${serviceName} returned failure`;
+      console.warn(`${serviceName} failed: ${lastError}`);
 
     } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        service: serviceName
-      };
-    }
-  };
-
-  // Try primary service
-  let result = await tryService(primaryService);
-  
-  if (result.success) {
-    console.log(`✅ Primary service ${primaryService} succeeded`);
-    return result;
-  }
-
-  if (options.skipFallback) {
-    return result; // Return primary failure
-  }
-
-  console.log(`⚠️ Primary ${primaryService} failed: ${result.error}`);
-
-  // Try fallback service
-  result = await tryService(fallbackService);
-  
-  if (result.success) {
-    console.log(`✅ Fallback service ${fallbackService} succeeded`);
-    return result;
-  }
-
-  console.log(`⚠️ Fallback ${fallbackService} failed: ${result.error}`);
-
-  // Try emergency fallback if available
-  if (emergencyFallback && emergencyFallback !== primaryService && emergencyFallback !== fallbackService) {
-    result = await tryService(emergencyFallback, true);
-    
-    if (result.success) {
-      console.log(`🆘 Emergency fallback ${emergencyFallback} succeeded`);
-      return result;
+      lastError = error instanceof Error ? error.message : 'Unknown error';
+      console.warn(`${serviceName} threw: ${lastError}`);
     }
 
-    console.log(`❌ Emergency fallback ${emergencyFallback} also failed: ${result.error}`);
+    if (skipFallback) break;
   }
 
-  // All services failed
   return {
     success: false,
-    error: `All services failed for ${type}. Primary: ${primaryService}, Fallback: ${fallbackService}${emergencyFallback ? `, Emergency: ${emergencyFallback}` : ''}`,
+    error: lastError || 'All AI services failed',
     service: 'none',
-    fallbackUsed: true
+    fallbackUsed: false,
   };
-}
-
-/**
- * Get the recommended service for a content type
- */
-export function getRecommendedService(type: ContentType): { primary: AIService; fallback: AIService; reason: string } {
-  return AI_ROUTING[type] || { 
-    primary: 'groq-70b', 
-    fallback: 'gemini-flash', 
-    reason: 'Default routing' 
-  };
-}
-
-/**
- * List all available content types and their routing
- */
-export function getRoutingMatrix(): Record<ContentType, { primary: AIService; fallback: AIService; reason: string }> {
-  return AI_ROUTING;
 }

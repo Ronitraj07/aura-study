@@ -1,10 +1,10 @@
 // ============================================================
 // AI Services Health Check & Validation
-// Tests all AI services and models for availability and correct responses
+// Tests all AI services and models for availability
 // ============================================================
 
-import { callGroq, groqTechnical, groqFast, groqCreative } from './groq';
-import { callGemini, geminiFast, geminiPro } from './gemini';
+import { callGroq, groqTechnical, groqFast, groqCreative } from './groq.js';
+import { callGemini, geminiFast, geminiPro } from './gemini.js';
 
 export interface ServiceHealthCheck {
   service: string;
@@ -26,7 +26,6 @@ export interface HealthCheckReport {
   recommendations: string[];
 }
 
-// Simple test prompt to validate AI functionality
 const TEST_PROMPT = {
   role: 'user' as const,
   content: 'Generate a simple JSON response with format: {"test": "success", "message": "AI service working"}. Respond only with valid JSON, no explanation.'
@@ -37,9 +36,6 @@ const SYSTEM_PROMPT = {
   content: 'You are a test responder. Only output valid JSON as requested.'
 };
 
-/**
- * Test a specific AI service with timeout and validation
- */
 async function testService(
   serviceName: string,
   modelName: string,
@@ -47,9 +43,8 @@ async function testService(
   timeoutMs: number = 15000
 ): Promise<ServiceHealthCheck> {
   const startTime = Date.now();
-  
+
   try {
-    // Race between service call and timeout
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Timeout')), timeoutMs);
     });
@@ -61,35 +56,30 @@ async function testService(
 
     const responseTime = Date.now() - startTime;
 
-    if (!result.success) {
+    if (!(result as any).success) {
       return {
         service: serviceName,
         model: modelName,
         available: false,
         responseTime,
-        error: result.error || 'Service returned failure'
+        error: (result as any).error || 'Service returned failure'
       };
     }
 
-    // Validate JSON response
     let parsedContent;
     try {
-      parsedContent = JSON.parse(result.content || '{}');
-    } catch (parseError) {
+      parsedContent = JSON.parse((result as any).content || '{}');
+    } catch {
       return {
         service: serviceName,
         model: modelName,
         available: false,
         responseTime,
         error: 'Invalid JSON response',
-        testResult: {
-          success: false,
-          content: result.content?.substring(0, 100)
-        }
+        testResult: { success: false, content: (result as any).content?.substring(0, 100) }
       };
     }
 
-    // Check if response contains expected structure
     const isValidTest = parsedContent.test === 'success' || parsedContent.message;
 
     return {
@@ -99,8 +89,8 @@ async function testService(
       responseTime,
       testResult: {
         success: isValidTest,
-        content: result.content?.substring(0, 100),
-        length: result.content?.length || 0
+        content: (result as any).content?.substring(0, 100),
+        length: (result as any).content?.length || 0
       }
     };
 
@@ -115,42 +105,31 @@ async function testService(
   }
 }
 
-/**
- * Run comprehensive health check on all AI services
- */
 export async function runHealthCheck(): Promise<HealthCheckReport> {
   console.log('🔍 Starting AI services health check...');
-  
+
   const services: Promise<ServiceHealthCheck>[] = [
-    // Groq services
     testService('groq', 'llama-3.3-70b-versatile', groqTechnical),
     testService('groq', 'llama-3.1-8b-instant', groqFast),
     testService('groq', 'llama-3.3-70b-versatile-creative', groqCreative),
-    
-    // Gemini services  
     testService('gemini', 'gemini-2.5-flash', geminiFast),
     testService('gemini', 'gemini-2.5-pro', geminiPro),
   ];
 
   const results = await Promise.allSettled(services);
   const healthChecks: ServiceHealthCheck[] = results.map((result, index) => {
-    if (result.status === 'fulfilled') {
-      return result.value;
-    } else {
-      const serviceNames = ['groq-70b', 'groq-8b', 'groq-creative', 'gemini-flash', 'gemini-pro'];
-      return {
-        service: serviceNames[index] || 'unknown',
-        model: 'unknown',
-        available: false,
-        error: `Health check failed: ${result.reason}`
-      };
-    }
+    if (result.status === 'fulfilled') return result.value;
+    const serviceNames = ['groq-70b', 'groq-8b', 'groq-creative', 'gemini-flash', 'gemini-pro'];
+    return {
+      service: serviceNames[index] || 'unknown',
+      model: 'unknown',
+      available: false,
+      error: `Health check failed: ${result.reason}`
+    };
   });
 
-  // Analyze overall health
   const availableServices = healthChecks.filter(s => s.available);
-  const totalServices = healthChecks.length;
-  const healthyRatio = availableServices.length / totalServices;
+  const healthyRatio = availableServices.length / healthChecks.length;
 
   let overall: 'healthy' | 'degraded' | 'critical';
   const recommendations: string[] = [];
@@ -166,26 +145,17 @@ export async function runHealthCheck(): Promise<HealthCheckReport> {
     recommendations.push('Check API keys and service availability.');
   }
 
-  // Specific recommendations based on service failures
   const groqAvailable = healthChecks.some(s => s.service === 'groq' && s.available);
   const geminiAvailable = healthChecks.some(s => s.service === 'gemini' && s.available);
 
-  if (!groqAvailable) {
-    recommendations.push('Groq services unavailable - check GROQ_API_KEY');
-  }
-  if (!geminiAvailable) {
-    recommendations.push('Gemini services unavailable - check GEMINI_API_KEY and quota limits');
-  }
+  if (!groqAvailable) recommendations.push('Groq services unavailable - check GROQ_API_KEY');
+  if (!geminiAvailable) recommendations.push('Gemini services unavailable - check GEMINI_API_KEY and quota limits');
 
-  // Fast service recommendations
-  const fastServices = healthChecks.filter(s => 
-    s.model.includes('8b') || s.model.includes('flash') || s.model.includes('instant')
-  );
-  const fastAvailable = fastServices.some(s => s.available);
-  
-  if (!fastAvailable) {
-    recommendations.push('No fast models available - research and suggestions may be slow');
-  }
+  const fastAvailable = healthChecks
+    .filter(s => s.model.includes('8b') || s.model.includes('flash') || s.model.includes('instant'))
+    .some(s => s.available);
+
+  if (!fastAvailable) recommendations.push('No fast models available - research and suggestions may be slow');
 
   return {
     timestamp: new Date().toISOString(),
@@ -195,42 +165,22 @@ export async function runHealthCheck(): Promise<HealthCheckReport> {
   };
 }
 
-/**
- * Quick validation for a specific service before using it
- */
 export async function validateService(serviceName: string): Promise<boolean> {
   try {
-    let testFunction;
-    let modelName;
+    let testFunction: ((messages: any[]) => Promise<any>) | undefined;
+    let modelName: string;
 
     switch (serviceName) {
-      case 'groq-70b':
-        testFunction = groqTechnical;
-        modelName = 'llama-3.3-70b-versatile';
-        break;
-      case 'groq-fast':
-        testFunction = groqFast;
-        modelName = 'llama-3.1-8b-instant';
-        break;
-      case 'groq-creative':
-        testFunction = groqCreative;
-        modelName = 'llama-3.3-70b-versatile-creative';
-        break;
-      case 'gemini-flash':
-        testFunction = geminiFast;
-        modelName = 'gemini-2.5-flash';
-        break;
-      case 'gemini-pro':
-        testFunction = geminiPro;
-        modelName = 'gemini-2.5-pro';
-        break;
-      default:
-        return false;
+      case 'groq-70b':      testFunction = groqTechnical; modelName = 'llama-3.3-70b-versatile'; break;
+      case 'groq-fast':     testFunction = groqFast;      modelName = 'llama-3.1-8b-instant';   break;
+      case 'groq-creative': testFunction = groqCreative;  modelName = 'llama-3.3-70b-versatile-creative'; break;
+      case 'gemini-flash':  testFunction = geminiFast;    modelName = 'gemini-2.5-flash'; break;
+      case 'gemini-pro':    testFunction = geminiPro;     modelName = 'gemini-2.5-pro';   break;
+      default: return false;
     }
 
     const result = await testService(serviceName, modelName, testFunction, 10000);
     return result.available && result.testResult?.success === true;
-    
   } catch (error) {
     console.warn(`Service validation failed for ${serviceName}:`, error);
     return false;
