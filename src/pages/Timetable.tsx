@@ -442,10 +442,20 @@ const Timetable = () => {
       // Convert current data to the export format
       const timetable = {
         subjects,
-        schedule,
-        mode: 'normal' as const, // You can add mode state if needed
-        preferred_study_time: '9:00-17:00', // Default or from settings
-        hours_per_day: Math.round(totalHours / 6) // Weekdays average
+        schedule: Object.fromEntries(
+          Object.entries(schedule).map(([day, slots]) => [
+            day,
+            (slots as any[]).map((s: any) => ({
+              subject: s.subject,
+              start_time: s.startTime || s.start_time || '',
+              end_time: s.endTime || s.end_time || '',
+              duration: 60,
+            }))
+          ])
+        ),
+        mode: 'normal' as const,
+        preferred_study_time: '9:00-17:00',
+        hours_per_day: Math.round(totalHours / 6)
       };
 
       const title = `Timetable_${new Date().toLocaleDateString().replace(/\//g, '-')}`;

@@ -1638,7 +1638,7 @@ function DataDashboardSlide({
         width: ix(9.24, w),
         height: iy(2.8, h),
       }}>
-        <SlideChart content={slide.content} theme={t.name as any} width={w} height={iy(2.8, h)} />
+        <SlideChart content={slide.content} theme={themeKey} width={w} height={iy(2.8, h)} />
       </div>
 
       {/* Detail metrics row */}
