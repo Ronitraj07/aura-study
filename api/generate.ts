@@ -1,25 +1,29 @@
 // ============================================================
 // Vercel Edge Function — /api/generate
-// Enhanced with Multi-AI Routing and Service Validation
+// Dual-AI strategy: Groq + Gemini ALWAYS run in parallel
+//
+// Research pass  → Groq 8b + Gemini 2.5 Flash fire simultaneously
+//                  Results are MERGED (deduped facts, defs, stats)
+//                  Merged brief feeds Groq 70b for main generation
+//
+// Generation pass → Groq 70b (primary, fastest structured JSON)
+//                   On hard failure → Gemini 2.5 Flash full generation
+//                   On rate-limit   → Groq fallback 8b
 //
 // Supported types:
-//   'ppt_creative'       — creative slide generation       (Grok → Groq 70b)
-//   'ppt_basic'          — basic slide generation          (Groq 70b → Gemini Flash)
-//   'assignment'         — assignment generation           (Groq 70b → Gemini Flash)
-//   'assignment_block'   — single block regeneration      (Groq 70b → Gemini Flash)
-//   'notes'              — notes generation               (Groq 70b → Gemini Flash)
-//   'notes_exam'         — exam-focused notes             (Gemini Flash → Groq 70b)
-//   'notes_section'      — single section regeneration    (Groq 70b → Gemini Flash)
-//   'timetable'          — schedule generation            (Gemini Flash → Groq Fast)
-//   'checklist'          — checklist generation           (Gemini Flash → Groq Fast)
-//   'research'           — research pre-pass              (Gemini Flash → Groq Fast)
-//   'ppt_follow_up'      — PPT follow-up modifications    (Grok → Groq 70b)
-//   'assignment_follow_up' — Assignment follow-up modifications (Groq 70b → Gemini Flash)
-//   'subtopic_suggestions' — AI subtopic suggestions      (Groq Fast → Gemini Flash)
+//   'ppt'                — slide generation       (Groq 70b)
+//   'assignment'         — assignment generation  (Groq 70b)
+//   'assignment_block'   — single block regen     (Groq 70b)
+//   'notes'              — notes generation       (Groq 70b)
+//   'notes_section'      — single section regen   (Groq 70b)
+//   'timetable'          — schedule generation    (Groq 70b)
+//   'checklist'          — checklist generation   (Groq 70b)
+//   'research'           — dual research pre-pass (Groq 8b ‖ Gemini merged)
+//   'smart_mode'         — topic analysis         (Groq 8b)
+//   'ppt_follow_up'      — PPT modifications      (Groq 70b)
+//   'assignment_follow_up' — assignment mods      (Groq 70b)
+//   'notes_follow_up'    — notes modifications    (Groq 70b)
 // ============================================================
-
-import { routeToAI, type ContentType, type AIMessage } from './ai-router';
-import { validateService } from './ai-health';
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -27,15 +31,183 @@ declare const process: {
 
 export const config = { runtime: 'edge' };
 
+const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+
+const MODEL_MAP: Record<string, string> = {
+  research:             'llama-3.1-8b-instant',
+  smart_mode:           'llama-3.1-8b-instant',
+  ppt:                  'llama-3.3-70b-versatile',
+  assignment:           'llama-3.3-70b-versatile',
+  assignment_block:     'llama-3.3-70b-versatile',
+  notes:                'llama-3.3-70b-versatile',
+  notes_section:        'llama-3.3-70b-versatile',
+  timetable:            'llama-3.3-70b-versatile',
+  checklist:            'llama-3.3-70b-versatile',
+  ppt_follow_up:        'llama-3.3-70b-versatile',
+  assignment_follow_up: 'llama-3.3-70b-versatile',
+  notes_follow_up:      'llama-3.3-70b-versatile',
+};
+
+const FALLBACK_MODEL = 'llama3-8b-8192';
+
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin':  process.env.VERCEL_ENV === 'production'
+  'Access-Control-Allow-Origin': process.env.VERCEL_ENV === 'production'
     ? 'https://studyai-ronitraj.vercel.app'
     : 'http://localhost:5173',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// ── Main handler with AI Routing & Validation ─────────────────────────────────
+// ── Groq caller ────────────────────────────────────────────────
+async function callGroq(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens = 6000,
+  temperature = 0.75,
+): Promise<string> {
+  const res = await fetch(GROQ_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userPrompt   },
+      ],
+      temperature,
+      max_tokens: maxTokens,
+      response_format: { type: 'json_object' },
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: { message?: string } };
+    throw Object.assign(
+      new Error(err.error?.message ?? `Groq HTTP ${res.status}`),
+      { status: res.status },
+    );
+  }
+
+  const data = await res.json() as { choices: { message: { content: string } }[] };
+  return data.choices[0]?.message?.content ?? '{}';
+}
+
+// ── Gemini caller (JSON mode) ──────────────────────────────────
+async function callGemini(
+  apiKey: string,
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens = 6000,
+  temperature = 0.75,
+): Promise<string> {
+  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ parts: [{ text: userPrompt }] }],
+      generationConfig: {
+        temperature,
+        maxOutputTokens: maxTokens,
+        responseMimeType: 'application/json',
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: { message?: string } };
+    throw new Error(err.error?.message ?? `Gemini HTTP ${res.status}`);
+  }
+
+  const data = await res.json() as {
+    candidates: { content: { parts: { text: string }[] } }[];
+  };
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
+}
+
+// ── Merge two research JSON strings into one richer brief ─────
+function mergeResearch(
+  groqRaw: string | null,
+  geminiRaw: string | null,
+): string {
+  const parse = (s: string | null) => {
+    if (!s) return null;
+    try { return JSON.parse(s) as Record<string, unknown>; } catch { return null; }
+  };
+
+  const g = parse(groqRaw);
+  const m = parse(geminiRaw);
+
+  if (!g && !m) return '{}';
+  if (!g) return geminiRaw!;
+  if (!m) return groqRaw!;
+
+  // Merge arrays — deduplicate by lowercased first 40 chars
+  const mergeArr = (a: unknown, b: unknown): string[] => {
+    const arr = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])] as string[];
+    const seen = new Set<string>();
+    return arr.filter(s => {
+      const key = String(s).toLowerCase().slice(0, 40);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  // Merge definitions objects
+  const mergeDefs = (a: unknown, b: unknown): Record<string, string> => ({
+    ...((typeof b === 'object' && b !== null) ? b as Record<string, string> : {}),
+    ...((typeof a === 'object' && a !== null) ? a as Record<string, string> : {}),
+  });
+
+  const merged = {
+    facts:       mergeArr(g.facts,    m.facts).slice(0, 12),
+    keyStats:    mergeArr(g.keyStats, m.keyStats).slice(0, 6),
+    keyTerms:    mergeArr(g.keyTerms, m.keyTerms).slice(0, 8),
+    definitions: mergeDefs(g.definitions, m.definitions),
+    // Prefer Gemini context (usually richer); fall back to Groq
+    context: (typeof m.context === 'string' && m.context.length > 10)
+      ? m.context
+      : (typeof g.context === 'string' ? g.context : ''),
+    _sources: 'groq+gemini',
+  };
+
+  return JSON.stringify(merged);
+}
+
+// ── Dual research: fires Groq 8b + Gemini simultaneously ──────
+async function dualResearch(
+  groqKey: string,
+  geminiKey: string | undefined,
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<string> {
+  const groqPromise = callGroq(groqKey, 'llama-3.1-8b-instant', systemPrompt, userPrompt, 1500, 0.15)
+    .catch((e) => { console.warn('[research] Groq 8b failed:', e?.message); return null; });
+
+  const geminiPromise = geminiKey
+    ? callGemini(geminiKey, systemPrompt, userPrompt, 1500, 0.15)
+        .catch((e) => { console.warn('[research] Gemini research failed:', e?.message); return null; })
+    : Promise.resolve(null);
+
+  const [groqRaw, geminiRaw] = await Promise.all([groqPromise, geminiPromise]);
+
+  if (!groqRaw && !geminiRaw) {
+    // Both failed — try fallback 8b synchronously
+    return callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, 1500, 0.15)
+      .catch(() => '{}');
+  }
+
+  return mergeResearch(groqRaw, geminiRaw);
+}
+
+// ── Main handler ───────────────────────────────────────────────
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -47,18 +219,21 @@ export default async function handler(req: Request): Promise<Response> {
     });
   }
 
+  const groqKey   = process.env.GROQ_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+
+  if (!groqKey) {
+    return new Response(JSON.stringify({ error: 'GROQ_API_KEY not configured on server' }), {
+      status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+  }
+
   let body: {
     type?: string;
     systemPrompt?: string;
     userPrompt?: string;
     maxTokens?: number;
     temperature?: number;
-    mode?: 'creative' | 'basic' | 'exam' | 'section' | 'block' | 'follow_up';
-    options?: {
-      forceService?: string;
-      skipValidation?: boolean;
-      skipFallback?: boolean;
-    };
   };
 
   try {
@@ -69,7 +244,7 @@ export default async function handler(req: Request): Promise<Response> {
     });
   }
 
-  const { type, systemPrompt, userPrompt, maxTokens, temperature, mode, options = {} } = body;
+  const { type, systemPrompt, userPrompt, maxTokens, temperature } = body;
 
   if (!type || !systemPrompt || !userPrompt) {
     return new Response(JSON.stringify({ error: 'Missing required fields: type, systemPrompt, userPrompt' }), {
@@ -77,125 +252,60 @@ export default async function handler(req: Request): Promise<Response> {
     });
   }
 
-  // Map type and mode to ContentType
-  let contentType: ContentType;
-  
-  if (type === 'ppt') {
-    contentType = mode === 'creative' ? 'ppt_creative' : 
-                 mode === 'follow_up' ? 'ppt_follow_up' : 'ppt_basic';
-  } else if (type === 'notes') {
-    contentType = mode === 'exam' ? 'notes_exam' : 
-                 mode === 'section' ? 'notes_section' : 'notes';
-  } else if (type === 'assignment') {
-    contentType = mode === 'block' ? 'assignment_block' :
-                 mode === 'follow_up' ? 'assignment_follow_up' : 'assignment';
-  } else if (['checklist', 'timetable', 'research', 'subtopic_suggestions'].includes(type)) {
-    contentType = type as ContentType;
-  } else {
-    contentType = 'notes'; // Default fallback
-  }
-
-  // Validate content type
-  const validTypes: ContentType[] = [
-    'notes', 'notes_exam', 'notes_section', 
-    'ppt_creative', 'ppt_basic', 'ppt_follow_up',
-    'assignment', 'assignment_block', 'assignment_follow_up',
-    'research', 'checklist', 'timetable', 'subtopic_suggestions'
-  ];
-
-  if (!validTypes.includes(contentType)) {
-    return new Response(JSON.stringify({ error: `Unsupported content type: ${type}` }), {
-      status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Prepare messages for AI router
-  const messages: AIMessage[] = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userPrompt }
-  ];
-
-  console.log(`🚀 Generate request: ${contentType} (${type}/${mode || 'default'})`);
-
-  // Pre-validate primary service if specified (for debugging)
-  if (options.forceService && !options.skipValidation) {
-    console.log(`🔍 Pre-validating forced service: ${options.forceService}`);
-    try {
-      const isValid = await validateService(options.forceService);
-      if (!isValid) {
-        console.log(`⚠️ Warning: Forced service ${options.forceService} validation failed, continuing anyway`);
-      }
-    } catch (validationError) {
-      console.log(`⚠️ Service validation error: ${validationError}`);
-    }
-  }
+  const primaryModel = MODEL_MAP[type] ?? MODEL_MAP.ppt;
+  let raw: string;
 
   try {
-    // Use AI router for intelligent service selection with validation
-    const result = await routeToAI(contentType, messages, {
-      forceService: options.forceService as any,
-      skipValidation: options.skipValidation,
-      skipFallback: options.skipFallback,
-    });
 
-    if (!result.success) {
-      console.error(`❌ Generation failed for ${contentType}: ${result.error}`);
-      return new Response(JSON.stringify({
-        success: false,
-        error: result.error,
-        metadata: {
-          service: result.service,
-          contentType,
-          fallbackUsed: result.fallbackUsed,
+    // ── RESEARCH: dual parallel pass ─────────────────────────
+    if (type === 'research') {
+      raw = await dualResearch(groqKey, geminiKey, systemPrompt, userPrompt);
+
+    // ── GENERATION: Groq 70b primary, Gemini full fallback ───
+    } else {
+      try {
+        raw = await callGroq(groqKey, primaryModel, systemPrompt, userPrompt, maxTokens, temperature);
+      } catch (e: any) {
+        const is429 = e?.status === 429 || String(e?.message).includes('429');
+
+        if (is429 && geminiKey) {
+          // Rate-limited: try Gemini as full generation fallback
+          console.warn(`[generate] Groq ${primaryModel} rate-limited — trying Gemini 2.5 Flash`);
+          try {
+            raw = await callGemini(geminiKey, systemPrompt, userPrompt, maxTokens, temperature);
+          } catch (geminiErr: any) {
+            // Gemini also failed — last resort: Groq 8b fallback
+            console.warn('[generate] Gemini fallback failed — trying Groq 8b:', geminiErr?.message);
+            raw = await callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, maxTokens, temperature);
+          }
+        } else {
+          // Non-rate-limit failure or no Gemini key — try Groq 8b
+          if (primaryModel === FALLBACK_MODEL) throw e;
+          console.warn(`[generate] ${primaryModel} failed — trying Groq fallback 8b`);
+          try {
+            raw = await callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, maxTokens, temperature);
+          } catch (fallbackErr: any) {
+            // 8b also failed — last chance: Gemini
+            if (!geminiKey) throw fallbackErr;
+            console.warn('[generate] Groq 8b also failed — trying Gemini 2.5 Flash');
+            raw = await callGemini(geminiKey, systemPrompt, userPrompt, maxTokens, temperature);
+          }
         }
-      }), {
-        status: 500,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      });
+      }
     }
 
-    const raw = result.content || '{}';
-    
-    console.log(`✅ Generated ${contentType} using ${result.service}`);
+    // ── Validate parseable JSON ──────────────────────────────
+    JSON.parse(raw);
 
-    // Log usage if available
-    if (result.usage) {
-      console.log(`📊 Token usage:`, result.usage);
-    }
-
-    // Validate parseable JSON
-    try {
-      JSON.parse(raw);
-    } catch (parseError) {
-      console.error(`❌ Invalid JSON response from ${result.service}:`, parseError);
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'AI service returned invalid JSON',
-        metadata: {
-          service: result.service,
-          contentType,
-          parseError: parseError instanceof Error ? parseError.message : 'Unknown parse error'
-        }
-      }), {
-        status: 502,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      });
-    }
-
-    return new Response(raw, {
-      status: 200,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-    });
-
-  } catch (error) {
-    console.error(`❌ Generate API error:`, error);
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }), {
-      status: 500,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-    });
+  } catch (e: any) {
+    return new Response(
+      JSON.stringify({ error: e?.message ?? 'AI generation failed' }),
+      { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+    );
   }
+
+  return new Response(raw, {
+    status: 200,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  });
 }
