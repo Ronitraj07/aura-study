@@ -117,6 +117,33 @@ Ensure the assignment is well-structured with:
 }
 
 // ── Groq generation caller — routes through /api/generate ──────
+// ── Parse raw content back into blocks ───────────────────────────
+function parseContentToBlocks(rawContent: string): AssignmentBlock[] {
+  if (!rawContent) return [];
+  
+  const lines = rawContent.split('\n').filter(line => line.trim());
+  const blocks: AssignmentBlock[] = [];
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    
+    if (trimmed.startsWith('# ')) {
+      blocks.push({ type: 'heading', text: trimmed.slice(2) });
+    } else if (trimmed.startsWith('## ')) {
+      blocks.push({ type: 'subheading', text: trimmed.slice(3) });
+    } else if (trimmed.startsWith('> ')) {
+      blocks.push({ type: 'quote', text: trimmed.slice(2) });
+    } else if (trimmed.toLowerCase().includes('conclusion') || trimmed.toLowerCase().includes('summary')) {
+      blocks.push({ type: 'conclusion', text: trimmed });
+    } else if (trimmed.length > 50) {
+      blocks.push({ type: 'paragraph', text: trimmed });
+    }
+  }
+  
+  return blocks;
+}
+
 async function callGroq(prompt: string): Promise<GeneratedAssignment> {
   const res = await fetch('/api/generate', {
     method: 'POST',
@@ -295,11 +322,13 @@ export function useAssignmentGenerator() {
     if (restoreErr) {
       setSaveStatus('error');
     } else {
+      const parsedBlocks = parseContentToBlocks(version.content);
       setAssignment(prev => prev ? {
         ...prev,
         rawContent: version.content,
         wordCount:  version.word_count,
         title:      version.topic,
+        blocks:     parsedBlocks,
       } : prev);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);
