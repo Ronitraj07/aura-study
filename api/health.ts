@@ -3,10 +3,11 @@
 // Provides real-time status of all AI services and models
 // ============================================================
 
-import { VercelRequest, VercelResponse } from '@vercel/node';
-import { runHealthCheck, type HealthCheckReport } from './ai-health';
+import { runHealthCheck, type HealthCheckReport } from './ai-health.js';
 
 export const config = { runtime: 'edge' };
+
+declare const process: { env: Record<string, string | undefined> };
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  process.env.VERCEL_ENV === 'production'
@@ -31,7 +32,6 @@ export default async function handler(req: Request): Promise<Response> {
     console.log('🔍 Running AI services health check...');
     const healthReport = await runHealthCheck();
     
-    // Log results for debugging
     console.log(`📊 Health check complete: ${healthReport.overall}`);
     console.log(`✅ Available services: ${healthReport.services.filter(s => s.available).length}/${healthReport.services.length}`);
     
