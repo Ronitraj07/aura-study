@@ -534,7 +534,7 @@ const Checklist = () => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.45, delay: 0.1 }}
-            className="flex-1 flex flex-col min-w-0 min-h-[40vh] md:min-h-0"
+            className="flex-1 flex flex-col min-w-0"
           >
           <div
             className="flex-1 overflow-y-auto flex flex-col gap-5 pr-1"

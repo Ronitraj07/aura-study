@@ -1083,7 +1083,7 @@ const Notes = () => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.45, delay: 0.1 }}
-            className="flex-1 flex flex-col min-w-0 min-h-[50vh] md:min-h-0"
+            className="flex-1 flex flex-col min-w-0"
           >
           {error && (
             <motion.div
