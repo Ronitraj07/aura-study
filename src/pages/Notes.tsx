@@ -1078,13 +1078,14 @@ const Notes = () => {
           )}
         </motion.div>
 
-        {/* ── RIGHT PANEL ── */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.45, delay: 0.1 }}
-          className="flex-1 flex flex-col min-w-0 min-h-[50vh] md:min-h-0"
-        >
+        {/* ── RIGHT PANEL ── Only show when there's content, loading, or error */}
+        {(notes || isGenerating || error) && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.45, delay: 0.1 }}
+            className="flex-1 flex flex-col min-w-0 min-h-[50vh] md:min-h-0"
+          >
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
@@ -1096,34 +1097,31 @@ const Notes = () => {
             </motion.div>
           )}
 
-          {!hasGenerated && !isGenerating ? (
-            <>
-              {/* Desktop empty state */}
-              <div className="flex-1 glass-card rounded-2xl flex-col items-center justify-center text-center p-12 hidden md:flex">
-                <motion.div
-                  animate={{ y: [0, -8, 0] }}
-                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                  className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
-                  style={{ background: "linear-gradient(135deg, hsl(160,70%,45%,0.15), hsl(220,85%,60%,0.08))" }}
-                >
-                  <BookOpen className="w-10 h-10" style={{ color: "hsl(160,70%,48%,0.7)" }} />
-                </motion.div>
-                <h3 className="font-display text-xl font-bold text-foreground/80 mb-2">Ready to generate notes</h3>
-                <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-                  Enter any topic and hit{" "}
-                  <span style={{ color: "hsl(160,70%,50%)" }} className="font-medium">Generate Notes</span>{" "}
-                  for AI-researched structured headings, bullets, and a summary.
-                </p>
-                <div className="mt-8 flex items-center gap-6 text-xs text-muted-foreground/60">
-                  <span className="flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" /> Sections</span>
-                  <span className="flex items-center gap-1.5"><List className="w-3.5 h-3.5" /> Bullets</span>
-                  <span className="flex items-center gap-1.5"><Lightbulb className="w-3.5 h-3.5" /> Summary</span>
-                </div>
+          {!hasGenerated && !isGenerating && (
+            <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12 hidden md:flex">
+              <motion.div
+                animate={{ y: [0, -8, 0] }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
+                style={{ background: "linear-gradient(135deg, hsl(160,70%,45%,0.15), hsl(220,85%,60%,0.08))" }}
+              >
+                <BookOpen className="w-10 h-10" style={{ color: "hsl(160,70%,48%,0.7)" }} />
+              </motion.div>
+              <h3 className="font-display text-xl font-bold text-foreground/80 mb-2">Ready to generate notes</h3>
+              <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+                Enter any topic and hit{" "}
+                <span style={{ color: "hsl(160,70%,50%)" }} className="font-medium">Generate Notes</span>{" "}
+                for AI-researched structured headings, bullets, and a summary.
+              </p>
+              <div className="mt-8 flex items-center gap-6 text-xs text-muted-foreground/60">
+                <span className="flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" /> Sections</span>
+                <span className="flex items-center gap-1.5"><List className="w-3.5 h-3.5" /> Bullets</span>
+                <span className="flex items-center gap-1.5"><Lightbulb className="w-3.5 h-3.5" /> Summary</span>
               </div>
-              {/* Mobile background placeholder */}
-              <div className="flex-1 md:hidden bg-background/50 rounded-2xl border border-border/50"></div>
-            </>
-          ) : isGenerating ? (
+            </div>
+          )}
+          
+          {isGenerating && (
             <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
               <motion.div
                 animate={{ rotate: 360 }}
@@ -1142,9 +1140,10 @@ const Notes = () => {
                   : "Organising headings and bullet points"}
               </p>
             </div>
-          ) : (
-            notes && (
-              <AnimatePresence mode="wait">
+          )}
+          
+          {notes && (
+            <AnimatePresence mode="wait">
                 {examMode && hasExamContent ? (
                   <motion.div
                     key="exam"
@@ -1253,9 +1252,9 @@ const Notes = () => {
                   </motion.div>
                 )}
               </AnimatePresence>
-            )
           )}
         </motion.div>
+        )}
       </div>
     </div>
   );
