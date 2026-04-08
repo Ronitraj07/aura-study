@@ -1097,7 +1097,7 @@ const Notes = () => {
           )}
 
           {!hasGenerated && !isGenerating ? (
-            <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
+            <div className="flex-1 glass-card rounded-2xl flex-col items-center justify-center text-center p-12 hidden md:flex">{/* Hidden on mobile */}
               <motion.div
                 animate={{ y: [0, -8, 0] }}
                 transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}

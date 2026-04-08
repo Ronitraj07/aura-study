@@ -559,12 +559,12 @@ const Checklist = () => {
               </div>
             )}
 
-            {/* Empty state */}
+            {/* Empty state - Hidden on mobile */}
             {!isLoading && !fetchError && tasks.length === 0 && (
               <div
                 role="status"
                 aria-label="No tasks yet"
-                className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12"
+                className="flex-1 glass-card rounded-2xl flex-col items-center justify-center text-center p-12 hidden md:flex"
               >
                 <motion.div
                   animate={{ y: [0, -8, 0] }}
