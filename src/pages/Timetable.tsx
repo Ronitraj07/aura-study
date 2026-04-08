@@ -740,26 +740,31 @@ const Timetable = () => {
               <p className="font-display text-lg font-semibold text-foreground/80 mb-1">Loading timetable...</p>
             </div>
           ) : !hasBuilt && !isGenerating ? (
-            <div className="flex-1 glass-card rounded-2xl flex-col items-center justify-center text-center p-12 hidden md:flex">{/* Hidden on mobile */}
-              <motion.div
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
-                style={{ background: "linear-gradient(135deg, hsl(30,80%,57%,0.15), hsl(340,75%,57%,0.08))" }}
-              >
-                <Sparkles className="w-10 h-10" style={{ color: "hsl(30,80%,57%,0.7)" }} />
-              </motion.div>
-              <h3 className="font-display text-xl font-bold text-foreground/80 mb-2">AI-Powered Scheduling</h3>
-              <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-                Add your subjects and hours per week, then click{" "}
-                <span style={{ color: "hsl(30,80%,62%)" }} className="font-medium">AI Generate</span>.
-              </p>
-              <div className="mt-8 flex items-center gap-6 text-xs text-muted-foreground/60">
-                <span className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /> Smart</span>
-                <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Balanced</span>
-                <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> AI-Optimized</span>
+            <>
+              {/* Desktop empty state */}
+              <div className="flex-1 glass-card rounded-2xl flex-col items-center justify-center text-center p-12 hidden md:flex">
+                <motion.div
+                  animate={{ y: [0, -8, 0] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
+                  style={{ background: "linear-gradient(135deg, hsl(30,80%,57%,0.15), hsl(340,75%,57%,0.08))" }}
+                >
+                  <Sparkles className="w-10 h-10" style={{ color: "hsl(30,80%,57%,0.7)" }} />
+                </motion.div>
+                <h3 className="font-display text-xl font-bold text-foreground/80 mb-2">AI-Powered Scheduling</h3>
+                <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+                  Add your subjects and hours per week, then click{" "}
+                  <span style={{ color: "hsl(30,80%,62%)" }} className="font-medium">AI Generate</span>.
+                </p>
+                <div className="mt-8 flex items-center gap-6 text-xs text-muted-foreground/60">
+                  <span className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /> Smart</span>
+                  <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Balanced</span>
+                  <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> AI-Optimized</span>
+                </div>
               </div>
-            </div>
+              {/* Mobile background placeholder */}
+              <div className="flex-1 md:hidden bg-background/50 rounded-2xl border border-border/50"></div>
+            </>
           ) : isGenerating ? (
             <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
               <motion.div

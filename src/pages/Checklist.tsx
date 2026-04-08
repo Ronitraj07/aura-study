@@ -559,29 +559,34 @@ const Checklist = () => {
               </div>
             )}
 
-            {/* Empty state - Hidden on mobile */}
+            {/* Empty state */}
             {!isLoading && !fetchError && tasks.length === 0 && (
-              <div
-                role="status"
-                aria-label="No tasks yet"
-                className="flex-1 glass-card rounded-2xl flex-col items-center justify-center text-center p-12 hidden md:flex"
-              >
-                <motion.div
-                  animate={{ y: [0, -8, 0] }}
-                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                  className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
-                  style={{ background: "linear-gradient(135deg, hsl(262,80%,62%,0.12), hsl(220,85%,62%,0.06))" }}
-                  aria-hidden="true"
+              <>
+                {/* Desktop empty state */}
+                <div
+                  role="status"
+                  aria-label="No tasks yet"
+                  className="flex-1 glass-card rounded-2xl flex-col items-center justify-center text-center p-12 hidden md:flex"
                 >
-                  <CheckSquare className="w-10 h-10" style={{ color: "hsl(262,80%,62%,0.6)" }} />
-                </motion.div>
-                <h3 className="font-display text-xl font-bold text-foreground/80 mb-2">All clear!</h3>
-                <p className="text-sm text-muted-foreground max-w-xs">
-                  Add a task manually or use{" "}
-                  <span className="text-primary font-medium">Generate with AI</span>{" "}
-                  to build a full study plan instantly.
-                </p>
-              </div>
+                  <motion.div
+                    animate={{ y: [0, -8, 0] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                    className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
+                    style={{ background: "linear-gradient(135deg, hsl(262,80%,62%,0.12), hsl(220,85%,62%,0.06))" }}
+                    aria-hidden="true"
+                  >
+                    <CheckSquare className="w-10 h-10" style={{ color: "hsl(262,80%,62%,0.6)" }} />
+                  </motion.div>
+                  <h3 className="font-display text-xl font-bold text-foreground/80 mb-2">All clear!</h3>
+                  <p className="text-sm text-muted-foreground max-w-xs">
+                    Add a task manually or use{" "}
+                    <span className="text-primary font-medium">Generate with AI</span>{" "}
+                    to build a full study plan instantly.
+                  </p>
+                </div>
+                {/* Mobile background placeholder */}
+                <div className="flex-1 md:hidden bg-background/50 rounded-2xl border border-border/50"></div>
+              </>
             )}
 
             {/* Pending section */}
