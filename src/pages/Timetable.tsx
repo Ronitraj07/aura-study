@@ -483,7 +483,7 @@ const Timetable = () => {
   };
 
   return (
-    <div className="h-full md:h-full flex flex-col">
+    <div className="flex flex-col md:h-full">
       {/* Page header */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}

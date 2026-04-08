@@ -604,7 +604,7 @@ const Notes = () => {
   ];
 
   return (
-    <div className="h-full md:h-full flex flex-col">
+    <div className="flex flex-col md:h-full">
       <NotesHistorySheet
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}

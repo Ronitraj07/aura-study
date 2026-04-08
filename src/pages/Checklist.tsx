@@ -259,7 +259,7 @@ const Checklist = () => {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="h-full md:h-full flex flex-col">
+    <div className="flex flex-col md:h-full">
       {/* Page header — flex-wrap so progress row wraps on narrow screens */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}

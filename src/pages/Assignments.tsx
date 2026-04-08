@@ -317,7 +317,7 @@ const Assignments = () => {
   const WORD_COUNTS = [200, 300, 500, 750, 1000, 1500];
 
   return (
-    <div className="h-full md:h-full flex flex-col">
+    <div className="flex flex-col md:h-full">
       <AssignmentHistorySheet
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
