@@ -353,7 +353,6 @@ function NotesHistorySheet({
     v.topic.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (!open) return null;
   return (
     <AnimatePresence>
       {open && (

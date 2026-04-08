@@ -68,6 +68,7 @@ export default function Login() {
           top: "15%",
           left: "10%",
         }}
+        aria-hidden="true"
       />
       <div
         className="hero-glow animate-pulse-glow"
@@ -80,6 +81,7 @@ export default function Login() {
           right: "8%",
           animationDelay: "2s",
         }}
+        aria-hidden="true"
       />
 
       {/* Dot grid */}
@@ -90,6 +92,7 @@ export default function Login() {
             "linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)",
           backgroundSize: "60px 60px",
         }}
+        aria-hidden="true"
       />
 
       <div aria-live="polite" aria-atomic="true" className="relative z-10 w-full flex justify-center">
@@ -110,7 +113,7 @@ export default function Login() {
               />
 
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 bg-destructive/10 border border-destructive/20">
-                <ShieldX className="w-8 h-8 text-destructive" />
+                <ShieldX className="w-8 h-8 text-destructive" aria-hidden="true" />
               </div>
 
               <h1 className="font-display text-2xl font-bold text-foreground mb-2">
@@ -188,13 +191,13 @@ export default function Login() {
                 style={{ minHeight: 52, fontSize: "var(--text-sm)" }}
               >
                 {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" aria-hidden="true" />
                 ) : (
                   <GoogleIcon />
                 )}
                 {loading ? "Redirecting to Google…" : "Continue with Google"}
                 {!loading && (
-                  <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground group-hover:translate-x-1 group-hover:text-primary transition-all" />
+                  <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground group-hover:translate-x-1 group-hover:text-primary transition-all" aria-hidden="true" />
                 )}
               </button>
 

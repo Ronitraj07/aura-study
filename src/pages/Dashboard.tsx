@@ -189,11 +189,14 @@ const Dashboard = () => {
         <div>
           <p className="section-label">Quick actions</p>
           {/*
-            FIX: xl:grid-cols-4 instead of lg:grid-cols-4.
-            4 columns only triggers at ≥ 1280px.
-            640–1279px = 2 cols, <640px = 1 col.
+            IMPROVED: Better responsive breakpoints
+            - Mobile (<640px): 1 column for clear focus
+            - Small tablet (640-1023px): 2 columns
+            - Large tablet/Desktop (1024-1279px): 3 columns
+            - Large desktop (≥1280px): 4 columns
+            This prevents the 768-1023px cramming issue.
           */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
             {quickActions.map((action, i) => (
               <Link
                 key={action.title}
@@ -216,7 +219,7 @@ const Dashboard = () => {
                   }}
                   aria-hidden="true"
                 >
-                  <action.icon size={18} style={{ color: "#fff" }} />
+                  <action.icon size={18} style={{ color: "#fff" }} aria-hidden="true" />
                 </div>
                 <h3
                   className="font-display font-semibold"
@@ -260,7 +263,7 @@ const Dashboard = () => {
                     }}
                     aria-hidden="true"
                   >
-                    Open <ArrowRight size={11} />
+                    Open <ArrowRight size={11} aria-hidden="true" />
                   </span>
                 </div>
               </Link>

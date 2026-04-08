@@ -79,7 +79,6 @@ function AssignmentHistorySheet({
     v.tone.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (!open) return null;
   return (
     <AnimatePresence>
       {open && (
