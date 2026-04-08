@@ -475,9 +475,9 @@ const Checklist = () => {
             </div>
           </div>
 
-          {/* Export panel - Hidden on mobile */}
+          {/* Export panel */}
           {tasks.length > 0 && (
-            <div className="glass-card rounded-2xl p-4 hidden md:block">
+            <div className="glass-card rounded-2xl p-4">
               <p className="text-xs text-muted-foreground uppercase tracking-widest mb-3">Export</p>
               <div className="flex flex-col gap-2">
                 {exportError && (

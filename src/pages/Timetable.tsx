@@ -553,8 +553,8 @@ const Timetable = () => {
                 )}
               </button>
               
-              {/* Export Buttons - Hidden on mobile */}
-              <div className="hidden md:flex items-center gap-1 p-1 rounded-xl bg-secondary/60 border border-border/50">
+              {/* Export Buttons */}
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-secondary/60 border border-border/50">
                 <button
                   onClick={() => handleExport('csv')}
                   disabled={isExporting || !hasBuilt}

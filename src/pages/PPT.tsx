@@ -693,16 +693,6 @@ export default function PPTPage() {
             )}
           </div>
         </div>
-                          window.location.reload(); // Simple refresh for now
-                        }}
-                      />
-                    </>
-                  )}
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-        </div>
 
         {/* Desktop toolbar (shown when ppt exists) */}
         {ppt && (
