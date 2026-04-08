@@ -645,6 +645,18 @@ Needs real-world examples`}
             )}
           </button>
 
+          {/* Error display */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 flex items-center gap-2 text-sm text-destructive"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {error}
+            </motion.div>
+          )}
+
           {hasGenerated && assignment && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -691,25 +703,15 @@ Needs real-world examples`}
           )}
         </motion.div>
 
-        {/* ── RIGHT PANEL ── Only show when there's content, loading, or error */}
-        {(assignment || isGenerating || error) && (
+        {/* ── RIGHT PANEL ── Only show when there's actual content to display */}
+        {(assignment || isGenerating) && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.45, delay: 0.1 }}
             className="flex-1 flex flex-col min-w-0"
           >
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-4 p-3 rounded-xl bg-destructive/10 border border-destructive/30 flex items-center gap-2 text-sm text-destructive"
-            >
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {error}
-            </motion.div>
-          )}
-
+          
           {!hasGenerated && !isGenerating && (
             <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12 hidden md:flex">
               <motion.div
