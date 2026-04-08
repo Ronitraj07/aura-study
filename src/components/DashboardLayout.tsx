@@ -49,7 +49,7 @@ const DashboardLayout = () => {
         <AppSidebar />
 
         <div
-          className="flex-1 flex flex-col"
+          className="flex flex-col md:flex-1"
           style={{ overflow: "hidden", minWidth: 0 }}
         >
           <TopBar />
