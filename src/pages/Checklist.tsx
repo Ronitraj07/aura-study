@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportChecklistCSV, exportChecklistJSON, exportChecklistMarkdown } from "@/lib/checklistExport";
+import { useContentState } from "@/hooks/useContentState";
 import type { AITask, AICategory } from "@/hooks/useChecklistGenerator";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -87,6 +88,10 @@ const Checklist = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Track content state for conditional rendering
+  const hasContent = tasks.length > 0;
+  const { hasGeneratedContent } = useContentState('checklist', hasContent);
 
   // ── Load from Supabase on mount ──────────────────────────────────────────────
   useEffect(() => {
@@ -456,24 +461,29 @@ const Checklist = () => {
             </div>
           </div>
 
-          {/* Overview stats */}
-          <div className="glass-card rounded-2xl p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-widest mb-3">Overview</p>
-            <div className="grid grid-cols-2 gap-2" role="list" aria-label="Task statistics">
-              {[
-                { label: "Total",   val: tasks.length,                                                     color: "hsl(262,80%,65%)" },
-                { label: "Done",    val: tasks.filter((t) => t.completed).length,                           color: "hsl(160,70%,46%)" },
-                { label: "Pending", val: tasks.filter((t) => !t.completed).length,                          color: "hsl(30,80%,57%)"  },
-                { label: "High",    val: tasks.filter((t) => t.priority === "high" && !t.completed).length,  color: "hsl(340,75%,57%)" },
-              ].map((s) => (
-                <div key={s.label} className="bg-secondary/50 rounded-xl p-2.5 text-center" role="listitem">
-                  <p className="font-display font-bold text-lg" style={{ color: s.color }} aria-label={`${s.val} ${s.label}`}>{s.val}</p>
-                  {/* text-xs = 12px minimum floor */}
-                  <p className="text-xs text-muted-foreground" aria-hidden="true">{s.label}</p>
+          {/* Only show stats panel when content exists */}
+          {hasGeneratedContent && (
+            <>
+              {/* Overview stats */}
+              <div className="glass-card rounded-2xl p-4">
+                <p className="text-xs text-muted-foreground uppercase tracking-widest mb-3">Overview</p>
+                <div className="grid grid-cols-2 gap-2" role="list" aria-label="Task statistics">
+                  {[
+                    { label: "Total",   val: tasks.length,                                                     color: "hsl(262,80%,65%)" },
+                    { label: "Done",    val: tasks.filter((t) => t.completed).length,                           color: "hsl(160,70%,46%)" },
+                    { label: "Pending", val: tasks.filter((t) => !t.completed).length,                          color: "hsl(30,80%,57%)"  },
+                    { label: "High",    val: tasks.filter((t) => t.priority === "high" && !t.completed).length,  color: "hsl(340,75%,57%)" },
+                  ].map((s) => (
+                    <div key={s.label} className="bg-secondary/50 rounded-xl p-2.5 text-center" role="listitem">
+                      <p className="font-display font-bold text-lg" style={{ color: s.color }} aria-label={`${s.val} ${s.label}`}>{s.val}</p>
+                      {/* text-xs = 12px minimum floor */}
+                      <p className="text-xs text-muted-foreground" aria-hidden="true">{s.label}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            </>
+          )}
 
           {/* Export panel */}
           {tasks.length > 0 && (

@@ -144,16 +144,16 @@ function parseContentToBlocks(rawContent: string): AssignmentBlock[] {
   return blocks;
 }
 
-async function callGroq(prompt: string): Promise<GeneratedAssignment> {
+async function callAI(prompt: string): Promise<GeneratedAssignment> {
   const res = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      type: 'assignment',
-      systemPrompt: 'You are an expert academic writer. Output ONLY valid JSON. No markdown. No explanation. No code blocks.',
+      type: 'assignment', // Routes to Groq 70b for academic assignments
+      systemPrompt: 'You are an expert academic writer and educator. Create well-structured, comprehensive assignments with proper academic tone and citations. Output ONLY valid JSON. No markdown. No explanation. No code blocks.',
       userPrompt: prompt,
       maxTokens: 4096,
-      temperature: 0.6,
+      temperature: 0.6, // Slightly higher for varied academic writing
     }),
   });
 
@@ -257,7 +257,7 @@ export function useAssignmentGenerator() {
 
       const preamble = buildResearchPreamble(research);
       const prompt = buildPrompt(input, preamble);
-      const result = await callGroq(prompt);
+      const result = await callAI(prompt);
 
       result.researchSource = research.source;
 

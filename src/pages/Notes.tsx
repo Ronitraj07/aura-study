@@ -32,6 +32,9 @@ import { cn } from "@/lib/utils";
 import { exportNotesPDF, exportExamNotesPDF } from "@/lib/pdfExport";
 import { useNotesGenerator } from "@/hooks/useNotesGenerator";
 import { useSmartMode } from "@/hooks/useSmartMode";
+import { useContentState } from "@/hooks/useContentState";
+import { SubtopicsSuggester } from "@/components/SubtopicsSuggester";
+import { SubtopicsInput } from "@/components/SubtopicsInput";
 import { SmartModeBanner } from "@/components/SmartModeBanner";
 import { FollowUpPanel } from "@/components/FollowUpPanel";
 import type { NoteHeading, NoteBullet } from "@/types/database";
@@ -167,7 +170,7 @@ const DIFF_CONFIG = {
 
 function ExamTipsBlock({ tips }: { tips: ExamTip[] }) {
   const [expanded, setExpanded] = useState<number | null>(null);
-  if (!tips?.length) return null;
+  
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -184,11 +187,21 @@ function ExamTipsBlock({ tips }: { tips: ExamTip[] }) {
             className="text-xs px-2 py-0.5 rounded-full font-medium border"
             style={{ background: "hsl(340,75%,58%,0.12)", borderColor: "hsl(340,75%,58%,0.3)", color: "hsl(340,75%,62%)" }}
           >
-            {tips.length} questions
+            {(!tips || tips.length === 0) ? 'No questions' : `${tips.length} questions`}
           </span>
         </div>
-        <div className="space-y-2">
-          {tips.map((tip, i) => {
+        
+        {(!tips || tips.length === 0) ? (
+          <div className="text-center py-8">
+            <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{ background: "hsl(340,75%,55%,0.1)" }}>
+              <Target className="w-6 h-6 opacity-40" style={{ color: "hsl(340,75%,60%)" }} />
+            </div>
+            <p className="text-sm text-muted-foreground mb-1">No exam questions generated</p>
+            <p className="text-xs text-muted-foreground/60">Try regenerating with exam mode enabled</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {tips.map((tip, i) => {
             const cfg = DIFF_CONFIG[tip.difficulty] ?? DIFF_CONFIG.medium;
             const open = expanded === i;
             return (
@@ -239,6 +252,7 @@ function ExamTipsBlock({ tips }: { tips: ExamTip[] }) {
             );
           })}
         </div>
+        )}
       </div>
     </motion.div>
   );
@@ -246,7 +260,6 @@ function ExamTipsBlock({ tips }: { tips: ExamTip[] }) {
 
 // ─── Mnemonics Block ──────────────────────────────────────────────────────────────────────
 function MnemonicsBlock({ mnemonics }: { mnemonics: Mnemonic[] }) {
-  if (!mnemonics?.length) return null;
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -257,9 +270,24 @@ function MnemonicsBlock({ mnemonics }: { mnemonics: Mnemonic[] }) {
       <div className="flex items-center gap-2 mb-4">
         <Brain className="w-4 h-4" style={{ color: "hsl(220,85%,65%)" }} />
         <h3 className="font-display font-semibold text-base text-foreground">Memory Devices</h3>
+        <span
+          className="text-xs px-2 py-0.5 rounded-full font-medium border uppercase tracking-wide"
+          style={{ background: "hsl(220,85%,65%,0.12)", borderColor: "hsl(220,85%,65%,0.3)", color: "hsl(220,85%,67%)" }}
+        >
+          {(!mnemonics || mnemonics.length === 0) ? 'None' : `${mnemonics.length} mnemonics`}
+        </span>
       </div>
-      <div className="space-y-3">
-        {mnemonics.map((m, i) => (
+      
+      {(!mnemonics || mnemonics.length === 0) ? (
+        <div className="text-center py-8">
+          <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{ background: "hsl(220,85%,65%,0.1)" }}>
+            <Brain className="w-6 h-6 opacity-40" style={{ color: "hsl(220,85%,65%)" }} />
+          </div>
+          <p className="text-sm text-muted-foreground mb-1">No memory devices created</p>
+          <p className="text-xs text-muted-foreground/60">Enable mnemonics in exam mode for memory aids</p>
+        </div>
+      ) : (
+        <div className="space-y-3">{mnemonics.map((m, i) => (
           <div
             key={i}
             className="rounded-xl border p-4"
@@ -284,13 +312,13 @@ function MnemonicsBlock({ mnemonics }: { mnemonics: Mnemonic[] }) {
           </div>
         ))}
       </div>
+      )}
     </motion.div>
   );
 }
 
 // ─── Cheatsheet Block ──────────────────────────────────────────────────────────────────────
 function CheatsheetBlock({ entries }: { entries: CheatsheetEntry[] }) {
-  if (!entries?.length) return null;
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -307,10 +335,20 @@ function CheatsheetBlock({ entries }: { entries: CheatsheetEntry[] }) {
             className="text-xs px-2 py-0.5 rounded-full font-medium border uppercase tracking-wide"
             style={{ background: "hsl(30,80%,58%,0.12)", borderColor: "hsl(30,80%,58%,0.3)", color: "hsl(30,80%,62%)" }}
           >
-            Cheatsheet
+            {(!entries || entries.length === 0) ? 'None' : `${entries.length} items`}
           </span>
         </div>
-        <div className="rounded-xl overflow-hidden border border-border/30">
+
+        {(!entries || entries.length === 0) ? (
+          <div className="text-center py-8">
+            <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{ background: "hsl(30,80%,55%,0.1)" }}>
+              <ClipboardList className="w-6 h-6 opacity-40" style={{ color: "hsl(30,80%,60%)" }} />
+            </div>
+            <p className="text-sm text-muted-foreground mb-1">No cheatsheet created</p>
+            <p className="text-xs text-muted-foreground/60">Enable cheatsheet in exam mode for key concepts</p>
+          </div>
+        ) : (
+          <div className="rounded-xl overflow-hidden border border-border/30">
           {entries.map((entry, i) => (
             <div
               key={i}
@@ -328,6 +366,7 @@ function CheatsheetBlock({ entries }: { entries: CheatsheetEntry[] }) {
             </div>
           ))}
         </div>
+        )}
       </div>
     </motion.div>
   );
@@ -501,6 +540,9 @@ const Notes = () => {
 
   const hasGenerated = !!notes;
   const hasExamContent = !!(notes?.exam_tips?.length || notes?.mnemonics?.length || notes?.cheatsheet?.length);
+  
+  // Track content state for conditional right panel rendering
+  const { hasGeneratedContent } = useContentState('notes', hasGenerated);
 
   // Edit mode state
   const [editMode, setEditMode] = useState(false);
@@ -604,13 +646,16 @@ const Notes = () => {
 
   return (
     <div className="flex flex-col md:h-full">
-      <NotesHistorySheet
-        open={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        versions={versions}
-        onRestore={handleRestore}
-        restoring={restoring}
-      />
+      {/* Only render history sheet when content exists or on desktop */}
+      {hasGeneratedContent && (
+        <NotesHistorySheet
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          versions={versions}
+          onRestore={handleRestore}
+          restoring={restoring}
+        />
+      )}
 
       {/* ── Page header ── */}
       <motion.div
@@ -656,7 +701,7 @@ const Notes = () => {
               </button>
             )}
 
-            {savedId && (
+            {savedId && hasGeneratedContent && (
               <button
                 onClick={handleOpenHistory}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-secondary border-border text-muted-foreground hover:border-primary/30 hover:text-foreground transition-all"
@@ -789,35 +834,29 @@ const Notes = () => {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
               Subtopics (optional)
             </p>
-            <div className="flex flex-wrap gap-2">
-              {[
-                "Key concepts",
-                "Historical context",
-                "Mechanisms", 
-                "Applications",
-                "Examples",
-                "Formulas",
-                "Processes",
-                "Relationships"
-              ].map(sub => (
-                <button
-                  key={sub}
-                  onClick={() => setSubtopics(prev => 
-                    prev.includes(sub) 
-                      ? prev.filter(s => s !== sub)
-                      : [...prev, sub]
-                  )}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all",
-                    subtopics.includes(sub)
-                      ? "bg-primary/15 border-primary/40 text-primary"
-                      : "bg-secondary/40 border-border text-muted-foreground hover:border-primary/20"
-                  )}
-                >
-                  {sub}
-                </button>
-              ))}
-            </div>
+            
+            {/* AI-powered subtopic suggestions */}
+            <SubtopicsSuggester
+              mainTopic={topic}
+              onSelectSuggestion={(subtopic) => {
+                if (!subtopics.includes(subtopic)) {
+                  setSubtopics(prev => [...prev, subtopic]);
+                }
+              }}
+              existingSubtopics={subtopics}
+              className="mb-4"
+            />
+            
+            {/* Enhanced subtopics input */}
+            <SubtopicsInput
+              subtopics={subtopics}
+              onChange={setSubtopics}
+              placeholder="Add custom subtopic..."
+              maxItems={8}
+              maxLength={50}
+              showCharacterCount={true}
+              enableDragReorder={true}
+            />
           </div>
 
           {/* Format Selection */}
@@ -1142,9 +1181,9 @@ const Notes = () => {
             </div>
           )}
           
-          {notes && (
+              {notes && (
             <AnimatePresence mode="wait">
-                {examMode && hasExamContent ? (
+                {examMode ? (
                   <motion.div
                     key="exam"
                     initial={{ opacity: 0, y: 8 }}

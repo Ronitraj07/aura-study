@@ -25,3 +25,5 @@ dist-ssr
 
 # Dev notes / scratch files
 *.note
+.vercel
+.env*.local

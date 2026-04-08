@@ -32,6 +32,7 @@ import {
   type PPTMode,
   type PresentationType,
 } from '@/hooks/usePPTGenerator';
+import { useContentState } from '@/hooks/useContentState';
 import type { GeneratedSlide } from '@/types/database';
 import { exportToPPTX } from '@/lib/pptExport';
 import { SlideCanvas } from '@/components/SlideCanvas';
@@ -39,6 +40,7 @@ import { SlideThumbnail } from '@/components/SlideThumbnail';
 import { SlidePreviewGrid } from '@/components/SlidePreviewGrid';
 import { FollowUpPanel } from '@/components/FollowUpPanel';
 import { SubtopicsInput } from '@/components/SubtopicsInput';
+import { SubtopicsSuggester } from '@/components/SubtopicsSuggester';
 import { fetchSlideImages } from '@/lib/pexels';
 
 const CANVAS_W = 800;
@@ -398,7 +400,29 @@ function SettingsPanelContent({
         <Label className="text-xs text-muted-foreground uppercase tracking-wider">
           Subtopics (Optional)
         </Label>
-        <SubtopicsInput subtopics={subtopics} onChange={setSubtopics} />
+        
+        {/* AI-powered subtopic suggestions */}
+        <SubtopicsSuggester
+          mainTopic={topic}
+          onSelectSuggestion={(subtopic) => {
+            if (!subtopics.includes(subtopic)) {
+              setSubtopics(prev => [...prev, subtopic]);
+            }
+          }}
+          existingSubtopics={subtopics}
+          className="mb-3"
+        />
+        
+        {/* Enhanced subtopics input */}
+        <SubtopicsInput 
+          subtopics={subtopics} 
+          onChange={setSubtopics}
+          placeholder="Add custom subtopic..."
+          maxItems={6}
+          maxLength={50}
+          showCharacterCount={true}
+          enableDragReorder={true}
+        />
         <p className="text-xs text-muted-foreground leading-snug">
           Focus on specific aspects of your topic
         </p>
@@ -524,6 +548,10 @@ export default function PPTPage() {
   const [slideCount,       setSlideCount]       = useState(8);
   const [mode,             setMode]             = useState<PPTMode>('high_quality');
   const [presentationType, setPresentationType] = useState<PresentationType>('academic');
+  
+  // Track content state for conditional rendering
+  const hasGenerated = !!(ppt && ppt.slides.length > 0);
+  const { hasGeneratedContent } = useContentState('ppt', hasGenerated);
   const [isExporting,      setIsExporting]      = useState(false);
   const [isRegenerating,   setIsRegenerating]   = useState(false);
   const [exportError,      setExportError]      = useState<string | null>(null);
@@ -713,12 +741,14 @@ export default function PPTPage() {
                 className="text-xs gap-1.5 text-muted-foreground hover:text-foreground">
                 <Maximize2 className="w-3.5 h-3.5" /> Preview
               </Button>
-              <Sheet open={showVersions} onOpenChange={setShowVersions}>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-muted-foreground hover:text-foreground">
-                    <History className="w-3.5 h-3.5" /> History
-                  </Button>
-                </SheetTrigger>
+              {/* Only show history when content exists */}
+              {hasGeneratedContent && (
+                <Sheet open={showVersions} onOpenChange={setShowVersions}>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-muted-foreground hover:text-foreground">
+                      <History className="w-3.5 h-3.5" /> History
+                    </Button>
+                  </SheetTrigger>
                 {/* Sheet width: w-[min(20rem,92vw)] prevents overflow on 375px phones */}
                 <SheetContent className="bg-background border-white/10 w-[min(20rem,92vw)]">
                   <SheetHeader><SheetTitle className="text-sm">Version History</SheetTitle></SheetHeader>
@@ -743,6 +773,7 @@ export default function PPTPage() {
                   </div>
                 </SheetContent>
               </Sheet>
+              )}
               <Button size="sm" onClick={handleExport} disabled={isExporting}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5">
                 {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}

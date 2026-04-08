@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTimetable } from "@/hooks/useTimetable";
+import { useContentState } from "@/hooks/useContentState";
 import { exportTimetableCSV, exportTimetableICS, exportTimetableJSON, exportTimetablePDF } from "@/lib/timetableExport";
 import type { Subject, Schedule, DayOfWeek } from "@/types/database";
 
@@ -362,6 +363,10 @@ const Timetable = () => {
     subjects, schedule, isGenerating, isLoading, saveStatus, error,
     addSubject, removeSubject, generateSchedule,
   } = useTimetable();
+  
+  // Track content state for conditional rendering
+  const hasSchedule = schedule && Object.keys(schedule).length > 0;
+  const { hasGeneratedContent } = useContentState('timetable', hasSchedule);
 
   const [newSubject, setNewSubject] = useState("");
   const [grid, setGrid] = useState<WeekGrid | null>(null);

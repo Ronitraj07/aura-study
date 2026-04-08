@@ -130,17 +130,20 @@ RETURN ONLY VALID JSON. No markdown, no code blocks, no explanation. Pure JSON o
 Generate EXACTLY ${input.number_of_slides} slides. Every slide MUST have exactly 4 bullets in the content array. This is mandatory.`;
 }
 
-// ── Groq generation caller — routes through /api/generate ──────
-async function callGroq(prompt: string): Promise<GeneratedPPT> {
+// ── Enhanced AI generation caller with routing support ──────
+async function callAI(prompt: string, mode: 'creative' | 'basic' = 'basic'): Promise<GeneratedPPT> {
   const res = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       type: 'ppt',
-      systemPrompt: 'You are a presentation designer and subject expert. You ONLY output valid JSON. Never output markdown, never output explanations. Only pure JSON matching the exact schema provided.',
+      mode, // Routes to grok-creative for creative mode, groq-70b for basic
+      systemPrompt: mode === 'creative' 
+        ? 'You are a creative presentation designer and engaging educator. Create dynamic, memorable presentations with creative flair. You ONLY output valid JSON. Never output markdown, never output explanations. Only pure JSON matching the exact schema provided.'
+        : 'You are a presentation designer and subject expert. You ONLY output valid JSON. Never output markdown, never output explanations. Only pure JSON matching the exact schema provided.',
       userPrompt: prompt,
       maxTokens: 6000,
-      temperature: 0.75,
+      temperature: mode === 'creative' ? 0.85 : 0.75,
     }),
   });
 
@@ -308,7 +311,10 @@ export function usePPTGenerator() {
 
       const preamble  = buildResearchPreamble(research);
       const prompt    = buildPrompt(input, preamble);
-      const result    = await callGroq(prompt);
+      
+      // Use AI routing based on mode
+      const mode = input.mode || 'basic';
+      const result = await callAI(prompt, mode);
 
       result.researchSource = research.source;
 

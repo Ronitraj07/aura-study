@@ -25,6 +25,9 @@ import { exportAssignmentPDF } from "@/lib/pdfExport";
 import { useAssignmentGenerator } from "@/hooks/useAssignmentGenerator";
 import { useAssignmentEditor } from "@/hooks/useAssignmentEditor";
 import { useSmartMode } from "@/hooks/useSmartMode";
+import { useContentState } from "@/hooks/useContentState";
+import { SubtopicsSuggester } from "@/components/SubtopicsSuggester";
+import { SubtopicsInput } from "@/components/SubtopicsInput";
 import { SmartModeBanner } from "@/components/SmartModeBanner";
 import { EditAssignmentBlocks } from "@/components/EditAssignmentBlocks";
 import { FollowUpPanel } from "@/components/FollowUpPanel";
@@ -244,6 +247,9 @@ const Assignments = () => {
   const { suggestion, isAnalysing, dismiss, dismissed } = useSmartMode(topic, 'assignment');
 
   const hasGenerated = !!assignment;
+  
+  // Track content state for conditional right panel rendering
+  const { hasGeneratedContent } = useContentState('assignments', hasGenerated);
 
   const handleGenerate = () => {
     if (!topic.trim() || isGenerating) return;
@@ -317,13 +323,16 @@ const Assignments = () => {
 
   return (
     <div className="flex flex-col md:h-full">
-      <AssignmentHistorySheet
-        open={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        versions={versions}
-        onRestore={handleRestore}
-        restoring={restoring}
-      />
+      {/* Only render history sheet when content exists */}
+      {hasGeneratedContent && (
+        <AssignmentHistorySheet
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          versions={versions}
+          onRestore={handleRestore}
+          restoring={restoring}
+        />
+      )}
 
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -352,7 +361,7 @@ const Assignments = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="flex items-center gap-2 flex-wrap"
           >
-            {savedId && (
+            {savedId && hasGeneratedContent && (
               <button
                 onClick={handleOpenHistory}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-secondary border-border text-muted-foreground hover:border-primary/30 hover:text-foreground transition-all"
@@ -485,35 +494,29 @@ const Assignments = () => {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
               Subtopics (optional)
             </p>
-            <div className="flex flex-wrap gap-2">
-              {[
-                "Historical context",
-                "Current implications", 
-                "Economic impact",
-                "Social factors",
-                "Environmental effects",
-                "Policy recommendations",
-                "Case studies",
-                "Future prospects"
-              ].map(sub => (
-                <button
-                  key={sub}
-                  onClick={() => setSubtopics(prev => 
-                    prev.includes(sub) 
-                      ? prev.filter(s => s !== sub)
-                      : [...prev, sub]
-                  )}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all",
-                    subtopics.includes(sub)
-                      ? "bg-primary/15 border-primary/40 text-primary"
-                      : "bg-secondary/40 border-border text-muted-foreground hover:border-primary/20"
-                  )}
-                >
-                  {sub}
-                </button>
-              ))}
-            </div>
+            
+            {/* AI-powered subtopic suggestions */}
+            <SubtopicsSuggester
+              mainTopic={topic}
+              onSelectSuggestion={(subtopic) => {
+                if (!subtopics.includes(subtopic)) {
+                  setSubtopics(prev => [...prev, subtopic]);
+                }
+              }}
+              existingSubtopics={subtopics}
+              className="mb-4"
+            />
+            
+            {/* Enhanced subtopics input */}
+            <SubtopicsInput
+              subtopics={subtopics}
+              onChange={setSubtopics}
+              placeholder="Add custom subtopic..."
+              maxItems={8}
+              maxLength={50}
+              showCharacterCount={true}
+              enableDragReorder={true}
+            />
           </div>
 
           {/* Requirements */}

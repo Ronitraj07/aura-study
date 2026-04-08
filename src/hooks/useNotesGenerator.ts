@@ -141,26 +141,38 @@ function buildPrompt(input: NotesInput, researchPreamble: string): string {
   const examJsonFields = (includeExamTips || includeMnemonics || includeCheatsheet) ? `,
   ${includeExamTips ? `"exam_tips": [
     {
-      "question": "<likely exam question>",
-      "answer": "<concise 1-2 sentence answer>",
-      "difficulty": "easy" | "medium" | "hard"
+      "question": "What is the primary function of mitochondria?",
+      "answer": "Mitochondria are the powerhouse of the cell, producing ATP through cellular respiration.",
+      "difficulty": "easy"
+    },
+    {
+      "question": "How does the electron transport chain contribute to ATP synthesis?",
+      "answer": "It creates a proton gradient across the inner mitochondrial membrane, driving ATP synthase to produce ATP.",
+      "difficulty": "medium"
     }
   ]` : ''}${includeExamTips && (includeMnemonics || includeCheatsheet) ? ',' : ''}
   ${includeMnemonics ? `"mnemonics": [
     {
-      "concept": "<concept or list to remember>",
-      "device": "<mnemonic device e.g. acronym, rhyme, story>",
-      "explanation": "<what each part stands for>"
+      "concept": "Phases of Mitosis",
+      "device": "PMAT - Please Make Art Today",
+      "explanation": "Prophase, Metaphase, Anaphase, Telophase - the four phases of mitosis in order"
+    },
+    {
+      "concept": "Taxonomy Classification",
+      "device": "King Philip Came Over For Good Soup",
+      "explanation": "Kingdom, Phylum, Class, Order, Family, Genus, Species"
     }
   ]` : ''}${includeMnemonics && includeCheatsheet ? ',' : ''}
   ${includeCheatsheet ? `"cheatsheet": [
-    { "label": "<term or formula or date>", "value": "<one-line definition or value>" }
+    { "label": "Photosynthesis Equation", "value": "6CO2 + 6H2O → C6H12O6 + 6O2" },
+    { "label": "Cell Membrane Structure", "value": "Phospholipid bilayer with embedded proteins" },
+    { "label": "DNA Base Pairs", "value": "A-T, G-C (RNA: A-U, G-C)" }
   ]` : ''}` : '';
 
   const examInstructions = [];
-  if (includeExamTips) examInstructions.push('- exam_tips: 5-8 likely exam questions with concise answers and difficulty ratings');
-  if (includeMnemonics) examInstructions.push('- mnemonics: 2-4 memory devices for key concepts, lists, or sequences');
-  if (includeCheatsheet) examInstructions.push('- cheatsheet: 8-12 key facts, formulas, dates, or definitions in label:value pairs');
+  if (includeExamTips) examInstructions.push('- exam_tips: Generate 5-8 likely exam questions with specific, complete answers (not just "yes/no"). Mix difficulty levels (2-3 easy, 3-4 medium, 1-2 hard). Questions should test understanding, not just memorization.');
+  if (includeMnemonics) examInstructions.push('- mnemonics: Create 2-4 effective memory devices (acronyms, rhymes, visual stories) for the most complex concepts, sequences, or lists in the topic. Focus on items students typically struggle to remember.');
+  if (includeCheatsheet) examInstructions.push('- cheatsheet: Provide 8-12 essential facts, formulas, key dates, or definitions that students need to memorize. Use concise label:value format. Prioritize items that appear frequently on exams.');
   
   const examInstructionsText = examInstructions.length > 0 ? `\n${examInstructions.join('\n')}` : '';
 
@@ -194,19 +206,21 @@ Rules:
 - Summary must be written as complete sentences, not bullets${examInstructionsText}`;
 }
 
-// ── Groq generation caller — routes through /api/generate ──────
-async function callGroq(prompt: string, input: NotesInput): Promise<GeneratedNotes> {
+// ── Enhanced AI generation caller with routing support ──────
+async function callAI(prompt: string, input: NotesInput): Promise<GeneratedNotes> {
   const isExam = input.depth === 'exam' || input.includeExamTips || input.includeMnemonics || input.includeCheatsheet;
   
   const res = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      type: 'notes',
-      systemPrompt: 'You are an expert academic note-taker. Output ONLY valid JSON. No markdown. No explanation. No code blocks.',
+      type: isExam ? 'notes_exam' : 'notes', // Routes to Gemini Pro for exam content, Groq 70b for regular notes
+      systemPrompt: isExam 
+        ? 'You are an expert academic educator specializing in exam preparation. Create comprehensive, exam-focused study materials. Output ONLY valid JSON. No markdown. No explanation. No code blocks.'
+        : 'You are an expert academic note-taker. Output ONLY valid JSON. No markdown. No explanation. No code blocks.',
       userPrompt: prompt,
       maxTokens: isExam ? 5000 : 3000,
-      temperature: 0.5,
+      temperature: isExam ? 0.4 : 0.5, // Lower temperature for exam content (more focused)
     }),
   });
 
@@ -219,6 +233,51 @@ async function callGroq(prompt: string, input: NotesInput): Promise<GeneratedNot
   if (!parsed.bullets || !Array.isArray(parsed.bullets)) {
     throw new Error('Invalid response: missing bullets');
   }
+  
+  // Validate and ensure exam fields are properly parsed
+  if (isExam || input.includeExamTips || input.includeMnemonics || input.includeCheatsheet) {
+    // Ensure exam_tips is a valid array if expected
+    if ((isExam || input.includeExamTips) && (!parsed.exam_tips || !Array.isArray(parsed.exam_tips))) {
+      console.warn('Expected exam_tips but got invalid data:', parsed.exam_tips);
+      parsed.exam_tips = []; // Fallback to empty array
+    }
+    
+    // Ensure mnemonics is a valid array if expected
+    if ((isExam || input.includeMnemonics) && (!parsed.mnemonics || !Array.isArray(parsed.mnemonics))) {
+      console.warn('Expected mnemonics but got invalid data:', parsed.mnemonics);
+      parsed.mnemonics = []; // Fallback to empty array
+    }
+    
+    // Ensure cheatsheet is a valid array if expected
+    if ((isExam || input.includeCheatsheet) && (!parsed.cheatsheet || !Array.isArray(parsed.cheatsheet))) {
+      console.warn('Expected cheatsheet but got invalid data:', parsed.cheatsheet);
+      parsed.cheatsheet = []; // Fallback to empty array
+    }
+    
+    // Validate individual exam_tips structure
+    if (parsed.exam_tips) {
+      parsed.exam_tips = parsed.exam_tips.filter(tip => 
+        tip && typeof tip.question === 'string' && typeof tip.answer === 'string' && 
+        ['easy', 'medium', 'hard'].includes(tip.difficulty)
+      );
+    }
+    
+    // Validate individual mnemonics structure  
+    if (parsed.mnemonics) {
+      parsed.mnemonics = parsed.mnemonics.filter(mnemonic => 
+        mnemonic && typeof mnemonic.concept === 'string' && 
+        typeof mnemonic.device === 'string' && typeof mnemonic.explanation === 'string'
+      );
+    }
+    
+    // Validate individual cheatsheet structure
+    if (parsed.cheatsheet) {
+      parsed.cheatsheet = parsed.cheatsheet.filter(entry => 
+        entry && typeof entry.label === 'string' && typeof entry.value === 'string'
+      );
+    }
+  }
+  
   return parsed;
 }
 
@@ -250,13 +309,17 @@ export function useNotesGenerator() {
         headings: data.headings as any,
         bullets:  data.bullets as any,
         summary:  data.summary,
+        key_terms: data.keyTerms,
+        exam_tips: data.exam_tips || null,
+        mnemonics: data.mnemonics || null,  
+        cheatsheet: data.cheatsheet || null,
       };
 
       if (existingId) {
         // Snapshot current state before overwriting
         const { data: current } = await supabase
           .from('notes')
-          .select('topic, headings, bullets, summary')
+          .select('topic, headings, bullets, summary, key_terms, exam_tips, mnemonics, cheatsheet')
           .eq('id', existingId)
           .single();
 
@@ -266,6 +329,10 @@ export function useNotesGenerator() {
             headings: current.headings,
             bullets:  current.bullets,
             summary:  current.summary,
+            key_terms: current.key_terms,
+            exam_tips: current.exam_tips,
+            mnemonics: current.mnemonics,
+            cheatsheet: current.cheatsheet,
           });
         }
 
@@ -307,7 +374,7 @@ export function useNotesGenerator() {
 
       const preamble = buildResearchPreamble(research);
       const prompt = buildPrompt(input, preamble);
-      const result = await callGroq(prompt, input);
+      const result = await callAI(prompt, input);
 
       result.researchSource = research.source;
 
@@ -339,6 +406,10 @@ export function useNotesGenerator() {
         headings: notes.headings,
         bullets:  notes.bullets,
         summary:  notes.summary,
+        key_terms: notes.keyTerms,
+        exam_tips: notes.exam_tips,
+        mnemonics: notes.mnemonics,
+        cheatsheet: notes.cheatsheet,
       });
     }
 
@@ -349,6 +420,10 @@ export function useNotesGenerator() {
         bullets:  version.bullets,
         summary:  version.summary,
         topic:    version.topic,
+        key_terms: version.key_terms,
+        exam_tips: version.exam_tips,
+        mnemonics: version.mnemonics,
+        cheatsheet: version.cheatsheet,
       })
       .eq('id', savedIdRef.current);
 
@@ -361,6 +436,10 @@ export function useNotesGenerator() {
         headings: version.headings as any,
         bullets:  version.bullets  as any,
         summary:  version.summary,
+        keyTerms: version.key_terms || [],
+        exam_tips: version.exam_tips,
+        mnemonics: version.mnemonics,
+        cheatsheet: version.cheatsheet,
       } : prev);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);

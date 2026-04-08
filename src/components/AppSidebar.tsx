@@ -29,12 +29,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { getInitials, getDisplayName, getAvatarUrl } from "@/lib/userUtils";
 
 const mainItems = [
-  { title: "Dashboard",   url: "/dashboard",            icon: LayoutDashboard },
+  { title: "Dashboard",   url: "/dashboard",              icon: LayoutDashboard },
   { title: "PPT",         url: "/dashboard/ppt",         icon: Presentation    },
   { title: "Assignments", url: "/dashboard/assignments", icon: FileText        },
   { title: "Notes",       url: "/dashboard/notes",       icon: BookOpen        },
   { title: "Timetable",   url: "/dashboard/timetable",   icon: CalendarDays    },
   { title: "Checklist",   url: "/dashboard/checklist",   icon: CheckSquare     },
+  { title: "Smart Mode",  url: "/dashboard/smart-mode",  icon: Sparkles        },
 ];
 
 // ── ProfileLink ────────────────────────────────────────────────────
