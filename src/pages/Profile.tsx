@@ -550,7 +550,16 @@ export default function Profile() {
                   return (
                     <button
                       key={item.id}
-                      onClick={() => navigate(config.route)}
+                      onClick={() => {
+                        // Navigate with the content ID as state so it can be loaded
+                        navigate(config.route, { 
+                          state: { 
+                            loadContentId: item.id,
+                            contentTitle: item.title,
+                            contentType: item.type 
+                          } 
+                        });
+                      }}
                       className="w-full rounded-xl p-3 flex items-center gap-3 transition-all duration-200 hover:-translate-y-0.5"
                       style={{
                         background: config.bg,

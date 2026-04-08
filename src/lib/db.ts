@@ -50,6 +50,16 @@ export async function getPPTs(userId: string): Promise<DbPPT[]> {
   return data ?? [];
 }
 
+export async function getPPT(id: string): Promise<DbPPT | null> {
+  const { data, error } = await supabase
+    .from('ppts')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) { console.error('getPPT:', error); return null; }
+  return data;
+}
+
 export async function createPPT(payload: InsertPPT): Promise<DbPPT | null> {
   const { data, error } = await supabase
     .from('ppts')
@@ -111,6 +121,16 @@ export async function getAssignments(userId: string): Promise<DbAssignment[]> {
   return data ?? [];
 }
 
+export async function getAssignment(id: string): Promise<DbAssignment | null> {
+  const { data, error } = await supabase
+    .from('assignments')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) { console.error('getAssignment:', error); return null; }
+  return data;
+}
+
 export async function createAssignment(payload: InsertAssignment): Promise<DbAssignment | null> {
   const { data, error } = await supabase
     .from('assignments')
@@ -170,6 +190,16 @@ export async function getNotes(userId: string): Promise<DbNote[]> {
     .order('created_at', { ascending: false });
   if (error) { console.error('getNotes:', error); return []; }
   return data ?? [];
+}
+
+export async function getNote(id: string): Promise<DbNote | null> {
+  const { data, error } = await supabase
+    .from('notes')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) { console.error('getNote:', error); return null; }
+  return data;
 }
 
 export async function createNote(payload: InsertNote): Promise<DbNote | null> {

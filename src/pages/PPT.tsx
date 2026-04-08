@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Download, RefreshCw, ChevronLeft, ChevronRight,
@@ -509,6 +510,7 @@ function SettingsPanelContent({
 
 // ── Main PPT page ───────────────────────────────────────────────
 export default function PPTPage() {
+  const location = useLocation();
   const {
     ppt, setPPT, isGenerating, saveStatus, error, versions,
     activeSlide, setActiveSlide,
@@ -529,11 +531,30 @@ export default function PPTPage() {
   const [showFullscreen,   setShowFullscreen]   = useState(false);
   const [fullscreenIdx,    setFullscreenIdx]    = useState(0);
   const [showGridView,     setShowGridView]     = useState(false);
-  const [showMobilePanel,  setShowMobilePanel]  = useState(false);
 
   const [slideImages,  setSlideImages]  = useState<(string | null)[]>([]);
   const [fetchingImgs, setFetchingImgs] = useState(false);
   const fetchedTopicRef = useRef('');
+
+  // Load content from navigation state (from Profile history)
+  useEffect(() => {
+    const state = location.state as { loadContentId?: string; contentTitle?: string } | undefined;
+    if (state?.loadContentId && !ppt) {
+      (async () => {
+        const { getPPT } = await import('@/lib/db');
+        const loadedPPT = await getPPT(state.loadContentId);
+        if (loadedPPT) {
+          const convertedPPT = {
+            title: loadedPPT.title,
+            design_theme: loadedPPT.design_theme as any,
+            slides: loadedPPT.content?.slides || []
+          };
+          setPPT(convertedPPT);
+          setTopic(state.contentTitle || loadedPPT.title);
+        }
+      })();
+    }
+  }, [location.state, ppt, setPPT]);
 
   useEffect(() => {
     if (!ppt) return;
@@ -670,34 +691,8 @@ export default function PPTPage() {
                 Export
               </Button>
             )}
-            {/* Mobile bottom drawer trigger */}
-            <Sheet open={showMobilePanel} onOpenChange={setShowMobilePanel}>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="sm" className="border-white/10 gap-1.5 h-8 text-xs">
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  Settings
-                </Button>
-              </SheetTrigger>
-              <SheetContent
-                side="bottom"
-                className="bg-background border-white/10 rounded-t-2xl max-h-[85dvh] overflow-y-auto pb-safe"
-              >
-                <SheetHeader className="mb-4">
-                  <SheetTitle className="text-sm gradient-text">PPT Settings</SheetTitle>
-                </SheetHeader>
-                <div className="space-y-6">
-                  <SettingsPanelContent {...settingsProps} />
-                  
-                  {/* Follow-up Panel for mobile */}
-                  {ppt && savedPPTId && (
-                    <>
-                      <hr className="border-white/10" />
-                      <FollowUpPanel
-                        contentType="ppt"
-                        contentId={savedPPTId}
-                        contentTitle={ppt.title}
-                        onContentUpdated={() => {
-                          setShowMobilePanel(false); // Close mobile panel
+          </div>
+        </div>
                           window.location.reload(); // Simple refresh for now
                         }}
                       />
@@ -791,47 +786,30 @@ export default function PPTPage() {
         <div className="flex-1 overflow-hidden p-3 md:p-5">
           {!ppt && !isGenerating && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="h-full flex flex-col items-center justify-center gap-4 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
-                <LayoutGrid className="w-7 h-7 text-purple-400" />
+              className="h-full flex flex-col items-center justify-center gap-4 text-center md:gap-4">
+              
+              {/* Desktop empty state */}
+              <div className="hidden md:flex flex-col items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                  <LayoutGrid className="w-7 h-7 text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Your slides will appear here</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Use the settings panel to enter a topic</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Your slides will appear here</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">Tap Settings to enter a topic</p>
-              </div>
-              {/* Mobile CTA */}
-              <Sheet open={showMobilePanel} onOpenChange={setShowMobilePanel}>
-                <SheetTrigger asChild>
-                  <Button className="md:hidden bg-gradient-to-r from-purple-600 to-blue-600 text-white gap-2">
-                    <Sparkles className="w-4 h-4" /> Get Started
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="bottom"
-                  className="bg-background border-white/10 rounded-t-2xl max-h-[85dvh] overflow-y-auto pb-safe">
-                  <SheetHeader className="mb-4">
-                    <SheetTitle className="text-sm gradient-text">PPT Settings</SheetTitle>
-                  </SheetHeader>
-                  <div className="space-y-6">
-                    <SettingsPanelContent {...settingsProps} />
-                    
-                    {/* Follow-up Panel for mobile */}
-                    {ppt && savedPPTId && (
-                      <>
-                        <hr className="border-white/10" />
-                        <FollowUpPanel
-                          contentType="ppt"
-                          contentId={savedPPTId}
-                          contentTitle={ppt.title}
-                          onContentUpdated={() => {
-                            setShowMobilePanel(false); // Close mobile panel
-                            window.location.reload(); // Simple refresh for now
-                          }}
-                        />
-                      </>
-                    )}
+              
+              {/* Mobile inline settings */}
+              <div className="md:hidden w-full max-w-sm space-y-4">
+                <div className="text-center">
+                  <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto mb-3">
+                    <Presentation className="w-6 h-6 text-purple-400" />
                   </div>
-                </SheetContent>
-              </Sheet>
+                  <h2 className="text-base font-semibold gradient-text mb-1">Create Presentation</h2>
+                  <p className="text-xs text-muted-foreground">Enter your topic below to get started</p>
+                </div>
+                <SettingsPanelContent {...settingsProps} />
+              </div>
             </motion.div>
           )}
 
