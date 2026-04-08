@@ -148,7 +148,6 @@ function mergeResearch(
   if (!g) return geminiRaw!;
   if (!m) return groqRaw!;
 
-  // Merge arrays — deduplicate by lowercased first 40 chars
   const mergeArr = (a: unknown, b: unknown): string[] => {
     const arr = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])] as string[];
     const seen = new Set<string>();
@@ -160,7 +159,6 @@ function mergeResearch(
     });
   };
 
-  // Merge definitions objects
   const mergeDefs = (a: unknown, b: unknown): Record<string, string> => ({
     ...((typeof b === 'object' && b !== null) ? b as Record<string, string> : {}),
     ...((typeof a === 'object' && a !== null) ? a as Record<string, string> : {}),
@@ -171,7 +169,6 @@ function mergeResearch(
     keyStats:    mergeArr(g.keyStats, m.keyStats).slice(0, 6),
     keyTerms:    mergeArr(g.keyTerms, m.keyTerms).slice(0, 8),
     definitions: mergeDefs(g.definitions, m.definitions),
-    // Prefer Gemini context (usually richer); fall back to Groq
     context: (typeof m.context === 'string' && m.context.length > 10)
       ? m.context
       : (typeof g.context === 'string' ? g.context : ''),
@@ -199,7 +196,6 @@ async function dualResearch(
   const [groqRaw, geminiRaw] = await Promise.all([groqPromise, geminiPromise]);
 
   if (!groqRaw && !geminiRaw) {
-    // Both failed — try fallback 8b synchronously
     return callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, 1500, 0.15)
       .catch(() => '{}');
   }
@@ -256,7 +252,6 @@ export default async function handler(req: Request): Promise<Response> {
   let raw: string;
 
   try {
-
     // ── RESEARCH: dual parallel pass ─────────────────────────
     if (type === 'research') {
       raw = await dualResearch(groqKey, geminiKey, systemPrompt, userPrompt);
@@ -269,23 +264,19 @@ export default async function handler(req: Request): Promise<Response> {
         const is429 = e?.status === 429 || String(e?.message).includes('429');
 
         if (is429 && geminiKey) {
-          // Rate-limited: try Gemini as full generation fallback
           console.warn(`[generate] Groq ${primaryModel} rate-limited — trying Gemini 2.5 Flash`);
           try {
             raw = await callGemini(geminiKey, systemPrompt, userPrompt, maxTokens, temperature);
           } catch (geminiErr: any) {
-            // Gemini also failed — last resort: Groq 8b fallback
             console.warn('[generate] Gemini fallback failed — trying Groq 8b:', geminiErr?.message);
             raw = await callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, maxTokens, temperature);
           }
         } else {
-          // Non-rate-limit failure or no Gemini key — try Groq 8b
           if (primaryModel === FALLBACK_MODEL) throw e;
           console.warn(`[generate] ${primaryModel} failed — trying Groq fallback 8b`);
           try {
             raw = await callGroq(groqKey, FALLBACK_MODEL, systemPrompt, userPrompt, maxTokens, temperature);
           } catch (fallbackErr: any) {
-            // 8b also failed — last chance: Gemini
             if (!geminiKey) throw fallbackErr;
             console.warn('[generate] Groq 8b also failed — trying Gemini 2.5 Flash');
             raw = await callGemini(geminiKey, systemPrompt, userPrompt, maxTokens, temperature);
@@ -294,7 +285,6 @@ export default async function handler(req: Request): Promise<Response> {
       }
     }
 
-    // ── Validate parseable JSON ──────────────────────────────
     JSON.parse(raw);
 
   } catch (e: any) {
