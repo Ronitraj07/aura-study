@@ -374,7 +374,7 @@ const Checklist = () => {
               aria-label="New task description"
               className="w-full bg-secondary/60 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/40 transition-all mb-3"
             />
-            {/* Priority selector */}
+            {/* Priority selector - Minimum 44px touch targets */}
             <div className="flex items-center gap-1.5 mb-3" role="group" aria-label="Select priority">
               {/* text-xs = 12px floor — minimum label size */}
               <span className="text-xs text-muted-foreground uppercase tracking-widest mr-1" aria-hidden="true">Priority:</span>
@@ -387,7 +387,7 @@ const Checklist = () => {
                     aria-pressed={priority === p}
                     aria-label={`${cfg.label} priority`}
                     className={cn(
-                      "flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all",
+                      "flex items-center gap-1 px-3 py-2.5 rounded-full text-xs font-semibold border transition-all min-h-[44px]",
                       priority === p ? "scale-105" : "opacity-50 hover:opacity-80",
                     )}
                     style={{
@@ -396,7 +396,7 @@ const Checklist = () => {
                       color: cfg.color,
                     }}
                   >
-                    <Flag className="w-2.5 h-2.5" aria-hidden="true" />
+                    <Flag className="w-3 h-3" aria-hidden="true" />
                     {cfg.label}
                   </button>
                 );
@@ -494,32 +494,35 @@ const Checklist = () => {
                     </button>
                   </div>
                 )}
-                <div className="grid grid-cols-3 gap-1">
+                <div className="grid grid-cols-3 gap-1.5">
                   <button
                     onClick={() => handleExport('csv')}
                     disabled={isExporting}
-                    className="flex flex-col items-center gap-1 p-2 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-all disabled:opacity-50 text-xs"
+                    className="flex flex-col items-center justify-center gap-1 p-2.5 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-all disabled:opacity-50 text-xs min-h-[44px]"
                     title="Export as CSV"
+                    aria-label="Export as CSV"
                   >
-                    <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                    <FileText className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                     <span className="text-muted-foreground">CSV</span>
                   </button>
                   <button
                     onClick={() => handleExport('json')}
                     disabled={isExporting}
-                    className="flex flex-col items-center gap-1 p-2 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-all disabled:opacity-50 text-xs"
+                    className="flex flex-col items-center justify-center gap-1 p-2.5 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-all disabled:opacity-50 text-xs min-h-[44px]"
                     title="Export as JSON"
+                    aria-label="Export as JSON"
                   >
-                    <FileJson className="w-3.5 h-3.5 text-muted-foreground" />
+                    <FileJson className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                     <span className="text-muted-foreground">JSON</span>
                   </button>
                   <button
                     onClick={() => handleExport('markdown')}
                     disabled={isExporting}
-                    className="flex flex-col items-center gap-1 p-2 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-all disabled:opacity-50 text-xs"
+                    className="flex flex-col items-center justify-center gap-1 p-2.5 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-all disabled:opacity-50 text-xs min-h-[44px]"
                     title="Export as Markdown"
+                    aria-label="Export as Markdown"
                   >
-                    <Download className="w-3.5 h-3.5 text-muted-foreground" />
+                    <Download className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                     <span className="text-muted-foreground">MD</span>
                   </button>
                 </div>

@@ -51,8 +51,9 @@ const Navbar = () => {
               background: "var(--gradient-primary)",
               boxShadow: "0 2px 10px hsla(262,80%,62%,0.35)",
             }}
+            aria-hidden="true"
           >
-            <Sparkles size={14} style={{ color: "#fff" }} />
+            <Sparkles size={14} style={{ color: "#fff" }} aria-hidden="true" />
           </div>
           <span className="font-display font-bold text-base gradient-text">StudyAI</span>
         </Link>
@@ -86,7 +87,7 @@ const Navbar = () => {
             onClick={() => setMobileOpen((v) => !v)}
             aria-label="Toggle menu"
           >
-            {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+            {mobileOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
           </button>
         </div>
       </nav>

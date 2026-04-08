@@ -25,6 +25,7 @@ const HeroSection = () => {
           background: "hsl(262,80%,62%)",
           opacity: 0.18,
         }}
+        aria-hidden="true"
       />
       <div
         className="hero-glow"
@@ -36,6 +37,7 @@ const HeroSection = () => {
           background: "hsl(220,85%,62%)",
           opacity: 0.14,
         }}
+        aria-hidden="true"
       />
 
       {/* Dot-grid pattern */}
@@ -47,6 +49,7 @@ const HeroSection = () => {
           WebkitMask: "radial-gradient(ellipse 80% 70% at 50% 50%, black 40%, transparent 100%)",
           mask: "radial-gradient(ellipse 80% 70% at 50% 50%, black 40%, transparent 100%)",
         }}
+        aria-hidden="true"
       />
 
       {/* Eyebrow */}
@@ -61,7 +64,7 @@ const HeroSection = () => {
           display: "inline-flex",
         }}
       >
-        <Sparkles size={12} style={{ color: "hsl(262,80%,72%)" }} />
+        <Sparkles size={12} style={{ color: "hsl(262,80%,72%)" }} aria-hidden="true" />
         <span style={{ fontSize: "var(--text-xs)", color: "hsl(262,80%,75%)", fontWeight: 600 }}>
           AI-powered academic productivity
         </span>
@@ -84,12 +87,12 @@ const HeroSection = () => {
         {" "}Assistant
       </h1>
 
-      {/* Subheadline */}
+      {/* Subheadline - Improved minimum size for accessibility */}
       <p
         className="fade-up"
         style={{
           animationDelay: "120ms",
-          fontSize: "clamp(0.9375rem, 2vw, 1.25rem)",
+          fontSize: "clamp(1rem, 2vw, 1.25rem)",
           color: "hsl(var(--muted-foreground))",
           maxWidth: 560,
           lineHeight: 1.65,
@@ -146,7 +149,7 @@ const HeroSection = () => {
             className="btn btn-primary"
             style={{ padding: "12px 28px", fontSize: "var(--text-sm)", borderRadius: "0.75rem", width: "100%", justifyContent: "center" }}
           >
-            <Zap size={15} />
+            <Zap size={15} aria-hidden="true" />
             {status === "allowed" ? "Go to Dashboard" : "Try Now — it's free"}
           </Link>
           <a
@@ -154,7 +157,7 @@ const HeroSection = () => {
             className="btn btn-secondary"
             style={{ padding: "12px 24px", fontSize: "var(--text-sm)", borderRadius: "0.75rem", width: "100%", justifyContent: "center" }}
           >
-            See Features <ArrowRight size={14} />
+            See Features <ArrowRight size={14} aria-hidden="true" />
           </a>
         </div>
       </div>
