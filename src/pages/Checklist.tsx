@@ -259,7 +259,7 @@ const Checklist = () => {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full md:h-full flex flex-col">
       {/* Page header — flex-wrap so progress row wraps on narrow screens */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -346,7 +346,7 @@ const Checklist = () => {
         Left panel on desktop:
           - w-72 shrink-0 (original behaviour)
       */}
-      <div className="flex-1 flex flex-col md:flex-row gap-5 min-h-0">
+      <div className="flex flex-col md:flex-row gap-5">
 
         {/* LEFT: Add task + filter + overview */}
         <motion.div

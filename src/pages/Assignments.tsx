@@ -317,7 +317,7 @@ const Assignments = () => {
   const WORD_COUNTS = [200, 300, 500, 750, 1000, 1500];
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full md:h-full flex flex-col">
       <AssignmentHistorySheet
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
@@ -411,7 +411,7 @@ const Assignments = () => {
         )}
       </motion.div>
 
-      <div className="flex-1 flex flex-col md:flex-row gap-5 min-h-0">
+      <div className={`flex flex-col md:flex-row gap-5 ${(assignment || isGenerating) ? 'md:flex-1 md:min-h-0' : ''}`}>
         {/* ── LEFT PANEL ── */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}

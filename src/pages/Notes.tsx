@@ -604,7 +604,7 @@ const Notes = () => {
   ];
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full md:h-full flex flex-col">
       <NotesHistorySheet
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
@@ -727,7 +727,7 @@ const Notes = () => {
         Left panel on desktop:
           - w-72 shrink-0 (original behaviour preserved)
       */}
-      <div className="flex-1 flex flex-col md:flex-row gap-5 min-h-0">
+      <div className={`flex flex-col md:flex-row gap-5 ${(notes || isGenerating) ? 'md:flex-1 md:min-h-0' : ''}`}>
 
         {/* ── LEFT PANEL ── */}
         <motion.div

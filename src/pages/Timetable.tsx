@@ -483,7 +483,7 @@ const Timetable = () => {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full md:h-full flex flex-col">
       {/* Page header */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -628,7 +628,7 @@ const Timetable = () => {
       </AnimatePresence>
 
       {/* Layout */}
-      <div className="flex-1 flex flex-col md:flex-row gap-5 min-h-0">
+      <div className="flex flex-col md:flex-row gap-5">
 
         {/* LEFT: Subject manager */}
         <motion.div
