@@ -682,12 +682,12 @@ Needs real-world examples`}
             </motion.div>
           )}
 
-          {/* Follow-up Panel (when assignment exists) */}
+          {/* Follow-up Panel (when assignment exists) - Hidden on mobile until content is generated */}
           {hasGenerated && assignment && savedId && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="glass-card rounded-2xl overflow-hidden"
+              className="hidden md:block glass-card rounded-2xl overflow-hidden"
             >
               <FollowUpPanel
                 contentType="assignment"

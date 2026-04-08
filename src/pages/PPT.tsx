@@ -657,10 +657,10 @@ export default function PPTPage() {
         <div className="px-5">
           <SettingsPanelContent {...settingsProps} />
         </div>
-        
-        {/* Follow-up Panel (when PPT exists) */}
+
+        {/* Follow-up Panel (when PPT exists) - Hidden on mobile until content is generated */}
         {ppt && savedPPTId && (
-          <div className="px-5 pb-5">
+          <div className="hidden md:block px-5 pb-5">
             <FollowUpPanel
               contentType="ppt"
               contentId={savedPPTId}

@@ -1068,12 +1068,12 @@ const Notes = () => {
             </motion.div>
           )}
 
-          {/* Follow-up Panel (when notes exist) */}
+          {/* Follow-up Panel (when notes exist) - Hidden on mobile until content is generated */}
           {hasGenerated && notes && savedId && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="glass-card rounded-2xl overflow-hidden"
+              className="hidden md:block glass-card rounded-2xl overflow-hidden"
             >
               <FollowUpPanel
                 contentType="notes"
