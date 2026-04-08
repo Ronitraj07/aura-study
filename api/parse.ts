@@ -26,8 +26,8 @@ const setCORSHeaders = (res: VercelResponse) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 };
 
-// Maximum file size (10MB)
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+// Maximum file size (4MB - respects Vercel's 4.5MB edge limit with buffer)
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
 
 interface ParseResult {
   success: boolean;

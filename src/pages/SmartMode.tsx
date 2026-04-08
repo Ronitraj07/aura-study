@@ -29,16 +29,16 @@ interface UploadedFile {
 }
 
 const SUPPORTED_TYPES = {
-  'application/pdf': { icon: FileText, label: 'PDF Document', maxSize: '10MB' },
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { icon: FileText, label: 'Word Document', maxSize: '10MB' },
-  'text/plain': { icon: File, label: 'Text File', maxSize: '5MB' },
-  'text/markdown': { icon: File, label: 'Markdown File', maxSize: '5MB' },
-  'image/jpeg': { icon: Image, label: 'JPEG Image', maxSize: '5MB' },
-  'image/png': { icon: Image, label: 'PNG Image', maxSize: '5MB' },
-  'image/webp': { icon: Image, label: 'WebP Image', maxSize: '5MB' },
+  'application/pdf': { icon: FileText, label: 'PDF Document', maxSize: '4MB' },
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { icon: FileText, label: 'Word Document', maxSize: '4MB' },
+  'text/plain': { icon: File, label: 'Text File', maxSize: '4MB' },
+  'text/markdown': { icon: File, label: 'Markdown File', maxSize: '4MB' },
+  'image/jpeg': { icon: Image, label: 'JPEG Image', maxSize: '4MB' },
+  'image/png': { icon: Image, label: 'PNG Image', maxSize: '4MB' },
+  'image/webp': { icon: Image, label: 'WebP Image', maxSize: '4MB' },
 };
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB (respects Vercel's 4.5MB edge limit)
 
 export default function SmartMode() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
@@ -277,7 +277,7 @@ export default function SmartMode() {
                 <div className="space-y-2">
                   <p className="text-lg font-medium">Drop files here or click to browse</p>
                   <p className="text-sm text-muted-foreground">
-                    Supports PDF, DOCX, TXT, MD, and images (up to 10MB)
+                    Supports PDF, DOCX, TXT, MD, and images (up to 4MB)
                   </p>
                 </div>
                 
@@ -289,11 +289,14 @@ export default function SmartMode() {
                   className="hidden"
                   id="file-upload"
                 />
-                <Button asChild className="mt-4">
-                  <label htmlFor="file-upload" className="cursor-pointer">
+                <label htmlFor="file-upload">
+                  <Button className="mt-4" type="button" onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('file-upload')?.click();
+                  }}>
                     Choose Files
-                  </label>
-                </Button>
+                  </Button>
+                </label>
               </div>
 
               {/* Supported File Types */}

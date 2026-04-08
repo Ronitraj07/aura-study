@@ -1,5 +1,11 @@
 {
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  ],
+  "functions": {
+    "api/parse.ts": {
+      "maxDuration": 30,
+      "memory": 3008
+    }
+  }
 }
