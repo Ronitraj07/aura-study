@@ -112,9 +112,9 @@ export function SlidePreviewGrid({
                 key={i}
                 layout
                 draggable
-                onDragStart={e => handleDragStart(e, i)}
-                onDragOver={e => handleDragOver(e, i)}
-                onDrop={e => handleDrop(e, i)}
+                onDragStart={e => handleDragStart(e as unknown as React.DragEvent, i)}
+                onDragOver={e => handleDragOver(e as unknown as React.DragEvent, i)}
+                onDrop={e => handleDrop(e as unknown as React.DragEvent, i)}
                 onDragEnd={handleDragEnd}
                 onClick={() => { onSelect(i); onClose(); }}
                 style={{

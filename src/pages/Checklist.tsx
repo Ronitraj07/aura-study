@@ -209,16 +209,16 @@ const Checklist = () => {
 
     try {
       // Convert tasks to export format
-      const exportTasks = tasks.map(task => ({
+      const exportTasks = tasks.map((task, idx) => ({
         id: task.id,
         title: task.text,
         completed: task.completed,
         priority: task.priority,
-        category: task.category || 'personal',
-        due_date: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : undefined,
+        category: (task.category || 'personal') as 'personal' | 'project' | 'study',
+        due_date: undefined,
         completed_at: task.completedAt ? new Date(task.completedAt).toISOString() : undefined,
         estimated_minutes: task.estimatedMinutes,
-        position: tasks.indexOf(task)
+        position: idx
       }));
 
       const title = `Checklist_${new Date().toLocaleDateString().replace(/\//g, '-')}`;

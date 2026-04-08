@@ -350,8 +350,7 @@ function NotesHistorySheet({
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredVersions = versions.filter((v) =>
-    v.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (v.depth && v.depth.toLowerCase().includes(searchQuery.toLowerCase()))
+    v.topic.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (!open) return null;

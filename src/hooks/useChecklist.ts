@@ -39,6 +39,9 @@ export function useChecklist() {
       title: title.trim(),
       completed: false,
       position: maxPos + 1,
+      priority: 'medium',
+      category: 'study',
+      due_date: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

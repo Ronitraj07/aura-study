@@ -547,7 +547,7 @@ export default function PPTPage() {
           const convertedPPT = {
             title: loadedPPT.title,
             design_theme: loadedPPT.design_theme as any,
-            slides: loadedPPT.content?.slides || []
+            slides: loadedPPT.slides || []
           };
           setPPT(convertedPPT);
           setTopic(state.contentTitle || loadedPPT.title);
