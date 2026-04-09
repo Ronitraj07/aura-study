@@ -38,7 +38,6 @@ import Assignments from "./pages/Assignments.tsx";
 import Notes from "./pages/Notes.tsx";
 import Timetable from "./pages/Timetable.tsx";
 import Checklist from "./pages/Checklist.tsx";
-import SmartMode from "./pages/SmartMode.tsx";
 import Profile from "./pages/Profile.tsx";
 import DashboardLayout from "./components/DashboardLayout.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -121,14 +120,6 @@ const App = () => (
                 element={
                   <ErrorBoundary>
                     <Checklist />
-                  </ErrorBoundary>
-                }
-              />
-              <Route
-                path="smart-mode"
-                element={
-                  <ErrorBoundary>
-                    <SmartMode />
                   </ErrorBoundary>
                 }
               />

@@ -24,11 +24,9 @@ import { cn } from "@/lib/utils";
 import { exportAssignmentPDF } from "@/lib/pdfExport";
 import { useAssignmentGenerator } from "@/hooks/useAssignmentGenerator";
 import { useAssignmentEditor } from "@/hooks/useAssignmentEditor";
-import { useSmartMode } from "@/hooks/useSmartMode";
 import { useContentState } from "@/hooks/useContentState";
 import { SubtopicsSuggester } from "@/components/SubtopicsSuggester";
 import { SubtopicsInput } from "@/components/SubtopicsInput";
-import { SmartModeBanner } from "@/components/SmartModeBanner";
 import { EditAssignmentBlocks } from "@/components/EditAssignmentBlocks";
 import { FollowUpPanel } from "@/components/FollowUpPanel";
 import type { AssignmentTone, AssignmentInput } from "@/hooks/useAssignmentGenerator";
@@ -202,7 +200,6 @@ const Assignments = () => {
   const [tone, setTone]         = useState<AssignmentTone>("academic");
   const [copied, setCopied]     = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
-  const [smartApplied, setSmartApplied]     = useState(false);
   const [historyOpen, setHistoryOpen]       = useState(false);
   const [restoring, setRestoring]           = useState(false);
 
@@ -244,8 +241,6 @@ const Assignments = () => {
     }
   ) : null;
 
-  const { suggestion, isAnalysing, dismiss, dismissed } = useSmartMode(topic, 'assignment');
-
   const hasGenerated = !!assignment;
   
   // Track content state for conditional right panel rendering
@@ -263,14 +258,6 @@ const Assignments = () => {
       includeExamples,
       formatOption
     });
-  };
-
-  const handleSmartApply = (s: typeof suggestion) => {
-    if (!s) return;
-    if (s.tone) setTone(s.tone);
-    if (s.wordCount) setWordCount(s.wordCount);
-    setSmartApplied(true);
-    setTimeout(() => setSmartApplied(false), 2500);
   };
 
   const handleCopy = () => {
@@ -425,7 +412,7 @@ const Assignments = () => {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.05 }}
-          className="w-full md:w-72 md:shrink-0 flex flex-col gap-4 max-h-[45dvh] md:max-h-none overflow-y-auto"
+          className={`w-full md:w-72 md:shrink-0 flex flex-col gap-4 ${hasGenerated ? 'max-h-[45dvh]' : ''} md:max-h-none overflow-y-auto`}
         >
           <div className="glass-card rounded-2xl p-5">
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
@@ -620,17 +607,6 @@ Needs real-world examples`}
               </div>
             </div>
           </div>
-
-          {/* ⚡ Smart Mode Banner */}
-          <SmartModeBanner
-            suggestion={suggestion}
-            isAnalysing={isAnalysing}
-            dismissed={dismissed}
-            tool="assignment"
-            onApply={handleSmartApply}
-            onDismiss={dismiss}
-            applied={smartApplied}
-          />
 
           <button
             onClick={handleGenerate}
