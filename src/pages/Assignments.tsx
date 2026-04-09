@@ -17,17 +17,14 @@ import {
   RotateCcw,
   X,
   Search,
-  Edit3,
-  Eye,
+  MessageSquarePlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportAssignmentPDF } from "@/lib/pdfExport";
 import { useAssignmentGenerator } from "@/hooks/useAssignmentGenerator";
-import { useAssignmentEditor } from "@/hooks/useAssignmentEditor";
 import { useContentState } from "@/hooks/useContentState";
 import { SubtopicsSuggester } from "@/components/SubtopicsSuggester";
 import { SubtopicsInput } from "@/components/SubtopicsInput";
-import { EditAssignmentBlocks } from "@/components/EditAssignmentBlocks";
 import { FollowUpPanel } from "@/components/FollowUpPanel";
 import type { AssignmentTone, AssignmentInput } from "@/hooks/useAssignmentGenerator";
 
@@ -35,7 +32,7 @@ import type { AssignmentTone, AssignmentInput } from "@/hooks/useAssignmentGener
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
+  if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
@@ -69,15 +66,16 @@ function AssignmentHistorySheet({
 }: {
   open: boolean;
   onClose: () => void;
-  versions: ReturnType<typeof import('@/hooks/useAssignmentGenerator').useAssignmentGenerator>['versions'];
+  versions: ReturnType<typeof import("@/hooks/useAssignmentGenerator").useAssignmentGenerator>["versions"];
   onRestore: (v: (typeof versions)[0]) => void;
   restoring: boolean;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredVersions = versions.filter((v) =>
-    v.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    v.tone.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredVersions = versions.filter(
+    (v) =>
+      v.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.tone.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -100,7 +98,6 @@ function AssignmentHistorySheet({
             className="fixed right-0 top-0 h-full w-[min(20rem,92vw)] z-50 flex flex-col"
             style={{ background: "hsl(240,8%,7%)", borderLeft: "1px solid hsl(0,0%,15%)" }}
           >
-            {/* Drag handle indicator */}
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-8 h-1 rounded-full bg-border/40" />
             </div>
@@ -108,17 +105,19 @@ function AssignmentHistorySheet({
             <div className="flex items-center justify-between p-5 border-b border-border/30">
               <div className="flex items-center gap-2">
                 <History className="w-4 h-4 text-primary" />
-                <span className="font-display font-semibold text-sm text-foreground">Version History</span>
+                <span className="font-display font-semibold text-sm text-foreground">
+                  Version History
+                </span>
               </div>
               <button
                 onClick={onClose}
+                aria-label="Close version history"
                 className="w-7 h-7 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary text-muted-foreground hover:text-foreground transition-all"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            {/* Search bar */}
             {versions.length > 0 && (
               <div className="p-4 border-b border-border/30">
                 <div className="relative">
@@ -134,7 +133,10 @@ function AssignmentHistorySheet({
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-2" style={{ scrollbarWidth: "thin" }}>
+            <div
+              className="flex-1 overflow-y-auto p-4 space-y-2"
+              style={{ scrollbarWidth: "thin" }}
+            >
               {filteredVersions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-12">
                   <History className="w-8 h-8 mb-3 opacity-30" />
@@ -142,7 +144,9 @@ function AssignmentHistorySheet({
                     {searchQuery ? "No matching versions" : "No versions yet"}
                   </p>
                   <p className="text-xs mt-1 opacity-60">
-                    {searchQuery ? "Try a different search term" : "Versions are saved each time you regenerate"}
+                    {searchQuery
+                      ? "Try a different search term"
+                      : "Versions are saved each time you regenerate"}
                   </p>
                 </div>
               ) : (
@@ -157,20 +161,34 @@ function AssignmentHistorySheet({
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <span
                             className="text-xs font-bold px-1.5 py-0.5 rounded border"
-                            style={{ background: "hsl(220,85%,60%,0.15)", borderColor: "hsl(220,85%,60%,0.3)", color: "hsl(220,85%,65%)" }}
+                            style={{
+                              background: "hsl(220,85%,60%,0.15)",
+                              borderColor: "hsl(220,85%,60%,0.3)",
+                              color: "hsl(220,85%,65%)",
+                            }}
                           >
                             v{v.version}
                           </span>
-                          <span className="text-xs text-muted-foreground">{timeAgo(v.created_at)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {timeAgo(v.created_at)}
+                          </span>
                         </div>
-                        <p className="text-xs font-medium text-foreground/80 truncate">{v.topic}</p>
-                        <p className="text-xs text-muted-foreground">{v.word_count} words · {v.tone}</p>
+                        <p className="text-xs font-medium text-foreground/80 truncate">
+                          {v.topic}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {v.word_count} words · {v.tone}
+                        </p>
                       </div>
                       <button
                         onClick={() => onRestore(v)}
                         disabled={restoring}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all disabled:opacity-40"
-                        style={{ background: "hsl(220,85%,60%,0.1)", borderColor: "hsl(220,85%,60%,0.3)", color: "hsl(220,85%,65%)" }}
+                        style={{
+                          background: "hsl(220,85%,60%,0.1)",
+                          borderColor: "hsl(220,85%,60%,0.3)",
+                          color: "hsl(220,85%,65%)",
+                        }}
                       >
                         <RotateCcw className="w-3 h-3" />
                         Restore
@@ -202,27 +220,29 @@ const Assignments = () => {
   const [isPdfExporting, setIsPdfExporting] = useState(false);
   const [historyOpen, setHistoryOpen]       = useState(false);
   const [restoring, setRestoring]           = useState(false);
+  // Phase-2 task 2.2: mobile right-panel sheet state
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  // Phase-1.5 gap: replace window.location.reload() with state refresh key
+  const [followUpRefreshKey, setFollowUpRefreshKey] = useState(0);
 
-  // New enhanced options
+  // Enhanced options
   const [subtopics, setSubtopics] = useState<string[]>([]);
   const [requirements, setRequirements] = useState("");
-  const [citationStyle, setCitationStyle] = useState<'APA' | 'MLA' | 'none'>('none');
+  const [citationStyle, setCitationStyle] = useState<"APA" | "MLA" | "none">("none");
   const [includeExamples, setIncludeExamples] = useState(true);
-  const [formatOption, setFormatOption] = useState<'structured' | 'essay' | 'bullet_points'>('structured');
+  const [formatOption, setFormatOption] = useState<
+    "structured" | "essay" | "bullet_points"
+  >("structured");
 
-  // Edit mode state
-  const [editMode, setEditMode] = useState(false);
-  
-  // Current input for editor
   const currentInput: AssignmentInput = {
     topic: topic.trim(),
     wordCount,
     tone,
     subtopics: subtopics.length > 0 ? subtopics : undefined,
     requirements: requirements.trim() || undefined,
-    citationStyle: citationStyle !== 'none' ? citationStyle : undefined,
+    citationStyle: citationStyle !== "none" ? citationStyle : undefined,
     includeExamples,
-    formatOption
+    formatOption,
   };
 
   const {
@@ -230,33 +250,22 @@ const Assignments = () => {
     versions, generate, loadVersions, restoreVersion,
   } = useAssignmentGenerator();
 
-  // Edit mode integration
-  const editor = assignment ? useAssignmentEditor(
-    assignment,
-    currentInput,
-    async (updatedAssignment) => {
-      // Handle save - this would typically call updateContent or similar
-      console.log('Assignment updated:', updatedAssignment);
-      // For now, we'll just log. In full implementation, this would save to DB
-    }
-  ) : null;
-
   const hasGenerated = !!assignment;
-  
+
   // Track content state for conditional right panel rendering
-  const { hasGeneratedContent } = useContentState('assignments', hasGenerated);
+  const { hasGeneratedContent } = useContentState("assignments", hasGenerated);
 
   const handleGenerate = () => {
     if (!topic.trim() || isGenerating) return;
-    generate({ 
-      topic: topic.trim(), 
-      wordCount, 
+    generate({
+      topic: topic.trim(),
+      wordCount,
       tone,
       subtopics: subtopics.length > 0 ? subtopics : undefined,
       requirements: requirements.trim() || undefined,
-      citationStyle: citationStyle !== 'none' ? citationStyle : undefined,
+      citationStyle: citationStyle !== "none" ? citationStyle : undefined,
       includeExamples,
-      formatOption
+      formatOption,
     });
   };
 
@@ -295,7 +304,10 @@ const Assignments = () => {
             id: i + 1,
             heading: prevHeading?.text ?? "",
             body: b.text,
-            type: (b.type === "conclusion" ? "conclusion" : "body") as "body" | "intro" | "conclusion",
+            type: (b.type === "conclusion" ? "conclusion" : "body") as
+              | "body"
+              | "intro"
+              | "conclusion",
           };
         });
       await exportAssignmentPDF(assignment.title || topic, paragraphs);
@@ -321,6 +333,7 @@ const Assignments = () => {
         />
       )}
 
+      {/* ── Page header ── */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -330,15 +343,20 @@ const Assignments = () => {
         <div className="flex items-center gap-3">
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, hsl(220,85%,60%), hsl(200,80%,50%))" }}
+            style={{
+              background:
+                "linear-gradient(135deg, hsl(220,85%,60%), hsl(200,80%,50%))",
+            }}
           >
-            <FileText className="w-4.5 h-4.5 text-white" />
+            <FileText className="w-[18px] h-[18px] text-white" />
           </div>
           <div>
             <h1 className="font-display text-xl font-bold text-foreground">
               Assignment <span className="gradient-text">Generator</span>
             </h1>
-            <p className="text-xs text-muted-foreground">AI-researched structured academic writing in seconds</p>
+            <p className="text-xs text-muted-foreground">
+              AI-researched structured academic writing in seconds
+            </p>
           </div>
         </div>
 
@@ -359,27 +377,12 @@ const Assignments = () => {
               </button>
             )}
 
-            {/* Edit Mode Toggle */}
-            <button
-              onClick={() => setEditMode(!editMode)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all",
-                editMode
-                  ? "bg-primary/15 border-primary/40 text-primary"
-                  : "bg-secondary border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
-              )}
-              title={editMode ? "Exit edit mode" : "Enter edit mode"}
-            >
-              {editMode ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
-              {editMode ? "View" : "Edit"}
-            </button>
-
-            {saveStatus === 'saving' && (
+            {saveStatus === "saving" && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" /> Saving...
               </span>
             )}
-            {saveStatus === 'saved' && (
+            {saveStatus === "saved" && (
               <span className="text-xs text-green-500 flex items-center gap-1">
                 <Check className="w-3 h-3" /> Saved
               </span>
@@ -388,31 +391,58 @@ const Assignments = () => {
               onClick={handleCopy}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-secondary border border-border text-foreground hover:bg-secondary/80 hover:border-primary/30 transition-all"
             >
-              {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? (
+                <Check className="w-3.5 h-3.5 text-green-400" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
               {copied ? "Copied!" : "Copy All"}
             </button>
             <button
               onClick={handleExportPDF}
               disabled={isPdfExporting}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_hsl(220,85%,60%,0.3)] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
-              style={{ background: "linear-gradient(135deg, hsl(220,85%,60%), hsl(262,80%,60%))" }}
+              style={{
+                background:
+                  "linear-gradient(135deg, hsl(220,85%,60%), hsl(262,80%,60%))",
+              }}
             >
-              {isPdfExporting
-                ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Exporting...</>
-                : <><Download className="w-3.5 h-3.5" />Export PDF</>
-              }
+              {isPdfExporting ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  Export PDF
+                </>
+              )}
             </button>
           </motion.div>
         )}
       </motion.div>
 
-      <div className={`flex flex-col md:flex-row gap-5 ${(assignment || isGenerating) ? 'md:flex-1 md:min-h-0' : ''}`}>
-        {/* ── LEFT PANEL ── */}
+      {/*
+        ── THREE-COLUMN LAYOUT (Phase-2 task 2.1)
+        Mobile  (<md):  single column stack
+        Desktop (≥md):  [left 288px] [centre flex-1] [right 288px (FollowUp)]
+        Right col appears only after first generation.
+      */}
+      <div
+        className={`flex flex-col md:flex-row gap-5 ${
+          assignment || isGenerating ? "md:flex-1 md:min-h-0" : ""
+        }`}
+      >
+        {/* ── LEFT PANEL ──
+            Phase-2 task 2.3: removed max-h-[45dvh] clamp.
+            Left panel now scrolls naturally at all viewport sizes. */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.05 }}
-          className={cn("w-full md:w-72 md:shrink-0 flex flex-col gap-4 md:max-h-none overflow-y-auto", hasGenerated && "max-h-[45dvh]")}
+          className="w-full md:w-72 md:shrink-0 flex flex-col gap-4 overflow-y-auto"
+          style={{ scrollbarWidth: "thin" }}
         >
           <div className="glass-card rounded-2xl p-5">
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
@@ -424,12 +454,19 @@ const Assignments = () => {
               placeholder="e.g. Climate Change and Global Policy"
               rows={3}
               className="w-full bg-secondary/60 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/40 transition-all resize-none"
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleGenerate(); } }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleGenerate();
+                }
+              }}
             />
           </div>
 
           <div className="glass-card rounded-2xl p-5">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Word Count</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
+              Word Count
+            </p>
             <div className="grid grid-cols-3 gap-1.5">
               {WORD_COUNTS.map((wc) => (
                 <button
@@ -449,13 +486,32 @@ const Assignments = () => {
           </div>
 
           <div className="glass-card rounded-2xl p-5">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Tone</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
+              Tone
+            </p>
             <div className="flex flex-col gap-2">
-              {([
-                { value: "formal", icon: AlignLeft, label: "Formal", desc: "Professional, third person" },
-                { value: "academic", icon: GraduationCap, label: "Academic", desc: "Citations, hedging language" },
-                { value: "casual", icon: BookOpen, label: "Casual", desc: "Clear, first-person friendly" },
-              ] as const).map(({ value, icon: Icon, label, desc }) => (
+              {(
+                [
+                  {
+                    value: "formal",
+                    icon: AlignLeft,
+                    label: "Formal",
+                    desc: "Professional, third person",
+                  },
+                  {
+                    value: "academic",
+                    icon: GraduationCap,
+                    label: "Academic",
+                    desc: "Citations, hedging language",
+                  },
+                  {
+                    value: "casual",
+                    icon: BookOpen,
+                    label: "Casual",
+                    desc: "Clear, first-person friendly",
+                  },
+                ] as const
+              ).map(({ value, icon: Icon, label, desc }) => (
                 <button
                   key={value}
                   onClick={() => setTone(value)}
@@ -476,25 +532,21 @@ const Assignments = () => {
             </div>
           </div>
 
-          {/* Subtopics Selection */}
+          {/* Subtopics */}
           <div className="glass-card rounded-2xl p-5">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
               Subtopics (optional)
             </p>
-            
-            {/* AI-powered subtopic suggestions */}
             <SubtopicsSuggester
               mainTopic={topic}
               onSelectSuggestion={(subtopic) => {
                 if (!subtopics.includes(subtopic)) {
-                  setSubtopics(prev => [...prev, subtopic]);
+                  setSubtopics((prev) => [...prev, subtopic]);
                 }
               }}
               existingSubtopics={subtopics}
               className="mb-4"
             />
-            
-            {/* Enhanced subtopics input */}
             <SubtopicsInput
               subtopics={subtopics}
               onChange={setSubtopics}
@@ -514,15 +566,13 @@ const Assignments = () => {
             <textarea
               value={requirements}
               onChange={(e) => setRequirements(e.target.value)}
-              placeholder={`e.g. Include at least 3 academic sources
-Must include a comparison table
-Should address counterarguments
-Needs real-world examples`}
+              placeholder={`e.g. Include at least 3 academic sources\nMust include a comparison table\nShould address counterarguments\nNeeds real-world examples`}
               rows={4}
               className="w-full bg-secondary/60 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/40 transition-all resize-none"
             />
             <p className="text-xs text-muted-foreground/60 mt-2">
-              Describe any specific requirements, formatting needs, or constraints
+              Describe any specific requirements, formatting needs, or
+              constraints
             </p>
           </div>
 
@@ -531,13 +581,15 @@ Needs real-world examples`}
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
               Advanced Options
             </p>
-            
+
             <div className="space-y-3">
               {/* Citation Style */}
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-2">Citation Style</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-2">
+                  Citation Style
+                </label>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {(['none', 'APA', 'MLA'] as const).map((style) => (
+                  {(["none", "APA", "MLA"] as const).map((style) => (
                     <button
                       key={style}
                       onClick={() => setCitationStyle(style)}
@@ -548,7 +600,7 @@ Needs real-world examples`}
                           : "bg-secondary/40 border-border text-muted-foreground hover:border-primary/20"
                       )}
                     >
-                      {style === 'none' ? 'None' : style}
+                      {style === "none" ? "None" : style}
                     </button>
                   ))}
                 </div>
@@ -556,13 +608,29 @@ Needs real-world examples`}
 
               {/* Format Option */}
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-2">Format</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-2">
+                  Format
+                </label>
                 <div className="grid grid-cols-1 gap-1.5">
-                  {([
-                    { value: 'structured', label: 'Structured Essay', desc: 'Traditional academic format' },
-                    { value: 'essay', label: 'Flowing Essay', desc: 'Narrative progression' },
-                    { value: 'bullet_points', label: 'Mixed Format', desc: 'Lists + paragraphs' }
-                  ] as const).map(({ value, label, desc }) => (
+                  {(
+                    [
+                      {
+                        value: "structured",
+                        label: "Structured Essay",
+                        desc: "Traditional academic format",
+                      },
+                      {
+                        value: "essay",
+                        label: "Flowing Essay",
+                        desc: "Narrative progression",
+                      },
+                      {
+                        value: "bullet_points",
+                        label: "Mixed Format",
+                        desc: "Lists + paragraphs",
+                      },
+                    ] as const
+                  ).map(({ value, label, desc }) => (
                     <button
                       key={value}
                       onClick={() => setFormatOption(value)}
@@ -585,23 +653,30 @@ Needs real-world examples`}
               {/* Include Examples Toggle */}
               <div className="flex items-center justify-between">
                 <div>
-                  <label className="text-xs font-medium text-foreground">Include Examples</label>
-                  <p className="text-xs text-muted-foreground/60">Add real-world examples and case studies</p>
+                  <label className="text-xs font-medium text-foreground">
+                    Include Examples
+                  </label>
+                  <p className="text-xs text-muted-foreground/60">
+                    Add real-world examples and case studies
+                  </p>
                 </div>
                 <button
-                  onClick={() => setIncludeExamples(prev => !prev)}
+                  role="switch"
+                  aria-checked={includeExamples}
+                  aria-label="Toggle include examples"
+                  onClick={() => setIncludeExamples((prev) => !prev)}
                   className={cn(
                     "w-11 h-6 rounded-full border-2 transition-all flex items-center",
-                    includeExamples 
-                      ? "bg-primary/20 border-primary/40" 
+                    includeExamples
+                      ? "bg-primary/20 border-primary/40"
                       : "bg-secondary/40 border-border"
                   )}
                 >
-                  <div 
+                  <div
                     className={cn(
                       "w-4 h-4 rounded-full bg-white transition-all",
                       includeExamples ? "translate-x-5" : "translate-x-0.5"
-                    )} 
+                    )}
                   />
                 </button>
               </div>
@@ -612,18 +687,29 @@ Needs real-world examples`}
             onClick={handleGenerate}
             disabled={!topic.trim() || isGenerating}
             className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-display font-semibold text-white transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] hover:shadow-[0_0_30px_hsl(220,85%,60%,0.3)] active:scale-[0.98]"
-            style={{ background: "linear-gradient(135deg, hsl(220,85%,60%), hsl(262,80%,60%))" }}
+            style={{
+              background:
+                "linear-gradient(135deg, hsl(220,85%,60%), hsl(262,80%,60%))",
+            }}
           >
             {isResearching ? (
-              <><Loader2 className="w-4 h-4 animate-spin" />Researching...</>
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Researching...
+              </>
             ) : isGenerating ? (
-              <><RefreshCw className="w-4 h-4 animate-spin" />Generating...</>
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Generating...
+              </>
             ) : (
-              <><Wand2 className="w-4 h-4" />Generate Assignment</>
+              <>
+                <Wand2 className="w-4 h-4" />
+                Generate Assignment
+              </>
             )}
           </button>
 
-          {/* Error display */}
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
@@ -641,47 +727,43 @@ Needs real-world examples`}
               animate={{ opacity: 1, y: 0 }}
               className="glass-card rounded-2xl p-4"
             >
-              <p className="text-xs text-muted-foreground uppercase tracking-widest mb-3">Stats</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-widest mb-3">
+                Stats
+              </p>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { label: "Words", val: assignment.wordCount },
                   { label: "Blocks", val: assignment.blocks.length },
                 ].map((s) => (
-                  <div key={s.label} className="bg-secondary/50 rounded-xl p-2.5 text-center">
-                    <p className="font-display font-bold text-base" style={{ color: "hsl(220,85%,65%)" }}>{s.val}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
+                  <div
+                    key={s.label}
+                    className="bg-secondary/50 rounded-xl p-2.5 text-center"
+                  >
+                    <p
+                      className="font-display font-bold text-base"
+                      style={{ color: "hsl(220,85%,65%)" }}
+                    >
+                      {s.val}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {s.label}
+                    </p>
                   </div>
                 ))}
               </div>
-              {assignment.researchSource && assignment.researchSource !== 'none' && (
-                <p className="text-xs text-muted-foreground/50 mt-2 text-center">
-                  Research via {assignment.researchSource}
-                </p>
-              )}
-            </motion.div>
-          )}
-
-          {/* Follow-up Panel (when assignment exists) - Hidden on mobile until content is generated */}
-          {hasGenerated && assignment && savedId && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="hidden md:block glass-card rounded-2xl overflow-hidden"
-            >
-              <FollowUpPanel
-                contentType="assignment"
-                contentId={savedId}
-                contentTitle={assignment.title}
-                onContentUpdated={() => {
-                  // Refresh the assignment data when content is updated
-                  window.location.reload(); // Simple refresh for now
-                }}
-              />
+              {assignment.researchSource &&
+                assignment.researchSource !== "none" && (
+                  <p className="text-xs text-muted-foreground/50 mt-2 text-center">
+                    Research via {assignment.researchSource}
+                  </p>
+                )}
             </motion.div>
           )}
         </motion.div>
 
-        {/* ── RIGHT PANEL ── Only show when there's actual content to display */}
+        {/* ── CENTRE PANEL (assignment output) ──
+            On mobile: full width stack.
+            On desktop: flex-1, scrolls independently. */}
         {(assignment || isGenerating) && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -689,110 +771,200 @@ Needs real-world examples`}
             transition={{ duration: 0.45, delay: 0.1 }}
             className="flex-1 flex flex-col min-w-0"
           >
-          
-          {!hasGenerated && !isGenerating && (
-            <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12 hidden md:flex">
-              <motion.div
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
-                style={{ background: "linear-gradient(135deg, hsl(220,85%,60%,0.15), hsl(262,80%,60%,0.08))" }}
-              >
-                <FileText className="w-10 h-10" style={{ color: "hsl(220,85%,60%,0.7)" }} />
-              </motion.div>
-              <h3 className="font-display text-xl font-bold text-foreground/80 mb-2">Ready to write your assignment</h3>
-              <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-                Enter a topic, pick your word count and tone, then hit{" "}
-                <span style={{ color: "hsl(220,85%,65%)" }} className="font-medium">Generate Assignment</span>.
-              </p>
-            </div>
-          )}
-          
-          {isGenerating && (
-            <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
-                className="w-12 h-12 rounded-full border-2 border-primary/20 mb-6"
-                style={{ borderTopColor: "hsl(220,85%,60%)" }}
-              />
-              <p className="font-display text-lg font-semibold text-foreground/80 mb-1">
-                {isResearching ? "Researching topic..." : "Writing assignment..."}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {isResearching ? "Gathering facts via Groq" : `Targeting ~${wordCount} words in ${tone} tone`}
-              </p>
-            </div>
-          )}
-          
-          {assignment && (
+            {isGenerating && (
+              <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+                  className="w-12 h-12 rounded-full border-2 border-primary/20 mb-6"
+                  style={{ borderTopColor: "hsl(220,85%,60%)" }}
+                />
+                <p className="font-display text-lg font-semibold text-foreground/80 mb-1">
+                  {isResearching ? "Researching topic..." : "Writing assignment..."}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {isResearching
+                    ? "Gathering facts via Groq"
+                    : `Targeting ~${wordCount} words in ${tone} tone`}
+                </p>
+              </div>
+            )}
+
+            {assignment && (
               <div
                 className="flex-1 overflow-y-auto flex flex-col min-w-0 pr-1"
-                style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(220,85%,60%,0.3) transparent" }}
+                style={{
+                  scrollbarWidth: "thin",
+                  scrollbarColor: "hsl(220,85%,60%,0.3) transparent",
+                }}
               >
                 <div className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0 mb-4">
-                  <Sparkles className="w-4 h-4 shrink-0" style={{ color: "hsl(220,85%,65%)" }} />
+                  <Sparkles
+                    className="w-4 h-4 shrink-0"
+                    style={{ color: "hsl(220,85%,65%)" }}
+                  />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{assignment.title}</p>
-                    <p className="text-xs text-muted-foreground">{assignment.wordCount} words · {tone} tone · auto-saved</p>
+                    <p className="text-sm font-semibold text-foreground truncate">
+                      {assignment.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {assignment.wordCount} words · {tone} tone · auto-saved
+                    </p>
                   </div>
                 </div>
 
-                {editMode && editor ? (
-                  // Edit Mode
-                  <EditAssignmentBlocks
-                    editState={editor}
-                    editActions={editor}
-                    onReset={editor.resetToOriginal}
-                    onSave={editor.saveEdits}
-                    hasUnsavedChanges={editor.hasUnsavedChanges()}
-                  />
-                ) : (
-                  // Display Mode  
-                  <>
-                    <motion.div
-                      initial={{ opacity: 0, y: 16 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                      className="glass-card rounded-2xl p-6 flex flex-col gap-4"
-                    >
-                      <AnimatePresence>
-                        {assignment.blocks.map((block, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.25, delay: i * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  className="glass-card rounded-2xl p-6 flex flex-col gap-4"
+                >
+                  <AnimatePresence>
+                    {assignment.blocks.map((block, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{
+                          duration: 0.25,
+                          delay: i * 0.03,
+                          ease: [0.16, 1, 0.3, 1],
+                        }}
+                      >
+                        {(block.type === "heading" ||
+                          block.type === "subheading") && (
+                          <div
+                            className="flex items-center gap-2"
+                            style={{ color: BLOCK_COLORS[block.type] }}
                           >
-                            {(block.type === "heading" || block.type === "subheading") && (
-                              <div
-                                className="flex items-center gap-2"
-                                style={{ color: BLOCK_COLORS[block.type] }}
-                              >
-                                <div
-                                  className="w-1 rounded-full shrink-0"
-                                  style={{
-                                    height: block.type === "heading" ? "20px" : "16px",
-                                    background: BLOCK_COLORS[block.type],
-                                  }}
-                                />
-                                <span className={BLOCK_STYLES[block.type]}>{block.text}</span>
-                              </div>
-                            )}
-                            {(block.type === "paragraph" || block.type === "conclusion" || block.type === "quote") && (
-                              <p className={BLOCK_STYLES[block.type]}>{block.text}</p>
-                            )}
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
-                    </motion.div>
+                            <div
+                              className="w-1 rounded-full shrink-0"
+                              style={{
+                                height:
+                                  block.type === "heading" ? "20px" : "16px",
+                                background: BLOCK_COLORS[block.type],
+                              }}
+                            />
+                            <span className={BLOCK_STYLES[block.type]}>
+                              {block.text}
+                            </span>
+                          </div>
+                        )}
+                        {(block.type === "paragraph" ||
+                          block.type === "conclusion" ||
+                          block.type === "quote") && (
+                          <p className={BLOCK_STYLES[block.type]}>
+                            {block.text}
+                          </p>
+                        )}
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
 
-                    <p className="text-xs text-muted-foreground/40 text-center py-4">AI-generated · auto-saved to your account</p>
-                  </>
-                )}
+                <p className="text-xs text-muted-foreground/40 text-center py-4">
+                  AI-generated · auto-saved to your account
+                </p>
               </div>
-          )}
-        </motion.div>
+            )}
+          </motion.div>
+        )}
+
+        {/* ── RIGHT PANEL — FollowUpPanel (Phase-2 task 2.1) ──
+            Desktop: always-visible third column, 288px wide.
+            Mobile:  hidden until content exists; opened via FAB as a slide-in sheet. */}
+        {hasGenerated && savedId && (
+          <>
+            {/* Desktop column */}
+            <motion.div
+              key={followUpRefreshKey}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.45, delay: 0.15 }}
+              className="hidden md:flex md:w-72 md:shrink-0 flex-col glass-card rounded-2xl overflow-hidden"
+            >
+              <FollowUpPanel
+                contentType="assignment"
+                contentId={savedId}
+                contentTitle={assignment!.title}
+                onContentUpdated={() =>
+                  setFollowUpRefreshKey((k) => k + 1)
+                }
+              />
+            </motion.div>
+
+            {/* Mobile FAB (task 2.2) */}
+            <AnimatePresence>
+              {!rightPanelOpen && (
+                <motion.button
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                  className="right-panel-fab"
+                  onClick={() => setRightPanelOpen(true)}
+                  aria-label="Open AI follow-up panel"
+                >
+                  <MessageSquarePlus className="w-5 h-5" />
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            {/* Mobile sheet (task 2.2) */}
+            <AnimatePresence>
+              {rightPanelOpen && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="fixed inset-0 bg-black/50 z-40 md:hidden"
+                    onClick={() => setRightPanelOpen(false)}
+                  />
+                  <motion.div
+                    initial={{ x: "100%" }}
+                    animate={{ x: 0 }}
+                    exit={{ x: "100%" }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    key={followUpRefreshKey}
+                    className="fixed right-0 top-0 h-full w-[min(22rem,96vw)] z-50 flex flex-col md:hidden"
+                    style={{
+                      background: "hsl(240,8%,7%)",
+                      borderLeft: "1px solid hsl(0,0%,15%)",
+                    }}
+                  >
+                    <div className="flex justify-center pt-3 pb-1">
+                      <div className="w-10 h-1 rounded-full bg-white/10" />
+                    </div>
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-border/30">
+                      <span className="font-display font-semibold text-sm text-foreground">
+                        AI Follow-up
+                      </span>
+                      <button
+                        onClick={() => setRightPanelOpen(false)}
+                        aria-label="Close follow-up panel"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary text-muted-foreground hover:text-foreground transition-all"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <FollowUpPanel
+                        contentType="assignment"
+                        contentId={savedId}
+                        contentTitle={assignment!.title}
+                        onContentUpdated={() => {
+                          setFollowUpRefreshKey((k) => k + 1);
+                          setRightPanelOpen(false);
+                        }}
+                      />
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </>
         )}
       </div>
     </div>
