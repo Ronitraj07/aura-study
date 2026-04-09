@@ -25,8 +25,6 @@ import {
   RotateCcw,
   X,
   Search,
-  Edit3,
-  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportNotesPDF, exportExamNotesPDF } from "@/lib/pdfExport";
@@ -300,10 +298,7 @@ function MnemonicsBlock({ mnemonics }: { mnemonics: Mnemonic[] }) {
             <p className="text-xs font-semibold mb-2" style={{ color: "hsl(220,85%,65%)" }}>
               {m.concept}
             </p>
-            <p
-              className="text-base font-bold text-foreground mb-2 italic"
-              style={{ fontFamily: "Georgia, serif" }}
-            >
+            <p className="text-base font-bold text-foreground mb-2 italic">
               &ldquo;{m.device}&rdquo;
             </p>
             <p className="text-xs text-foreground/65 leading-relaxed">{m.explanation}</p>
@@ -516,6 +511,8 @@ const Notes = () => {
   const [isPdfExporting, setIsPdfExporting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  // State-based refresh key — replaces window.location.reload()
+  const [followUpRefreshKey, setFollowUpRefreshKey] = useState(0);
 
   // Enhanced notes options
   const [subtopics, setSubtopics] = useState<string[]>([]);
@@ -538,9 +535,6 @@ const Notes = () => {
   
   // Track content state for conditional right panel rendering
   const { hasGeneratedContent } = useContentState('notes', hasGenerated);
-
-  // Edit mode state
-  const [editMode, setEditMode] = useState(false);
 
   const handleGenerate = () => {
     if (!topic.trim() || isGenerating) return;
@@ -657,7 +651,7 @@ const Notes = () => {
             className="w-9 h-9 rounded-xl flex items-center justify-center"
             style={{ background: "linear-gradient(135deg, hsl(160,70%,45%), hsl(220,85%,60%))" }}
           >
-            <BookOpen className="w-4.5 h-4.5 text-white" />
+            <BookOpen className="w-[18px] h-[18px] text-white" />
           </div>
           <div>
             <h1 className="font-display text-xl font-bold text-foreground">
@@ -701,21 +695,6 @@ const Notes = () => {
               </button>
             )}
 
-            {/* Edit Mode Toggle */}
-            <button
-              onClick={() => setEditMode(!editMode)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all",
-                editMode
-                  ? "bg-primary/15 border-primary/40 text-primary"
-                  : "bg-secondary border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
-              )}
-              title={editMode ? "Exit edit mode" : "Enter edit mode"}
-            >
-              {editMode ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
-              {editMode ? "View" : "Edit"}
-            </button>
-
             {saveStatus === 'saving' && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" /> Saving...
@@ -740,7 +719,7 @@ const Notes = () => {
               style={{ background: "linear-gradient(135deg, hsl(160,70%,45%), hsl(220,85%,60%))" }}
             >
               {isPdfExporting
-                ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Exporting...</>
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Exporting...</>
                 : <><Download className="w-3.5 h-3.5" />Export PDF</>
               }
             </button>
@@ -978,6 +957,9 @@ const Notes = () => {
                       <p className="text-xs text-muted-foreground/60">{desc}</p>
                     </div>
                     <button
+                      role="switch"
+                      aria-checked={state}
+                      aria-label={`Toggle ${label}`}
                       onClick={() => setter(prev => !prev)}
                       className={cn(
                         "w-11 h-6 rounded-full border-2 transition-all flex items-center",
@@ -1039,7 +1021,7 @@ const Notes = () => {
             {isResearching ? (
               <><Loader2 className="w-4 h-4 animate-spin" />Researching...</>
             ) : isGenerating ? (
-              <><RefreshCw className="w-4 h-4 animate-spin" />Generating...</>
+              <><Loader2 className="w-4 h-4 animate-spin" />Generating...</>
             ) : (
               <>{depth === 'exam' ? <GraduationCap className="w-4 h-4" /> : <Wand2 className="w-4 h-4" />}Generate Notes</>
             )}
@@ -1087,6 +1069,7 @@ const Notes = () => {
           {/* Follow-up Panel (when notes exist) - Hidden on mobile until content is generated */}
           {hasGenerated && notes && savedId && (
             <motion.div
+              key={followUpRefreshKey}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               className="hidden md:block glass-card rounded-2xl overflow-hidden"
@@ -1096,8 +1079,7 @@ const Notes = () => {
                 contentId={savedId}
                 contentTitle={notes.title}
                 onContentUpdated={() => {
-                  // Refresh the notes data when content is updated
-                  window.location.reload(); // Simple refresh for now
+                  setFollowUpRefreshKey(k => k + 1);
                 }}
               />
             </motion.div>
@@ -1193,41 +1175,6 @@ const Notes = () => {
                     <MnemonicsBlock mnemonics={notes.mnemonics ?? []} />
                     <CheatsheetBlock entries={notes.cheatsheet ?? []} />
                     <p className="text-xs text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
-                  </motion.div>
-                ) : editMode ? (
-                  <motion.div
-                    key="edit"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.25 }}
-                    className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
-                    style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(160,70%,45%,0.3) transparent" }}
-                  >
-                    <div className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0">
-                      <Edit3 className="w-4 h-4 shrink-0" style={{ color: "hsl(160,70%,50%)" }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{notes.title} — Edit Mode</p>
-                        <p className="text-xs text-muted-foreground">Click sections to edit and regenerate content</p>
-                      </div>
-                      <span
-                        className="text-xs font-bold px-2.5 py-1 rounded-full border uppercase tracking-wider"
-                        style={{ background: "hsl(160,70%,45%,0.15)", borderColor: "hsl(160,70%,45%,0.3)", color: "hsl(160,70%,62%)" }}
-                      >
-                        Edit Mode
-                      </span>
-                    </div>
-
-                    {/* TODO: Add EditNotesSection component here */}
-                    <div className="glass-card rounded-2xl p-6 text-center">
-                      <Edit3 className="w-8 h-8 mx-auto mb-3 text-muted-foreground/40" />
-                      <p className="text-sm text-muted-foreground">Notes edit mode is coming soon!</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">
-                        Section-level editing and AI regeneration will be available here.
-                      </p>
-                    </div>
-
-                    <p className="text-xs text-muted-foreground/40 text-center pb-2">Edit mode in development</p>
                   </motion.div>
                 ) : (
                   <motion.div
