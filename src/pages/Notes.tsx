@@ -25,6 +25,7 @@ import {
   RotateCcw,
   X,
   Search,
+  MessageSquarePlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportNotesPDF, exportExamNotesPDF } from "@/lib/pdfExport";
@@ -36,7 +37,7 @@ import { FollowUpPanel } from "@/components/FollowUpPanel";
 import type { NoteHeading, NoteBullet } from "@/types/database";
 import type { ExamTip, Mnemonic, CheatsheetEntry } from "@/hooks/useNotesGenerator";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -47,7 +48,7 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-// ─── Section Card ────────────────────────────────────────────────────────────────────
+// ─── Section Card ────────────────────────────────────────────────────────────────────────────────────────
 const SECTION_COLORS = [
   "hsl(262, 80%, 65%)",
   "hsl(220, 85%, 65%)",
@@ -104,8 +105,7 @@ function NoteSectionCard({
   );
 }
 
-// ─── Summary Block ───────────────────────────────────────────────────────────────────
-
+// ─── Summary Block ───────────────────────────────────────────────────────────────────────────────────────
 function SummaryBlock({ summary }: { summary: string }) {
   return (
     <motion.div
@@ -128,8 +128,7 @@ function SummaryBlock({ summary }: { summary: string }) {
   );
 }
 
-// ─── Key Terms Block ────────────────────────────────────────────────────────────────────
-
+// ─── Key Terms Block ──────────────────────────────────────────────────────────────────────────────────────────
 function KeyTermsBlock({ terms }: { terms: string[] }) {
   if (!terms?.length) return null;
   return (
@@ -157,7 +156,7 @@ function KeyTermsBlock({ terms }: { terms: string[] }) {
   );
 }
 
-// ─── Exam Tips Block ────────────────────────────────────────────────────────────────────
+// ─── Exam Tips Block ──────────────────────────────────────────────────────────────────────────────────────
 const DIFF_CONFIG = {
   easy:   { color: "hsl(160,70%,48%)",  label: "Easy" },
   medium: { color: "hsl(30,80%,58%)",   label: "Medium" },
@@ -178,7 +177,7 @@ function ExamTipsBlock({ tips }: { tips: ExamTip[] }) {
       <div className="p-5">
         <div className="flex items-center gap-2 mb-4">
           <Target className="w-4 h-4" style={{ color: "hsl(340,75%,60%)" }} />
-          <h3 className="font-display font-semibold text-base text-foreground">Exam Q&A</h3>
+          <h3 className="font-display font-semibold text-base text-foreground">Exam Q&amp;A</h3>
           <span
             className="text-xs px-2 py-0.5 rounded-full font-medium border"
             style={{ background: "hsl(340,75%,58%,0.12)", borderColor: "hsl(340,75%,58%,0.3)", color: "hsl(340,75%,62%)" }}
@@ -254,7 +253,7 @@ function ExamTipsBlock({ tips }: { tips: ExamTip[] }) {
   );
 }
 
-// ─── Mnemonics Block ──────────────────────────────────────────────────────────────────────
+// ─── Mnemonics Block ──────────────────────────────────────────────────────────────────────────────────────────────
 function MnemonicsBlock({ mnemonics }: { mnemonics: Mnemonic[] }) {
   return (
     <motion.div
@@ -310,7 +309,7 @@ function MnemonicsBlock({ mnemonics }: { mnemonics: Mnemonic[] }) {
   );
 }
 
-// ─── Cheatsheet Block ──────────────────────────────────────────────────────────────────────
+// ─── Cheatsheet Block ────────────────────────────────────────────────────────────────────────────────────────────
 function CheatsheetBlock({ entries }: { entries: CheatsheetEntry[] }) {
   return (
     <motion.div
@@ -365,7 +364,7 @@ function CheatsheetBlock({ entries }: { entries: CheatsheetEntry[] }) {
   );
 }
 
-// ─── History Sheet ────────────────────────────────────────────────────────────────────
+// ─── History Sheet ────────────────────────────────────────────────────────────────────────────────────────
 function NotesHistorySheet({
   open,
   onClose,
@@ -407,12 +406,9 @@ function NotesHistorySheet({
             className="fixed right-0 top-0 h-full w-[min(20rem,92vw)] z-50 flex flex-col"
             style={{ background: "hsl(240,8%,7%)", borderLeft: "1px solid hsl(0,0%,15%)" }}
           >
-            {/* Drag handle indicator */}
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 rounded-full bg-white/10" />
             </div>
-
-            {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
               <div className="flex items-center gap-2">
                 <History className="w-4 h-4 text-primary" />
@@ -426,8 +422,6 @@ function NotesHistorySheet({
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
-
-            {/* Search bar */}
             {versions.length > 0 && (
               <div className="px-4 pt-4 pb-3 border-b border-border/30">
                 <div className="relative">
@@ -442,8 +436,6 @@ function NotesHistorySheet({
                 </div>
               </div>
             )}
-
-            {/* Version list */}
             <div className="flex-1 overflow-y-auto p-4 space-y-2" style={{ scrollbarWidth: "thin" }}>
               {filteredVersions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-12">
@@ -489,7 +481,6 @@ function NotesHistorySheet({
                 ))
               )}
             </div>
-
             <div className="p-4 border-t border-border/30">
               <p className="text-xs text-muted-foreground/50 text-center">
                 Restoring saves a new snapshot of your current version first
@@ -502,7 +493,7 @@ function NotesHistorySheet({
   );
 }
 
-// ─── Main Page ──────────────────────────────────────────────────────────────────────────
+// ─── Main Page ──────────────────────────────────────────────────────────────────────────────────────────────
 const Notes = () => {
   const [topic, setTopic] = useState("");
   const [depth, setDepth] = useState<'overview' | 'detailed' | 'exam'>('overview');
@@ -511,8 +502,9 @@ const Notes = () => {
   const [isPdfExporting, setIsPdfExporting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
-  // State-based refresh key — replaces window.location.reload()
   const [followUpRefreshKey, setFollowUpRefreshKey] = useState(0);
+  // Phase-2 task 2.2: mobile right-panel sheet state
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
 
   // Enhanced notes options
   const [subtopics, setSubtopics] = useState<string[]>([]);
@@ -532,8 +524,6 @@ const Notes = () => {
   } = useNotesGenerator();
   const hasGenerated = !!notes;
   const hasExamContent = !!(notes?.exam_tips?.length || notes?.mnemonics?.length || notes?.cheatsheet?.length);
-  
-  // Track content state for conditional right panel rendering
   const { hasGeneratedContent } = useContentState('notes', hasGenerated);
 
   const handleGenerate = () => {
@@ -626,9 +616,131 @@ const Notes = () => {
     { key: 'exam' as const,    label: 'Exam Mode', desc: '+ tips & mnemonics' },
   ];
 
+  // Right-panel content — reused for both the desktop column and the mobile sheet
+  const rightPanelContent = (
+    <>
+      {!hasGenerated && !isGenerating && (
+        <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
+          <motion.div
+            animate={{ y: [0, -8, 0] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+            className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
+            style={{ background: "linear-gradient(135deg, hsl(160,70%,45%,0.15), hsl(220,85%,60%,0.08))" }}
+          >
+            <BookOpen className="w-10 h-10" style={{ color: "hsl(160,70%,48%,0.7)" }} />
+          </motion.div>
+          <h3 className="font-display text-xl font-bold text-foreground/80 mb-2">Ready to generate notes</h3>
+          <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+            Enter any topic and hit{" "}
+            <span style={{ color: "hsl(160,70%,50%)" }} className="font-medium">Generate Notes</span>{" "}
+            for AI-researched structured headings, bullets, and a summary.
+          </p>
+          <div className="mt-8 flex items-center gap-6 text-xs text-muted-foreground/60">
+            <span className="flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" /> Sections</span>
+            <span className="flex items-center gap-1.5"><List className="w-3.5 h-3.5" /> Bullets</span>
+            <span className="flex items-center gap-1.5"><Lightbulb className="w-3.5 h-3.5" /> Summary</span>
+          </div>
+        </div>
+      )}
+
+      {isGenerating && (
+        <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+            className="w-12 h-12 rounded-full border-2 border-primary/20 mb-6"
+            style={{ borderTopColor: depth === 'exam' ? "hsl(340,75%,55%)" : "hsl(160,70%,45%)" }}
+          />
+          <p className="font-display text-lg font-semibold text-foreground/80 mb-1">
+            {isResearching ? "Researching topic..." : "Generating notes..."}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {isResearching
+              ? "Gathering facts via Groq"
+              : depth === 'exam'
+              ? "Building exam tips, mnemonics & cheatsheet"
+              : "Organising headings and bullet points"}
+          </p>
+        </div>
+      )}
+
+      {notes && (
+        <AnimatePresence mode="wait">
+          {examMode ? (
+            <motion.div
+              key="exam"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+              className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
+              style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(340,75%,55%,0.3) transparent" }}
+            >
+              <div
+                className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0 border"
+                style={{ borderColor: "hsl(340,75%,55%,0.25)", background: "hsl(340,75%,55%,0.05)" }}
+              >
+                <GraduationCap className="w-4 h-4 shrink-0" style={{ color: "hsl(340,75%,60%)" }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{notes.title} — Exam Prep</p>
+                  <p className="text-xs text-muted-foreground">
+                    {notes.exam_tips?.length ?? 0} exam Q&As · {notes.mnemonics?.length ?? 0} mnemonics · {notes.cheatsheet?.length ?? 0} cheatsheet entries
+                  </p>
+                </div>
+                <span
+                  className="text-xs font-bold px-2.5 py-1 rounded-full border uppercase tracking-wider"
+                  style={{ background: "hsl(340,75%,55%,0.15)", borderColor: "hsl(340,75%,55%,0.3)", color: "hsl(340,75%,62%)" }}
+                >
+                  Exam Mode
+                </span>
+              </div>
+              <ExamTipsBlock tips={notes.exam_tips ?? []} />
+              <MnemonicsBlock mnemonics={notes.mnemonics ?? []} />
+              <CheatsheetBlock entries={notes.cheatsheet ?? []} />
+              <p className="text-xs text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="notes"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+              className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
+              style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(160,70%,45%,0.3) transparent" }}
+            >
+              <div className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0">
+                <Sparkles className="w-4 h-4 shrink-0" style={{ color: "hsl(160,70%,50%)" }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{notes.title}</p>
+                  <p className="text-xs text-muted-foreground">{notes.headings.length} sections · {totalBullets} bullets · summary included</p>
+                </div>
+              </div>
+              <AnimatePresence>
+                {notes.headings.map((heading, i) => {
+                  const bulletEntry = notes.bullets.find((b) => b.heading === heading.text);
+                  return (
+                    <NoteSectionCard
+                      key={heading.text + i}
+                      heading={heading}
+                      bullets={bulletEntry?.points ?? []}
+                      index={i}
+                    />
+                  );
+                })}
+              </AnimatePresence>
+              <SummaryBlock summary={notes.summary} />
+              <KeyTermsBlock terms={notes.keyTerms ?? []} />
+              <p className="text-xs text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
+    </>
+  );
+
   return (
     <div className="flex flex-col md:h-full">
-      {/* Only render history sheet when content exists or on desktop */}
       {hasGeneratedContent && (
         <NotesHistorySheet
           open={historyOpen}
@@ -682,19 +794,16 @@ const Notes = () => {
                 Exam Mode
               </button>
             )}
-
             {savedId && hasGeneratedContent && (
               <button
                 onClick={handleOpenHistory}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-secondary border-border text-muted-foreground hover:border-primary/30 hover:text-foreground transition-all"
-                title="Version history"
                 aria-label="Open version history"
               >
                 <History className="w-3.5 h-3.5" />
                 History
               </button>
             )}
-
             {saveStatus === 'saving' && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" /> Saving...
@@ -728,24 +837,21 @@ const Notes = () => {
       </motion.div>
 
       {/*
-        ── TWO-PANEL LAYOUT ──
-        Mobile (< md):  flex-col — left panel stacks above right panel
-        Desktop (≥ md): flex-row — side by side, left panel fixed at w-72
-
-        Left panel on mobile:
-          - max-h-[45dvh] + overflow-y-auto so it doesn't push the output panel off screen
-          - Full width (w-full)
-        Left panel on desktop:
-          - w-72 shrink-0 (original behaviour preserved)
+        ── THREE-COLUMN LAYOUT (Phase-2 task 2.1)
+        Mobile  (<md):  single column stack
+        Desktop (≥md):  [left 288px] [centre flex-1] [right 288px (FollowUp)]
+        Right col appears only after first generation.
       */}
       <div className={`flex flex-col md:flex-row gap-5 ${(notes || isGenerating) ? 'md:flex-1 md:min-h-0' : ''}`}>
 
-        {/* ── LEFT PANEL ── */}
+        {/* ── LEFT PANEL ──
+            Phase-2 task 2.3: removed max-h-[45dvh] clamp.
+            Left panel now scrolls naturally at all viewport sizes. */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.05 }}
-          className={cn("w-full md:w-72 md:shrink-0 flex flex-col gap-4 md:max-h-none overflow-y-auto md:overflow-visible", hasGenerated && "max-h-[45dvh]")}
+          className="w-full md:w-72 md:shrink-0 flex flex-col gap-4 overflow-y-auto"
           style={{ scrollbarWidth: "thin" }}
         >
           <div className="glass-card rounded-2xl p-5">
@@ -796,13 +902,11 @@ const Notes = () => {
             </div>
           </div>
 
-          {/* Subtopics Selection */}
+          {/* Subtopics */}
           <div className="glass-card rounded-2xl p-5">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
               Subtopics (optional)
             </p>
-            
-            {/* AI-powered subtopic suggestions */}
             <SubtopicsSuggester
               mainTopic={topic}
               onSelectSuggestion={(subtopic) => {
@@ -813,8 +917,6 @@ const Notes = () => {
               existingSubtopics={subtopics}
               className="mb-4"
             />
-            
-            {/* Enhanced subtopics input */}
             <SubtopicsInput
               subtopics={subtopics}
               onChange={setSubtopics}
@@ -826,7 +928,7 @@ const Notes = () => {
             />
           </div>
 
-          {/* Format Selection */}
+          {/* Format */}
           <div className="glass-card rounded-2xl p-5">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Format</p>
             <div className="grid grid-cols-1 gap-2">
@@ -889,9 +991,7 @@ const Notes = () => {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
               Exam Features
             </p>
-            
             <div className="space-y-3">
-              {/* Exam Type */}
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-2">Exam Type</label>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -916,8 +1016,6 @@ const Notes = () => {
                   ))}
                 </div>
               </div>
-
-              {/* Study Duration */}
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-2">Study Duration</label>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -941,8 +1039,6 @@ const Notes = () => {
                   ))}
                 </div>
               </div>
-
-              {/* Feature Toggles */}
               <div className="space-y-2.5">
                 {[
                   { state: includeExamTips, setter: setIncludeExamTips, label: 'Practice Questions', desc: 'Exam Q&A with difficulty levels' },
@@ -981,6 +1077,7 @@ const Notes = () => {
             </div>
           </div>
 
+          {/* Output includes */}
           <div className="glass-card rounded-2xl p-5">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Output Includes</p>
             <div className="flex flex-col gap-2">
@@ -1027,7 +1124,6 @@ const Notes = () => {
             )}
           </button>
 
-          {/* Error display */}
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
@@ -1065,28 +1161,11 @@ const Notes = () => {
               )}
             </motion.div>
           )}
-
-          {/* Follow-up Panel (when notes exist) - Hidden on mobile until content is generated */}
-          {hasGenerated && notes && savedId && (
-            <motion.div
-              key={followUpRefreshKey}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="hidden md:block glass-card rounded-2xl overflow-hidden"
-            >
-              <FollowUpPanel
-                contentType="notes"
-                contentId={savedId}
-                contentTitle={notes.title}
-                onContentUpdated={() => {
-                  setFollowUpRefreshKey(k => k + 1);
-                }}
-              />
-            </motion.div>
-          )}
         </motion.div>
 
-        {/* ── RIGHT PANEL ── Only show when there's actual content to display */}
+        {/* ── CENTRE PANEL (notes output) ──
+            On mobile: full width stack.
+            On desktop: flex-1, scrolls independently. */}
         {(notes || isGenerating) && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -1094,129 +1173,98 @@ const Notes = () => {
             transition={{ duration: 0.45, delay: 0.1 }}
             className="flex-1 flex flex-col min-w-0"
           >
-          
-          {!hasGenerated && !isGenerating && (
-            <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12 hidden md:flex">
-              <motion.div
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
-                style={{ background: "linear-gradient(135deg, hsl(160,70%,45%,0.15), hsl(220,85%,60%,0.08))" }}
-              >
-                <BookOpen className="w-10 h-10" style={{ color: "hsl(160,70%,48%,0.7)" }} />
-              </motion.div>
-              <h3 className="font-display text-xl font-bold text-foreground/80 mb-2">Ready to generate notes</h3>
-              <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-                Enter any topic and hit{" "}
-                <span style={{ color: "hsl(160,70%,50%)" }} className="font-medium">Generate Notes</span>{" "}
-                for AI-researched structured headings, bullets, and a summary.
-              </p>
-              <div className="mt-8 flex items-center gap-6 text-xs text-muted-foreground/60">
-                <span className="flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" /> Sections</span>
-                <span className="flex items-center gap-1.5"><List className="w-3.5 h-3.5" /> Bullets</span>
-                <span className="flex items-center gap-1.5"><Lightbulb className="w-3.5 h-3.5" /> Summary</span>
-              </div>
-            </div>
-          )}
-          
-          {isGenerating && (
-            <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
-                className="w-12 h-12 rounded-full border-2 border-primary/20 mb-6"
-                style={{ borderTopColor: depth === 'exam' ? "hsl(340,75%,55%)" : "hsl(160,70%,45%)" }}
+            {rightPanelContent}
+          </motion.div>
+        )}
+
+        {/* ── RIGHT PANEL — FollowUpPanel (Phase-2 task 2.1) ──
+            Desktop: always-visible third column, 288px wide.
+            Mobile:  hidden until content exists; opened via FAB as a slide-in sheet. */}
+        {hasGenerated && savedId && (
+          <>
+            {/* Desktop column */}
+            <motion.div
+              key={followUpRefreshKey}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.45, delay: 0.15 }}
+              className="hidden md:flex md:w-72 md:shrink-0 flex-col glass-card rounded-2xl overflow-hidden"
+            >
+              <FollowUpPanel
+                contentType="notes"
+                contentId={savedId}
+                contentTitle={notes!.title}
+                onContentUpdated={() => setFollowUpRefreshKey(k => k + 1)}
               />
-              <p className="font-display text-lg font-semibold text-foreground/80 mb-1">
-                {isResearching ? "Researching topic..." : "Generating notes..."}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {isResearching
-                  ? "Gathering facts via Groq"
-                  : depth === 'exam'
-                  ? "Building exam tips, mnemonics & cheatsheet"
-                  : "Organising headings and bullet points"}
-              </p>
-            </div>
-          )}
-          
-              {notes && (
-            <AnimatePresence mode="wait">
-                {examMode ? (
+            </motion.div>
+
+            {/* Mobile FAB (task 2.2) */}
+            <AnimatePresence>
+              {!rightPanelOpen && (
+                <motion.button
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                  className="right-panel-fab"
+                  onClick={() => setRightPanelOpen(true)}
+                  aria-label="Open AI follow-up panel"
+                >
+                  <MessageSquarePlus className="w-5 h-5" />
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            {/* Mobile sheet (task 2.2) */}
+            <AnimatePresence>
+              {rightPanelOpen && (
+                <>
                   <motion.div
-                    key="exam"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.25 }}
-                    className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
-                    style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(340,75%,55%,0.3) transparent" }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="fixed inset-0 bg-black/50 z-40 md:hidden"
+                    onClick={() => setRightPanelOpen(false)}
+                  />
+                  <motion.div
+                    initial={{ x: "100%" }}
+                    animate={{ x: 0 }}
+                    exit={{ x: "100%" }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    key={followUpRefreshKey}
+                    className="fixed right-0 top-0 h-full w-[min(22rem,96vw)] z-50 flex flex-col md:hidden"
+                    style={{ background: "hsl(240,8%,7%)", borderLeft: "1px solid hsl(0,0%,15%)" }}
                   >
-                    <div
-                      className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0 border"
-                      style={{ borderColor: "hsl(340,75%,55%,0.25)", background: "hsl(340,75%,55%,0.05)" }}
-                    >
-                      <GraduationCap className="w-4 h-4 shrink-0" style={{ color: "hsl(340,75%,60%)" }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{notes.title} — Exam Prep</p>
-                        <p className="text-xs text-muted-foreground">
-                          {notes.exam_tips?.length ?? 0} exam Q&As · {notes.mnemonics?.length ?? 0} mnemonics · {notes.cheatsheet?.length ?? 0} cheatsheet entries
-                        </p>
-                      </div>
-                      <span
-                        className="text-xs font-bold px-2.5 py-1 rounded-full border uppercase tracking-wider"
-                        style={{ background: "hsl(340,75%,55%,0.15)", borderColor: "hsl(340,75%,55%,0.3)", color: "hsl(340,75%,62%)" }}
+                    <div className="flex justify-center pt-3 pb-1">
+                      <div className="w-10 h-1 rounded-full bg-white/10" />
+                    </div>
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-border/30">
+                      <span className="font-display font-semibold text-sm text-foreground">AI Follow-up</span>
+                      <button
+                        onClick={() => setRightPanelOpen(false)}
+                        aria-label="Close follow-up panel"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center bg-secondary/60 hover:bg-secondary text-muted-foreground hover:text-foreground transition-all"
                       >
-                        Exam Mode
-                      </span>
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-
-                    <ExamTipsBlock tips={notes.exam_tips ?? []} />
-                    <MnemonicsBlock mnemonics={notes.mnemonics ?? []} />
-                    <CheatsheetBlock entries={notes.cheatsheet ?? []} />
-                    <p className="text-xs text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="notes"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.25 }}
-                    className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
-                    style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(160,70%,45%,0.3) transparent" }}
-                  >
-                    <div className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0">
-                      <Sparkles className="w-4 h-4 shrink-0" style={{ color: "hsl(160,70%,50%)" }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{notes.title}</p>
-                        <p className="text-xs text-muted-foreground">{notes.headings.length} sections · {totalBullets} bullets · summary included</p>
-                      </div>
+                    <div className="flex-1 overflow-hidden">
+                      <FollowUpPanel
+                        contentType="notes"
+                        contentId={savedId}
+                        contentTitle={notes!.title}
+                        onContentUpdated={() => {
+                          setFollowUpRefreshKey(k => k + 1);
+                          setRightPanelOpen(false);
+                        }}
+                      />
                     </div>
-
-                    <AnimatePresence>
-                      {notes.headings.map((heading, i) => {
-                        const bulletEntry = notes.bullets.find((b) => b.heading === heading.text);
-                        return (
-                          <NoteSectionCard
-                            key={heading.text + i}
-                            heading={heading}
-                            bullets={bulletEntry?.points ?? []}
-                            index={i}
-                          />
-                        );
-                      })}
-                    </AnimatePresence>
-
-                    <SummaryBlock summary={notes.summary} />
-                    <KeyTermsBlock terms={notes.keyTerms ?? []} />
-
-                    <p className="text-xs text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
                   </motion.div>
-                )}
-              </AnimatePresence>
-          )}
-        </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </>
         )}
       </div>
     </div>
