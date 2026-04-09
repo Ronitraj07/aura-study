@@ -35,7 +35,6 @@ const mainItems = [
   { title: "Notes",       url: "/dashboard/notes",       icon: BookOpen        },
   { title: "Timetable",   url: "/dashboard/timetable",   icon: CalendarDays    },
   { title: "Checklist",   url: "/dashboard/checklist",   icon: CheckSquare     },
-  { title: "Smart Mode",  url: "/dashboard/smart-mode",  icon: Sparkles        },
 ];
 
 // ── ProfileLink ────────────────────────────────────────────────────

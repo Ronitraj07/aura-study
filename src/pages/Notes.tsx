@@ -31,11 +31,9 @@ import {
 import { cn } from "@/lib/utils";
 import { exportNotesPDF, exportExamNotesPDF } from "@/lib/pdfExport";
 import { useNotesGenerator } from "@/hooks/useNotesGenerator";
-import { useSmartMode } from "@/hooks/useSmartMode";
 import { useContentState } from "@/hooks/useContentState";
 import { SubtopicsSuggester } from "@/components/SubtopicsSuggester";
 import { SubtopicsInput } from "@/components/SubtopicsInput";
-import { SmartModeBanner } from "@/components/SmartModeBanner";
 import { FollowUpPanel } from "@/components/FollowUpPanel";
 import type { NoteHeading, NoteBullet } from "@/types/database";
 import type { ExamTip, Mnemonic, CheatsheetEntry } from "@/hooks/useNotesGenerator";
@@ -516,7 +514,6 @@ const Notes = () => {
   const [examMode, setExamMode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
-  const [smartApplied, setSmartApplied] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
 
@@ -536,8 +533,6 @@ const Notes = () => {
     notes, savedId, isGenerating, isResearching, saveStatus, error,
     versions, generate, loadVersions, restoreVersion,
   } = useNotesGenerator();
-  const { suggestion, isAnalysing, dismiss, dismissed } = useSmartMode(topic, 'notes');
-
   const hasGenerated = !!notes;
   const hasExamContent = !!(notes?.exam_tips?.length || notes?.mnemonics?.length || notes?.cheatsheet?.length);
   
@@ -568,13 +563,6 @@ const Notes = () => {
     } else {
       setExamMode(false);
     }
-  };
-
-  const handleSmartApply = (s: typeof suggestion) => {
-    if (!s) return;
-    if (s.depth) setDepth(s.depth);
-    setSmartApplied(true);
-    setTimeout(() => setSmartApplied(false), 2500);
   };
 
   const handleCopy = () => {
@@ -778,7 +766,7 @@ const Notes = () => {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.05 }}
-          className="w-full md:w-72 md:shrink-0 flex flex-col gap-4 max-h-[45dvh] md:max-h-none overflow-y-auto md:overflow-visible"
+          className={cn("w-full md:w-72 md:shrink-0 flex flex-col gap-4 md:max-h-none overflow-y-auto md:overflow-visible", hasGenerated && "max-h-[45dvh]")}
           style={{ scrollbarWidth: "thin" }}
         >
           <div className="glass-card rounded-2xl p-5">
@@ -1010,17 +998,6 @@ const Notes = () => {
               </div>
             </div>
           </div>
-
-          {/* Smart Mode Banner */}
-          <SmartModeBanner
-            suggestion={suggestion}
-            isAnalysing={isAnalysing}
-            dismissed={dismissed}
-            tool="notes"
-            onApply={handleSmartApply}
-            onDismiss={dismiss}
-            applied={smartApplied}
-          />
 
           <div className="glass-card rounded-2xl p-5">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">Output Includes</p>
