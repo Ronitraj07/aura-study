@@ -99,13 +99,13 @@
 
   /* Fluid type scale — 12px absolute floor on all sizes */
   :root {
-    --text-xs:   clamp(0.75rem,  0.72rem + 0.25vw, 0.875rem);  /* 12px → 14px */
-    --text-sm:   clamp(0.875rem, 0.84rem + 0.25vw, 0.9375rem); /* 14px → 15px */
-    --text-base: clamp(1rem,     0.96rem + 0.2vw,  1.0625rem); /* 16px → 17px */
-    --text-lg:   clamp(1.125rem, 1rem    + 0.5vw,  1.25rem);   /* 18px → 20px */
-    --text-xl:   clamp(1.25rem,  1.1rem  + 0.75vw, 1.5rem);    /* 20px → 24px */
-    --text-2xl:  clamp(1.5rem,   1.2rem  + 1.5vw,  2.25rem);   /* 24px → 36px */
-    --text-3xl:  clamp(1.875rem, 1.2rem  + 2.5vw,  3rem);      /* 30px → 48px */
+    --text-xs:   clamp(0.75rem,  0.72rem + 0.25vw, 0.875rem);
+    --text-sm:   clamp(0.875rem, 0.84rem + 0.25vw, 0.9375rem);
+    --text-base: clamp(1rem,     0.96rem + 0.2vw,  1.0625rem);
+    --text-lg:   clamp(1.125rem, 1rem    + 0.5vw,  1.25rem);
+    --text-xl:   clamp(1.25rem,  1.1rem  + 0.75vw, 1.5rem);
+    --text-2xl:  clamp(1.5rem,   1.2rem  + 1.5vw,  2.25rem);
+    --text-3xl:  clamp(1.875rem, 1.2rem  + 2.5vw,  3rem);
 
     /* 4px spacing system */
     --sp-1:  0.25rem;
@@ -119,7 +119,10 @@
     --sp-12: 3rem;
     --sp-16: 4rem;
 
-    /* Colors */
+    /* Colors — 4.1: replaced gradient-primary with solid accent for btn-primary.
+       Gradient vars kept for gradient-text, gradient-border, and decorative uses only. */
+    --color-primary-solid: hsl(262,80%,62%);
+    --color-primary-hover:  hsl(262,80%,54%);
     --gradient-primary: linear-gradient(135deg, hsl(262,80%,62%), hsl(220,85%,62%));
     --gradient-glow:    linear-gradient(135deg, hsla(262,80%,62%,0.14), hsla(220,85%,62%,0.14));
     --gradient-subtle:  linear-gradient(135deg, hsla(262,80%,62%,0.07), hsla(220,85%,62%,0.07));
@@ -127,7 +130,7 @@
     --gradient-orange:  linear-gradient(135deg, hsl(30,85%,58%), hsl(12,78%,52%));
     --gradient-blue:    linear-gradient(135deg, hsl(220,85%,62%), hsl(200,80%,52%));
 
-    /* Glass */
+    /* Glass — 4.5: fixed hsl(r,g,b,alpha) → hsla() throughout */
     --glass-bg:     hsla(240,13%,8%,0.65);
     --glass-border: hsla(240,10%,100%,0.07);
     --glass-blur:   20px;
@@ -146,7 +149,7 @@
     --t-base: 220ms;
     --t-slow: 380ms;
 
-    /* Fonts — upgraded to Outfit (less overexposed than Space Grotesk) */
+    /* Fonts */
     --font-display: 'Outfit', system-ui, sans-serif;
     --font-body:    'Inter', system-ui, sans-serif;
   }
@@ -159,7 +162,6 @@
     @apply border-border;
   }
 
-  /* Prevent horizontal overflow at root level — phase-2 task 2.4 */
   html, body {
     overflow-x: hidden;
     max-width: 100%;
@@ -183,7 +185,6 @@
     font-size: var(--text-base);
     line-height: 1.6;
     min-height: 100dvh;
-    /* iOS momentum scrolling for touch devices */
     -webkit-overflow-scrolling: touch;
   }
 
@@ -206,7 +207,6 @@
     color: inherit;
   }
 
-  /* Prevent iOS auto-zoom on focused inputs — always keep font >= 16px */
   input, textarea, select {
     font-size: max(1rem, 16px);
   }
@@ -214,8 +214,8 @@
   button { cursor: pointer; }
 
   ::selection {
-    background: hsla(262, 80%, 62%, 0.28);
-    color: hsl(220, 18%, 95%);
+    background: hsla(262,80%,62%,0.28);
+    color: hsl(220,18%,95%);
   }
 
   :focus-visible {
@@ -224,16 +224,14 @@
     border-radius: var(--radius);
   }
 
-  /* Scrollbar */
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
-    background: hsl(240, 10%, 22%);
+    background: hsl(240,10%,22%);
     border-radius: 99px;
   }
-  ::-webkit-scrollbar-thumb:hover { background: hsl(240, 10%, 30%); }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(240,10%,30%); }
 
-  /* Skip link */
   .sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0;
@@ -248,9 +246,7 @@
     }
   }
 
-  /* ── Phase-2 task 2.4: min-width: 0 on all direct flex children
-     Prevents flex children from overflowing their container.
-     Applied globally so every flex layout benefits automatically. ── */
+  /* Phase-2 task 2.4 */
   .flex > *, .flex-col > *, .flex-row > * {
     min-width: 0;
   }
@@ -259,7 +255,6 @@
 /* ─── Component utilities ─────────────────────────────────────────────────── */
 @layer components {
 
-  /* Glass card — primary surface unit */
   .glass-card {
     background: var(--glass-bg);
     backdrop-filter: blur(var(--glass-blur));
@@ -268,16 +263,15 @@
     box-shadow: var(--shadow-md);
   }
 
-  /* Elevated variant for modals / popovers */
   .glass-elevated {
-    background: hsl(240, 13%, 10%);
+    background: hsl(240,13%,10%);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
-    border: 1px solid hsla(240, 10%, 100%, 0.1);
+    border: 1px solid hsla(240,10%,100%,0.1);
     box-shadow: var(--shadow-lg);
   }
 
-  /* Gradient text */
+  /* Gradient text — gradient still appropriate here, it's decorative type */
   .gradient-text {
     background: var(--gradient-primary);
     -webkit-background-clip: text;
@@ -285,7 +279,6 @@
     background-clip: text;
   }
 
-  /* Gradient border via pseudo-element */
   .gradient-border {
     position: relative;
   }
@@ -305,7 +298,6 @@
     pointer-events: none;
   }
 
-  /* Glow hover */
   .glow-hover {
     transition: box-shadow var(--t-base) var(--ease-out-expo),
                 transform   var(--t-base) var(--ease-out-expo);
@@ -315,7 +307,6 @@
     transform: translateY(-2px);
   }
 
-  /* ── Hero ambient glow blobs ─────────────────────────────────────────── */
   .hero-glow {
     position: absolute;
     border-radius: 50%;
@@ -323,12 +314,10 @@
     pointer-events: none;
     z-index: 0;
     will-change: opacity;
-    /* Clamp to viewport so blobs never cause overflow */
     max-width: 90vw;
     max-height: 90vw;
   }
 
-  /* ── Pulse glow animation ────────────────────────────────────────────── */
   @keyframes pulseGlow {
     0%, 100% { opacity: 0.15; transform: scale(1); }
     50%       { opacity: 0.28; transform: scale(1.06); }
@@ -337,13 +326,12 @@
     animation: pulseGlow 4s ease-in-out infinite;
   }
 
-  /* Shimmer skeleton */
   .skeleton {
     background: linear-gradient(
       90deg,
-      hsl(240, 10%, 12%) 25%,
-      hsl(240, 10%, 18%) 50%,
-      hsl(240, 10%, 12%) 75%
+      hsl(240,10%,12%) 25%,
+      hsl(240,10%,18%) 50%,
+      hsl(240,10%,12%) 75%
     );
     background-size: 200% 100%;
     animation: shimmer 1.6s ease-in-out infinite;
@@ -354,7 +342,6 @@
     100% { background-position:  200% 0; }
   }
 
-  /* Sidebar nav link */
   .nav-link {
     display: flex;
     align-items: center;
@@ -369,7 +356,6 @@
       color       var(--t-fast) var(--ease-out-expo);
     cursor: pointer;
     user-select: none;
-    /* Ensure minimum touch target */
     min-height: 44px;
   }
   .nav-link:hover {
@@ -377,11 +363,10 @@
     color: hsl(var(--foreground));
   }
   .nav-link.active {
-    background: hsla(262, 80%, 62%, 0.15);
-    color: hsl(262, 80%, 72%);
+    background: hsla(262,80%,62%,0.15);
+    color: hsl(262,80%,72%);
   }
 
-  /* Generator form card */
   .gen-card {
     @apply glass-card;
     border-radius: var(--radius);
@@ -414,13 +399,12 @@
   .card-interactive:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-lg);
-    border-color: hsla(262, 80%, 62%, 0.22);
+    border-color: hsla(262,80%,62%,0.22);
   }
   .card-interactive:active {
     transform: translateY(0);
     box-shadow: var(--shadow-md);
   }
-  /* Disable hover transforms on touch devices */
   @media (hover: none) {
     .card-interactive:hover {
       transform: none;
@@ -431,7 +415,6 @@
     }
   }
 
-  /* Label xs */
   .label-xs {
     font-size: var(--text-xs);
     font-weight: 600;
@@ -474,7 +457,7 @@
     transform: translateY(0) !important;
   }
 
-  /* Primary gradient button */
+  /* ── 4.1: btn-primary — solid accent, hover darkens (no gradient) ──── */
   .btn-primary {
     display: inline-flex;
     align-items: center;
@@ -482,25 +465,26 @@
     gap: var(--sp-2);
     padding: var(--sp-3) var(--sp-6);
     border-radius: var(--radius);
-    background: var(--gradient-primary);
+    background: var(--color-primary-solid);
     color: #fff;
     font-weight: 600;
     font-size: var(--text-sm);
     border: none;
     cursor: pointer;
     min-height: 44px;
-    transition: opacity var(--t-fast) var(--ease-out-expo),
-                transform var(--t-fast) var(--ease-out-expo),
-                box-shadow var(--t-fast) var(--ease-out-expo);
+    transition:
+      background var(--t-fast) var(--ease-out-expo),
+      transform  var(--t-fast) var(--ease-out-expo),
+      box-shadow var(--t-fast) var(--ease-out-expo);
   }
   .btn-primary:hover:not(:disabled) {
-    opacity: 0.9;
+    background: var(--color-primary-hover);
     transform: translateY(-1px);
     box-shadow: var(--shadow-glow-sm);
   }
   .btn-primary:active:not(:disabled) {
     transform: translateY(0);
-    opacity: 1;
+    background: var(--color-primary-hover);
   }
   .btn-primary:disabled {
     opacity: 0.5;
@@ -515,8 +499,8 @@
     gap: var(--sp-2);
     padding: var(--sp-3) var(--sp-5);
     border-radius: var(--radius);
-    background: hsla(240, 13%, 100%, 0.05);
-    border: 1px solid hsla(240, 10%, 100%, 0.12);
+    background: hsla(240,13%,100%,0.05);
+    border: 1px solid hsla(240,10%,100%,0.12);
     color: hsl(var(--foreground));
     font-weight: 600;
     font-size: var(--text-sm);
@@ -524,13 +508,14 @@
     min-height: 44px;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    transition: background var(--t-fast) var(--ease-out-expo),
-                border-color var(--t-fast) var(--ease-out-expo),
-                transform var(--t-fast) var(--ease-out-expo);
+    transition:
+      background   var(--t-fast) var(--ease-out-expo),
+      border-color var(--t-fast) var(--ease-out-expo),
+      transform    var(--t-fast) var(--ease-out-expo);
   }
   .btn-secondary:hover:not(:disabled) {
-    background: hsla(240, 13%, 100%, 0.09);
-    border-color: hsla(262, 80%, 62%, 0.35);
+    background: hsla(240,13%,100%,0.09);
+    border-color: hsla(262,80%,62%,0.35);
     transform: translateY(-1px);
   }
   .btn-secondary:active:not(:disabled) {
@@ -556,14 +541,15 @@
     font-weight: 500;
     cursor: pointer;
     min-height: 44px;
-    transition: background var(--t-fast) var(--ease-out-expo),
-                color     var(--t-fast) var(--ease-out-expo),
-                border-color var(--t-fast) var(--ease-out-expo);
+    transition:
+      background   var(--t-fast) var(--ease-out-expo),
+      color        var(--t-fast) var(--ease-out-expo),
+      border-color var(--t-fast) var(--ease-out-expo);
   }
   .btn-ghost:hover:not(:disabled) {
     background: hsl(var(--secondary));
     color: hsl(var(--foreground));
-    border-color: hsla(262, 80%, 62%, 0.4);
+    border-color: hsla(262,80%,62%,0.4);
   }
   .btn-ghost:disabled {
     opacity: 0.45;
@@ -581,31 +567,17 @@
     font-weight: 600;
     letter-spacing: 0.04em;
   }
-  .badge-purple {
-    background: hsla(262, 80%, 62%, 0.15);
-    color: hsl(262, 80%, 72%);
-  }
-  .badge-green {
-    background: hsla(160, 70%, 46%, 0.15);
-    color: hsl(160, 70%, 56%);
-  }
-  .badge-orange {
-    background: hsla(30, 85%, 58%, 0.15);
-    color: hsl(30, 85%, 68%);
-  }
-  .badge-blue {
-    background: hsla(220, 85%, 62%, 0.15);
-    color: hsl(220, 85%, 72%);
-  }
+  .badge-purple  { background: hsla(262,80%,62%,0.15); color: hsl(262,80%,72%); }
+  .badge-green   { background: hsla(160,70%,46%,0.15); color: hsl(160,70%,56%); }
+  .badge-orange  { background: hsla(30,85%,58%,0.15);  color: hsl(30,85%,68%);  }
+  .badge-blue    { background: hsla(220,85%,62%,0.15); color: hsl(220,85%,72%); }
 
-  /* Divider */
   .divider {
     height: 1px;
     background: hsl(var(--border));
     margin-block: var(--sp-4);
   }
 
-  /* Empty state */
   .empty-state {
     display: flex;
     flex-direction: column;
@@ -631,21 +603,18 @@
     max-width: 36ch;
   }
 
-  /* Scrollable container helper */
   .scroll-x {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
   }
 
-  /* Overflow text safety */
   .text-overflow-safe {
     overflow-wrap: break-word;
     word-break: break-word;
     min-width: 0;
   }
 
-  /* Fade-up entrance animation */
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(16px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -654,13 +623,11 @@
     animation: fadeUp 0.5s var(--ease-out-expo) both;
   }
 
-  /* Scale-in for mobile menu */
   @keyframes scaleIn {
     from { opacity: 0; transform: scaleY(0.95); transform-origin: top; }
     to   { opacity: 1; transform: scaleY(1); }
   }
 
-  /* ── Responsive page title ────────────────────────────────────────────── */
   .page-title {
     font-family: var(--font-display);
     font-size: var(--text-2xl);
@@ -670,7 +637,6 @@
     color: hsl(var(--foreground));
   }
 
-  /* ── Horizontal scroll fade hint ─────────────────────────────────────── */
   .scroll-x-hint {
     position: relative;
   }
@@ -686,7 +652,6 @@
     border-radius: 0 var(--radius) var(--radius) 0;
   }
 
-  /* ── Landscape mobile: compact nav ───────────────────────────────────── */
   @media (max-height: 500px) and (orientation: landscape) {
     .mobile-bottom-nav {
       height: 50px !important;
@@ -694,8 +659,7 @@
     }
   }
 
-  /* ── Phase-2: Right-panel FAB (mobile) ───────────────────────────────── */
-  /* The FAB that opens the right-panel sheet on mobile */
+  /* Phase-2: Right-panel FAB */
   .right-panel-fab {
     position: fixed;
     bottom: calc(88px + env(safe-area-inset-bottom, 0px) + 12px);
@@ -704,7 +668,8 @@
     width: 52px;
     height: 52px;
     border-radius: 9999px;
-    background: var(--gradient-primary);
+    /* 4.1: FAB also uses solid accent, no gradient */
+    background: var(--color-primary-solid);
     color: #fff;
     border: none;
     cursor: pointer;
@@ -712,17 +677,19 @@
     align-items: center;
     justify-content: center;
     box-shadow: var(--shadow-lg), 0 0 20px hsla(262,80%,62%,0.3);
-    transition: transform var(--t-fast) var(--ease-out-expo),
-                box-shadow var(--t-fast) var(--ease-out-expo);
+    transition:
+      transform    var(--t-fast) var(--ease-out-expo),
+      box-shadow   var(--t-fast) var(--ease-out-expo),
+      background   var(--t-fast) var(--ease-out-expo);
   }
   .right-panel-fab:hover {
+    background: var(--color-primary-hover);
     transform: scale(1.07);
     box-shadow: var(--shadow-lg), 0 0 28px hsla(262,80%,62%,0.45);
   }
   .right-panel-fab:active {
     transform: scale(0.95);
   }
-  /* Hide FAB on desktop */
   @media (min-width: 768px) {
     .right-panel-fab { display: none; }
   }
@@ -730,17 +697,8 @@
 
 /* ─── Tailwind utilities ─────────────────────────────────────────────────── */
 @layer utilities {
-  .font-display {
-    font-family: var(--font-display);
-  }
-  .font-body {
-    font-family: var(--font-body);
-  }
-  /* Safe-area padding helpers for notched devices */
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-  .pt-safe {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
+  .font-display { font-family: var(--font-display); }
+  .font-body    { font-family: var(--font-body); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pt-safe { padding-top:    env(safe-area-inset-top, 0px); }
 }
