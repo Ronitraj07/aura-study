@@ -159,7 +159,7 @@
     @apply border-border;
   }
 
-  /* Prevent horizontal overflow at root level */
+  /* Prevent horizontal overflow at root level — phase-2 task 2.4 */
   html, body {
     overflow-x: hidden;
     max-width: 100%;
@@ -246,6 +246,13 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+
+  /* ── Phase-2 task 2.4: min-width: 0 on all direct flex children
+     Prevents flex children from overflowing their container.
+     Applied globally so every flex layout benefits automatically. ── */
+  .flex > *, .flex-col > *, .flex-row > * {
+    min-width: 0;
   }
 }
 
@@ -685,6 +692,39 @@
       height: 50px !important;
       padding-bottom: 0 !important;
     }
+  }
+
+  /* ── Phase-2: Right-panel FAB (mobile) ───────────────────────────────── */
+  /* The FAB that opens the right-panel sheet on mobile */
+  .right-panel-fab {
+    position: fixed;
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px) + 12px);
+    right: var(--sp-4);
+    z-index: 30;
+    width: 52px;
+    height: 52px;
+    border-radius: 9999px;
+    background: var(--gradient-primary);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-lg), 0 0 20px hsla(262,80%,62%,0.3);
+    transition: transform var(--t-fast) var(--ease-out-expo),
+                box-shadow var(--t-fast) var(--ease-out-expo);
+  }
+  .right-panel-fab:hover {
+    transform: scale(1.07);
+    box-shadow: var(--shadow-lg), 0 0 28px hsla(262,80%,62%,0.45);
+  }
+  .right-panel-fab:active {
+    transform: scale(0.95);
+  }
+  /* Hide FAB on desktop */
+  @media (min-width: 768px) {
+    .right-panel-fab { display: none; }
   }
 }
 
