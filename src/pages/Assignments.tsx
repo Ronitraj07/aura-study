@@ -412,7 +412,7 @@ const Assignments = () => {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.45, delay: 0.05 }}
-          className={`w-full md:w-72 md:shrink-0 flex flex-col gap-4 ${hasGenerated ? 'max-h-[45dvh]' : ''} md:max-h-none overflow-y-auto`}
+          className={cn("w-full md:w-72 md:shrink-0 flex flex-col gap-4 md:max-h-none overflow-y-auto", hasGenerated && "max-h-[45dvh]")}
         >
           <div className="glass-card rounded-2xl p-5">
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
