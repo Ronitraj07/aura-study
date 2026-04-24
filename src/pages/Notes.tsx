@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen,
@@ -28,7 +28,18 @@ import {
   MessageSquarePlus,
   Link2,
   RotateCw,
+  FileUp,
+  FileText,
+  Table,
+  BarChart2,
+  Info,
+  Zap,
+  TriangleAlert,
 } from "lucide-react";
+import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from "recharts";
 import { cn } from "@/lib/utils";
 import { exportNotesPDF, exportExamNotesPDF } from "@/lib/pdfExport";
 import { useNotesGenerator } from "@/hooks/useNotesGenerator";
@@ -37,7 +48,10 @@ import { SubtopicsSuggester } from "@/components/SubtopicsSuggester";
 import { SubtopicsInput } from "@/components/SubtopicsInput";
 import { FollowUpPanel } from "@/components/FollowUpPanel";
 import type { NoteHeading, NoteBullet } from "@/types/database";
-import type { ExamTip, Mnemonic, CheatsheetEntry, ConceptConnection } from "@/hooks/useNotesGenerator";
+import type {
+  ExamTip, Mnemonic, CheatsheetEntry, ConceptConnection,
+  NoteTable, NoteChart, NoteCallout,
+} from "@/hooks/useNotesGenerator";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -284,6 +298,181 @@ function ConceptConnectionsBlock({ connections }: { connections: ConceptConnecti
           ))}
         </div>
       </div>
+    </motion.div>
+  );
+}
+
+// ─── Academy: Table Block ─────────────────────────────────────────────────────
+function NoteTableBlock({ tables }: { tables: NoteTable[] }) {
+  if (!tables?.length) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      className="flex flex-col gap-4"
+    >
+      {tables.map((table, ti) => (
+        <div key={ti} className="glass-card rounded-2xl overflow-hidden border border-border/30">
+          <div className="h-0.5" style={{ background: "linear-gradient(90deg, hsl(220,85%,60%), hsl(262,80%,60%))" }} />
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Table className="w-4 h-4" style={{ color: "hsl(220,85%,65%)" }} />
+              <span className="text-sm font-semibold text-foreground">{table.caption}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr>
+                    {table.headers.map((h, i) => (
+                      <th
+                        key={i}
+                        className="text-left px-3 py-2 font-semibold text-foreground/90 border-b border-border/40"
+                        style={{ background: "hsl(220,85%,60%,0.1)" }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {table.rows.map((row, ri) => (
+                    <tr key={ri} className={ri % 2 === 0 ? "bg-secondary/20" : ""}>
+                      {row.map((cell, ci) => (
+                        <td key={ci} className="px-3 py-2 text-foreground/75 border-b border-border/20">
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ))}
+    </motion.div>
+  );
+}
+
+// Chart colour palette
+const CHART_COLORS = [
+  "hsl(262,80%,65%)", "hsl(160,70%,48%)", "hsl(30,80%,58%)",
+  "hsl(220,85%,65%)", "hsl(340,75%,58%)",
+];
+
+// ─── Academy: Chart Block ─────────────────────────────────────────────────────
+function NoteChartBlock({ charts }: { charts: NoteChart[] }) {
+  if (!charts?.length) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      className="flex flex-col gap-4"
+    >
+      {charts.map((chart, ci) => {
+        // Build recharts-compatible data
+        const data = chart.labels.map((label, i) => {
+          const entry: Record<string, string | number> = { label };
+          chart.datasets.forEach(ds => { entry[ds.name] = ds.data[i] ?? 0; });
+          return entry;
+        });
+
+        return (
+          <div key={ci} className="glass-card rounded-2xl overflow-hidden border border-border/30">
+            <div className="h-0.5" style={{ background: "linear-gradient(90deg, hsl(160,70%,48%), hsl(220,85%,60%))" }} />
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <BarChart2 className="w-4 h-4" style={{ color: "hsl(160,70%,50%)" }} />
+                <span className="text-sm font-semibold text-foreground">{chart.title}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">{chart.description}</p>
+              <ResponsiveContainer width="100%" height={220}>
+                {chart.type === 'pie' ? (
+                  <PieChart>
+                    <Pie data={data} dataKey={chart.datasets[0]?.name ?? 'value'} nameKey="label" cx="50%" cy="50%" outerRadius={80} label={({ label: l, percent }) => `${l} ${(percent * 100).toFixed(0)}%`}>
+                      {data.map((_, idx) => (
+                        <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                ) : chart.type === 'line' ? (
+                  <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,20%)" />
+                    <XAxis dataKey="label" tick={{ fill: "hsl(0,0%,55%)", fontSize: 10 }} label={chart.xLabel ? { value: chart.xLabel, position: "insideBottom", offset: -2, fill: "hsl(0,0%,50%)", fontSize: 10 } : undefined} />
+                    <YAxis tick={{ fill: "hsl(0,0%,55%)", fontSize: 10 }} label={chart.yLabel ? { value: chart.yLabel, angle: -90, position: "insideLeft", fill: "hsl(0,0%,50%)", fontSize: 10 } : undefined} />
+                    <Tooltip contentStyle={{ background: "hsl(240,8%,10%)", border: "1px solid hsl(0,0%,20%)", borderRadius: 8, fontSize: 11 }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    {chart.datasets.map((ds, di) => (
+                      <Line key={di} type="monotone" dataKey={ds.name} stroke={CHART_COLORS[di % CHART_COLORS.length]} strokeWidth={2} dot={{ r: 3 }} />
+                    ))}
+                  </LineChart>
+                ) : (
+                  <BarChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,20%)" />
+                    <XAxis dataKey="label" tick={{ fill: "hsl(0,0%,55%)", fontSize: 10 }} label={chart.xLabel ? { value: chart.xLabel, position: "insideBottom", offset: -2, fill: "hsl(0,0%,50%)", fontSize: 10 } : undefined} />
+                    <YAxis tick={{ fill: "hsl(0,0%,55%)", fontSize: 10 }} label={chart.yLabel ? { value: chart.yLabel, angle: -90, position: "insideLeft", fill: "hsl(0,0%,50%)", fontSize: 10 } : undefined} />
+                    <Tooltip contentStyle={{ background: "hsl(240,8%,10%)", border: "1px solid hsl(0,0%,20%)", borderRadius: 8, fontSize: 11 }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    {chart.datasets.map((ds, di) => (
+                      <Bar key={di} dataKey={ds.name} fill={CHART_COLORS[di % CHART_COLORS.length]} radius={[3, 3, 0, 0]} />
+                    ))}
+                  </BarChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+      })}
+    </motion.div>
+  );
+}
+
+// ─── Academy: Callout Block ───────────────────────────────────────────────────
+const CALLOUT_CONFIG = {
+  definition: { icon: Info,          color: "hsl(220,85%,65%)", bg: "hsl(220,85%,60%,0.08)", border: "hsl(220,85%,60%,0.25)", label: "Definition" },
+  formula:    { icon: Zap,           color: "hsl(30,80%,58%)",  bg: "hsl(30,80%,55%,0.08)",  border: "hsl(30,80%,55%,0.25)",  label: "Formula" },
+  tip:        { icon: Lightbulb,     color: "hsl(160,70%,48%)", bg: "hsl(160,70%,45%,0.08)", border: "hsl(160,70%,45%,0.25)", label: "Key Insight" },
+  warning:    { icon: TriangleAlert, color: "hsl(340,75%,58%)", bg: "hsl(340,75%,55%,0.08)", border: "hsl(340,75%,55%,0.25)", label: "Important" },
+} as const;
+
+function NoteCalloutBlock({ callouts }: { callouts: NoteCallout[] }) {
+  if (!callouts?.length) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      className="flex flex-col gap-2"
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <Sparkles className="w-4 h-4 text-primary/60" />
+        <h3 className="font-display font-semibold text-sm text-foreground">Key Notes</h3>
+      </div>
+      {callouts.map((c, i) => {
+        const cfg = CALLOUT_CONFIG[c.type] ?? CALLOUT_CONFIG.tip;
+        const Icon = cfg.icon;
+        return (
+          <div
+            key={i}
+            className="flex items-start gap-3 rounded-xl p-3 border"
+            style={{ background: cfg.bg, borderColor: cfg.border }}
+          >
+            <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style={{ background: `${cfg.color}20` }}>
+              <Icon className="w-3.5 h-3.5" style={{ color: cfg.color }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: cfg.color }}>{cfg.label}</span>
+                <span className="text-xs font-semibold text-foreground">{c.title}</span>
+              </div>
+              <p className="text-xs text-foreground/75 leading-snug">{c.content}</p>
+            </div>
+          </div>
+        );
+      })}
     </motion.div>
   );
 }
@@ -712,7 +901,7 @@ function NotesHistorySheet({
 // ─── Main Page ──────────────────────────────────────────────────────────────────────────────────────────────
 const Notes = () => {
   const [topic, setTopic] = useState("");
-  const [depth, setDepth] = useState<'overview' | 'detailed' | 'exam'>('overview');
+  const [depth, setDepth] = useState<'overview' | 'detailed' | 'exam' | 'academy'>('overview');
   const [examMode, setExamMode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
@@ -733,6 +922,36 @@ const Notes = () => {
   const [includeExamTips, setIncludeExamTips] = useState(false);
   const [includeMnemonics, setIncludeMnemonics] = useState(false);
   const [includeCheatsheet, setIncludeCheatsheet] = useState(false);
+
+  // PDF / document upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; wordCount: number } | null>(null);
+  const [sourceContent, setSourceContent] = useState<string | undefined>(undefined);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const handleFileUpload = async (file: File) => {
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadedFile(null);
+    setSourceContent(undefined);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/parse', { method: 'POST', body: formData });
+      const data = await res.json() as { success: boolean; content?: string; metadata?: { wordCount?: number; fileName?: string }; error?: string };
+      if (!data.success || !data.content) {
+        setUploadError(data.error ?? 'Failed to extract text from file.');
+        return;
+      }
+      setSourceContent(data.content);
+      setUploadedFile({ name: file.name, wordCount: data.metadata?.wordCount ?? 0 });
+    } catch {
+      setUploadError('Upload failed. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const {
     notes, savedId, isGenerating, isStreaming, isResearching, saveStatus, error, sectionError,
@@ -757,7 +976,8 @@ const Notes = () => {
       studyDuration: studyDuration !== '1_day' ? studyDuration : undefined,
       includeExamTips: includeExamTips || undefined,
       includeMnemonics: includeMnemonics || undefined,
-      includeCheatsheet: includeCheatsheet || undefined
+      includeCheatsheet: includeCheatsheet || undefined,
+      sourceContent,
     });
     if (depth === 'exam' || includeExamTips || includeMnemonics || includeCheatsheet) {
       setExamMode(true);
@@ -830,9 +1050,10 @@ const Notes = () => {
   const totalBullets = notes?.bullets.reduce((a, b) => a + (b.points?.length ?? 0), 0) ?? 0;
 
   const DEPTH_CONFIG = [
-    { key: 'overview' as const, label: 'Overview', desc: '3–4 sections' },
-    { key: 'detailed' as const, label: 'Detailed', desc: '4–6 sections' },
-    { key: 'exam' as const,    label: 'Exam Mode', desc: '+ tips & mnemonics' },
+    { key: 'overview' as const,  label: 'Overview',      desc: '3–4 sections' },
+    { key: 'detailed' as const,  label: 'Detailed',      desc: '4–6 sections' },
+    { key: 'exam' as const,      label: 'Exam Mode',     desc: '+ tips & mnemonics' },
+    { key: 'academy' as const,   label: 'Academy Notes', desc: 'Tables · charts · callouts' },
   ];
 
   // Right-panel content — reused for both the desktop column and the mobile sheet

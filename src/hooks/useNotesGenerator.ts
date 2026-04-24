@@ -49,6 +49,30 @@ export interface ConceptConnection {
   relationship: string;
 }
 
+// ── Academy-mode enrichments ────────────────────────────────────
+
+export interface NoteTable {
+  caption: string;
+  headers: string[];
+  rows: string[][];
+}
+
+export interface NoteChart {
+  type: 'bar' | 'line' | 'pie';
+  title: string;
+  description: string;
+  xLabel?: string;
+  yLabel?: string;
+  labels: string[];
+  datasets: { name: string; data: number[] }[];
+}
+
+export interface NoteCallout {
+  type: 'definition' | 'formula' | 'tip' | 'warning';
+  title: string;
+  content: string;
+}
+
 export interface GeneratedNotes {
   title: string;
   headings: NoteHeading[];
@@ -59,12 +83,15 @@ export interface GeneratedNotes {
   mnemonics?:  Mnemonic[];
   cheatsheet?: CheatsheetEntry[];
   connections?: ConceptConnection[]; // Phase 4
+  tables?: NoteTable[];
+  charts?: NoteChart[];
+  callouts?: NoteCallout[];
   researchSource?: 'groq' | 'gemini' | 'none';
 }
 
 export interface NotesInput {
   topic: string;
-  depth?: 'overview' | 'detailed' | 'exam';
+  depth?: 'overview' | 'detailed' | 'exam' | 'academy';
   subtopics?: string[];
   format?: 'cornell' | 'outline' | 'concept_map' | 'flashcards' | 'traditional';
   studentLevel?: 'high_school' | 'undergraduate' | 'graduate';
@@ -75,17 +102,27 @@ export interface NotesInput {
   includeExamTips?: boolean;
   includeMnemonics?: boolean;
   includeCheatsheet?: boolean;
+  /** Raw text extracted from an uploaded PDF/DOCX — injected as source material */
+  sourceContent?: string;
 }
 
 // ── Prompt builder ──────────────────────────────────────────────
 function buildPrompt(input: NotesInput, researchPreamble: string): string {
   const isExam = input.depth === 'exam' || input.includeExamTips || input.includeMnemonics || input.includeCheatsheet;
+  const isAcademy = input.depth === 'academy';
 
-  const depthNote = input.depth === 'exam'
+  const depthNote = isAcademy
+    ? 'Provide deeply comprehensive academy-level coverage with 6-10 major sections, 5-8 bullets per section. This should read like thorough lecture notes from a university course.'
+    : input.depth === 'exam'
     ? 'Provide comprehensive exam-focused coverage with 4-6 major sections, 4-6 bullets per section.'
     : input.depth === 'detailed'
     ? 'Provide comprehensive coverage with 4-6 major sections, 4-6 bullets per section.'
     : 'Provide a clear overview with 3-4 major sections, 3-5 bullets per section.';
+
+  // Source content from uploaded PDF/DOCX
+  const sourceSection = input.sourceContent
+    ? `\n\n=== SOURCE MATERIAL (extracted from uploaded document — base your notes primarily on this) ===\n${input.sourceContent.slice(0, 12000)}\n=== END SOURCE MATERIAL ===\n`
+    : '';
 
   const researchSection = researchPreamble
     ? `${researchPreamble}create accurate, well-grounded study notes using the facts above as your foundation.\n\n`
@@ -168,27 +205,54 @@ function buildPrompt(input: NotesInput, researchPreamble: string): string {
       "concept": "Phases of Mitosis",
       "device": "PMAT - Please Make Art Today",
       "explanation": "Prophase, Metaphase, Anaphase, Telophase - the four phases of mitosis in order"
-    },
-    {
-      "concept": "Taxonomy Classification",
-      "device": "King Philip Came Over For Good Soup",
-      "explanation": "Kingdom, Phylum, Class, Order, Family, Genus, Species"
     }
   ]` : ''}${includeMnemonics && includeCheatsheet ? ',' : ''}
   ${includeCheatsheet ? `"cheatsheet": [
     { "label": "Photosynthesis Equation", "value": "6CO2 + 6H2O → C6H12O6 + 6O2" },
-    { "label": "Cell Membrane Structure", "value": "Phospholipid bilayer with embedded proteins" },
     { "label": "DNA Base Pairs", "value": "A-T, G-C (RNA: A-U, G-C)" }
   ]` : ''}` : '';
+
+  // Academy-mode: tables, charts, callouts
+  const academyJsonFields = isAcademy ? `,
+  "tables": [
+    {
+      "caption": "<descriptive table title>",
+      "headers": ["Column 1", "Column 2", "Column 3"],
+      "rows": [["cell", "cell", "cell"], ["cell", "cell", "cell"]]
+    }
+  ],
+  "charts": [
+    {
+      "type": "bar",
+      "title": "<chart title>",
+      "description": "<one sentence about what this chart shows>",
+      "xLabel": "<x-axis label>",
+      "yLabel": "<y-axis label>",
+      "labels": ["Label A", "Label B", "Label C"],
+      "datasets": [{ "name": "Series 1", "data": [10, 25, 15] }]
+    }
+  ],
+  "callouts": [
+    { "type": "definition", "title": "<term>", "content": "<definition>" },
+    { "type": "formula", "title": "<formula name>", "content": "<formula>" },
+    { "type": "tip", "title": "Key Insight", "content": "<important insight>" }
+  ]` : '';
 
   const examInstructions = [];
   if (includeExamTips) examInstructions.push('- exam_tips: Generate 5-8 likely exam questions with specific, complete answers (not just "yes/no"). Mix difficulty levels (2-3 easy, 3-4 medium, 1-2 hard). Questions should test understanding, not just memorization.');
   if (includeMnemonics) examInstructions.push('- mnemonics: Create 2-4 effective memory devices (acronyms, rhymes, visual stories) for the most complex concepts, sequences, or lists in the topic. Focus on items students typically struggle to remember.');
   if (includeCheatsheet) examInstructions.push('- cheatsheet: Provide 8-12 essential facts, formulas, key dates, or definitions that students need to memorize. Use concise label:value format. Prioritize items that appear frequently on exams.');
-  
-  const examInstructionsText = examInstructions.length > 0 ? `\n${examInstructions.join('\n')}` : '';
 
-  return `${researchSection}Topic: "${input.topic}"
+  const academyInstructions = isAcademy ? `
+- tables: Generate 2-5 comparison/data tables wherever the content has comparisons, processes, properties, classifications, or numerical data. Each table needs a descriptive caption, clear headers, and complete rows. Omit tables array if the topic has no tabular data.
+- charts: Generate 1-3 charts ONLY when the topic has quantitative trends, distributions, comparisons of quantities, or time-series data that can be meaningfully plotted. Chart data must be realistic numbers. Omit charts array if data is not meaningful.
+- callouts: Generate 3-8 callouts of types: "definition" (key terms), "formula" (equations/rules), "tip" (important insights), "warning" (common mistakes). These should capture the most critical standalone facts.` : '';
+  
+  const examInstructionsText = [...examInstructions, ...(academyInstructions ? [academyInstructions] : [])].length > 0
+    ? `\n${[...examInstructions, ...(academyInstructions ? [academyInstructions] : [])].join('\n')}`
+    : '';
+
+  return `${sourceSection}${researchSection}Topic: "${input.topic}"
 Depth: ${input.depth ?? 'overview'} — ${depthNote}${subtopicsSection}${formatSection}${levelSection}${examTypeSection}${durationSection}${questionsSection}${diagramsSection}
 
 Return ONLY valid JSON. No markdown, no explanation, no code blocks. Strict format:
@@ -209,7 +273,7 @@ Return ONLY valid JSON. No markdown, no explanation, no code blocks. Strict form
   "keyTerms": ["<term 1>", "<term 2>", "<term 3>"],
   "connections": [
     { "from": "<heading A>", "to": "<heading B>", "relationship": "<how they connect>" }
-  ]${examJsonFields}
+  ]${examJsonFields}${academyJsonFields}
 }
 
 Rules:
@@ -326,9 +390,18 @@ Output ONLY valid JSON. No markdown. No explanation. No code blocks.`;
 // ── Enhanced AI generation caller with routing support ──────
 async function callAI(prompt: string, input: NotesInput): Promise<GeneratedNotes> {
   const isExam = input.depth === 'exam' || input.includeExamTips || input.includeMnemonics || input.includeCheatsheet;
+  const isAcademy = input.depth === 'academy';
 
   // Phase 3: Chain-of-thought system prompts
-  const systemPrompt = isExam
+  const systemPrompt = isAcademy
+    ? `You are a senior university professor creating deeply comprehensive lecture notes.
+Think step by step: (1) Identify every major concept and sub-concept, (2) Build logical progression from fundamentals to advanced,
+(3) Insert comparison tables wherever the content has categories, properties, or steps,
+(4) Insert chart data wherever the content has quantities, trends, or distributions,
+(5) Add definition/formula/tip callouts for critical standalone facts.
+Your notes should rival a textbook chapter — thorough, precise, and visually rich.
+Output ONLY valid JSON. No markdown. No explanation. No code blocks.`
+    : isExam
     ? `You are a world-class academic educator with deep expertise in exam preparation.
 Think step by step: (1) Identify core concepts, (2) Map conceptual dependencies,
 (3) Anticipate common misconceptions, (4) Structure from foundational to advanced.
@@ -345,17 +418,17 @@ Output ONLY valid JSON. No markdown. No explanation. No code blocks.`;
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      type: isExam ? 'notes_exam' : 'notes',
+      type: isAcademy ? 'notes_academy' : isExam ? 'notes_exam' : 'notes',
       systemPrompt,
       userPrompt: prompt,
-      maxTokens: isExam ? 5000 : 4500,   // Phase 3: 3000 → 4500 for regular notes
-      temperature: isExam ? 0.4 : 0.35,  // Phase 3: 0.5 → 0.35 for consistency
+      maxTokens: isAcademy ? 7000 : isExam ? 5000 : 4500,
+      temperature: isAcademy ? 0.4 : isExam ? 0.4 : 0.35,
     }),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error((err as any).error ?? `Generation failed (HTTP ${res.status})`);
+    throw new Error((err as { error?: string }).error ?? `Generation failed (HTTP ${res.status})`);
   }
 
   const parsed = await res.json() as GeneratedNotes;
@@ -365,41 +438,27 @@ Output ONLY valid JSON. No markdown. No explanation. No code blocks.`;
   
   // Validate and ensure exam fields are properly parsed
   if (isExam || input.includeExamTips || input.includeMnemonics || input.includeCheatsheet) {
-    // Ensure exam_tips is a valid array if expected
     if ((isExam || input.includeExamTips) && (!parsed.exam_tips || !Array.isArray(parsed.exam_tips))) {
-      console.warn('Expected exam_tips but got invalid data:', parsed.exam_tips);
-      parsed.exam_tips = []; // Fallback to empty array
+      parsed.exam_tips = [];
     }
-    
-    // Ensure mnemonics is a valid array if expected
     if ((isExam || input.includeMnemonics) && (!parsed.mnemonics || !Array.isArray(parsed.mnemonics))) {
-      console.warn('Expected mnemonics but got invalid data:', parsed.mnemonics);
-      parsed.mnemonics = []; // Fallback to empty array
+      parsed.mnemonics = [];
     }
-    
-    // Ensure cheatsheet is a valid array if expected
     if ((isExam || input.includeCheatsheet) && (!parsed.cheatsheet || !Array.isArray(parsed.cheatsheet))) {
-      console.warn('Expected cheatsheet but got invalid data:', parsed.cheatsheet);
-      parsed.cheatsheet = []; // Fallback to empty array
+      parsed.cheatsheet = [];
     }
-    
-    // Validate individual exam_tips structure
     if (parsed.exam_tips) {
       parsed.exam_tips = parsed.exam_tips.filter(tip => 
         tip && typeof tip.question === 'string' && typeof tip.answer === 'string' && 
         ['easy', 'medium', 'hard'].includes(tip.difficulty)
       );
     }
-    
-    // Validate individual mnemonics structure  
     if (parsed.mnemonics) {
       parsed.mnemonics = parsed.mnemonics.filter(mnemonic => 
         mnemonic && typeof mnemonic.concept === 'string' && 
         typeof mnemonic.device === 'string' && typeof mnemonic.explanation === 'string'
       );
     }
-    
-    // Validate individual cheatsheet structure
     if (parsed.cheatsheet) {
       parsed.cheatsheet = parsed.cheatsheet.filter(entry => 
         entry && typeof entry.label === 'string' && typeof entry.value === 'string'
@@ -416,6 +475,44 @@ Output ONLY valid JSON. No markdown. No explanation. No code blocks.`;
       c && typeof c.from === 'string' && typeof c.to === 'string' && typeof c.relationship === 'string'
     );
     if (parsed.connections.length === 0) parsed.connections = undefined;
+  }
+
+  // Validate academy fields
+  if (parsed.tables) {
+    if (!Array.isArray(parsed.tables)) {
+      parsed.tables = undefined;
+    } else {
+      parsed.tables = parsed.tables.filter(t =>
+        t && typeof t.caption === 'string' &&
+        Array.isArray(t.headers) && t.headers.length > 0 &&
+        Array.isArray(t.rows) && t.rows.length > 0
+      );
+      if (parsed.tables.length === 0) parsed.tables = undefined;
+    }
+  }
+  if (parsed.charts) {
+    if (!Array.isArray(parsed.charts)) {
+      parsed.charts = undefined;
+    } else {
+      parsed.charts = parsed.charts.filter(c =>
+        c && typeof c.title === 'string' &&
+        ['bar', 'line', 'pie'].includes(c.type) &&
+        Array.isArray(c.labels) && c.labels.length > 0 &&
+        Array.isArray(c.datasets) && c.datasets.length > 0
+      );
+      if (parsed.charts.length === 0) parsed.charts = undefined;
+    }
+  }
+  if (parsed.callouts) {
+    if (!Array.isArray(parsed.callouts)) {
+      parsed.callouts = undefined;
+    } else {
+      parsed.callouts = parsed.callouts.filter(c =>
+        c && typeof c.title === 'string' && typeof c.content === 'string' &&
+        ['definition', 'formula', 'tip', 'warning'].includes(c.type)
+      );
+      if (parsed.callouts.length === 0) parsed.callouts = undefined;
+    }
   }
   
   return parsed;
@@ -503,6 +600,9 @@ export function useNotesGenerator() {
     if (!input.topic.trim()) { setError('Please enter a topic.'); return; }
 
     const isExam = input.depth === 'exam' || input.includeExamTips || input.includeMnemonics || input.includeCheatsheet;
+    const isAcademy = input.depth === 'academy';
+    // Academy and exam both skip streaming (too large for SSE partial parsing)
+    const useStreaming = !isExam && !isAcademy && !input.sourceContent;
 
     setIsGenerating(true);
     setIsResearching(true);
@@ -521,8 +621,8 @@ export function useNotesGenerator() {
 
       let result: GeneratedNotes;
 
-      // Phase 1: use streaming for non-exam notes
-      if (!isExam) {
+      // Phase 1: use streaming for standard notes (non-exam, non-academy, no source)
+      if (useStreaming) {
         setIsStreaming(true);
         result = await callAIStreaming(prompt, (partial) => {
           // Show section headings as they arrive in the stream

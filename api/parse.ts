@@ -44,14 +44,26 @@ interface ParseResult {
 }
 
 /**
- * Extract text from PDF - placeholder for future integration with pdf-parse
+ * Extract text from PDF using pdf-parse
  */
 async function parsePDF(buffer: Buffer, fileName: string): Promise<ParseResult> {
   try {
-    // TODO: In production, integrate pdf-parse or pdfjs-dist for actual PDF parsing
-    // For now, return placeholder with file info
-    const text = 'PDF parsing requires external library. Supported file types: TXT, MD, DOCX detection via filename.';
-    
+    // Import pdf-parse lazily to avoid top-level test-file side-effects
+    const pdfParse = (await import('pdf-parse/lib/pdf-parse.js')).default as (
+      dataBuffer: Buffer,
+      options?: Record<string, unknown>
+    ) => Promise<{ text: string; numpages: number; info: Record<string, unknown> }>;
+
+    const data = await pdfParse(buffer, { max: 0 });
+    const text = data.text?.trim() ?? '';
+
+    if (!text) {
+      return {
+        success: false,
+        error: 'Could not extract text from this PDF. The file may be scanned/image-only.',
+      };
+    }
+
     return {
       success: true,
       content: text,
@@ -59,26 +71,35 @@ async function parsePDF(buffer: Buffer, fileName: string): Promise<ParseResult> 
         fileName,
         fileType: 'application/pdf',
         fileSize: buffer.length,
+        pages: data.numpages,
         wordCount: text.split(/\s+/).filter(w => w.length > 0).length,
-        extractionMethod: 'pdf-placeholder'
-      }
+        extractionMethod: 'pdf-parse',
+      },
     };
   } catch (error) {
     return {
       success: false,
-      error: `PDF parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      error: `PDF parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
     };
   }
 }
 
 /**
- * Extract text from DOCX files - placeholder for future integration with mammoth
+ * Extract text from DOCX files using mammoth
  */
 async function parseDOCX(buffer: Buffer, fileName: string): Promise<ParseResult> {
   try {
-    // TODO: In production, integrate mammoth.js for DOCX parsing
-    const text = 'DOCX parsing requires external library (mammoth.js recommended).';
-    
+    const mammoth = await import('mammoth');
+    const result = await mammoth.extractRawText({ buffer });
+    const text = result.value?.trim() ?? '';
+
+    if (!text) {
+      return {
+        success: false,
+        error: 'Could not extract text from this DOCX file.',
+      };
+    }
+
     return {
       success: true,
       content: text,
@@ -87,13 +108,13 @@ async function parseDOCX(buffer: Buffer, fileName: string): Promise<ParseResult>
         fileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         fileSize: buffer.length,
         wordCount: text.split(/\s+/).filter(w => w.length > 0).length,
-        extractionMethod: 'docx-placeholder'
-      }
+        extractionMethod: 'mammoth',
+      },
     };
   } catch (error) {
     return {
       success: false,
-      error: `DOCX parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      error: `DOCX parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
     };
   }
 }

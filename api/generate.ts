@@ -43,6 +43,7 @@ const MODEL_MAP: Record<string, string> = {
   notes:                'llama-3.3-70b-versatile',
   notes_stream:         'llama-3.3-70b-versatile', // Phase 1: streaming generation
   notes_section:        'llama-3.3-70b-versatile',
+  notes_academy:        'llama-3.3-70b-versatile', // Academy-level deep notes
   timetable:            'llama-3.3-70b-versatile',
   checklist:            'llama-3.3-70b-versatile',
   ppt_follow_up:        'llama-3.3-70b-versatile',
