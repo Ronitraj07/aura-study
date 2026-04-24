@@ -311,7 +311,12 @@ Output ONLY valid JSON. No markdown. No explanation. No code blocks.`;
     }
   }
 
-  const result = JSON.parse(accumulated) as GeneratedNotes;
+  let result: GeneratedNotes;
+  try {
+    result = JSON.parse(accumulated) as GeneratedNotes;
+  } catch {
+    throw new Error('Streaming response was incomplete or malformed. Please try again.');
+  }
   if (!result.bullets || !Array.isArray(result.bullets)) {
     throw new Error('Invalid streaming response: missing bullets');
   }
@@ -426,6 +431,7 @@ export function useNotesGenerator() {
   const [isResearching, setIsResearching] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [sectionError, setSectionError] = useState<string | null>(null);
   const [versions, setVersions] = useState<NotesVersion[]>([]);
   const savedIdRef = useRef<string | null>(null);
   savedIdRef.current = savedId;
@@ -628,11 +634,17 @@ Rules: 3–5 scannable bullet points (max 20 words each). Use **bold** for key t
       }),
     });
 
-    if (!res.ok) return;
+    if (!res.ok) {
+      setSectionError('Section regeneration failed. Please try again.');
+      return;
+    }
 
     try {
       const updated = await res.json() as { heading?: string; points?: string[]; confidence?: number };
-      if (!updated.points || !Array.isArray(updated.points)) return;
+      if (!updated.points || !Array.isArray(updated.points)) {
+        setSectionError('Section regeneration returned invalid data.');
+        return;
+      }
 
       setNotes(prev => {
         if (!prev) return prev;
@@ -644,7 +656,7 @@ Rules: 3–5 scannable bullet points (max 20 words each). Use **bold** for key t
         return { ...prev, bullets };
       });
     } catch {
-      // ignore parse errors — section stays unchanged
+      setSectionError('Section regeneration failed. Please try again.');
     }
   }, []);
 
@@ -656,6 +668,7 @@ Rules: 3–5 scannable bullet points (max 20 words each). Use **bold** for key t
     isResearching,
     saveStatus,
     error,
+    sectionError,
     versions,
     generate,
     regenerateSection,

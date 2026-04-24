@@ -52,7 +52,7 @@ function timeAgo(dateStr: string): string {
 
 // Phase 5B: Inline markdown renderer (bold, italic, code — no dependency needed)
 function renderInlineMarkdown(text: string): React.ReactNode {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/);
+  const parts = text.split(/(\*\*[^*]+\*\*|\*(?!\*)[^*]+\*(?!\*)|`[^`]+`)/);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={i} className="font-semibold text-foreground/95">{part.slice(2, -2)}</strong>;
@@ -735,7 +735,7 @@ const Notes = () => {
   const [includeCheatsheet, setIncludeCheatsheet] = useState(false);
 
   const {
-    notes, savedId, isGenerating, isStreaming, isResearching, saveStatus, error,
+    notes, savedId, isGenerating, isStreaming, isResearching, saveStatus, error, sectionError,
     versions, generate, regenerateSection, loadVersions, restoreVersion,
   } = useNotesGenerator();
   const hasGenerated = !!notes;
@@ -1370,6 +1370,17 @@ const Notes = () => {
             >
               <AlertCircle className="w-4 h-4 shrink-0" />
               {error}
+            </motion.div>
+          )}
+
+          {sectionError && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 flex items-center gap-2 text-sm text-destructive"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {sectionError}
             </motion.div>
           )}
 
