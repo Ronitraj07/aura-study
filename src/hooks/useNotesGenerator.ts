@@ -6,6 +6,10 @@
 // ✔ Groq calls proxied through /api/generate (key never exposed)
 // ✔ C5: 'exam' depth mode — exam_tips, mnemonics, cheatsheet
 // ✔ C10: version snapshot before every overwrite + loadVersions/restoreVersion
+// ✔ Phase 1: Streaming generation (notes_stream SSE route)
+// ✔ Phase 2: Per-section regeneration (regenerateSection)
+// ✔ Phase 3: Smarter chain-of-thought prompts
+// ✔ Phase 4: Concept connections + difficulty curve + confidence scores
 // ============================================================
 
 import { useState, useCallback, useRef } from 'react';
@@ -38,6 +42,13 @@ export interface CheatsheetEntry {
   value: string;
 }
 
+// Phase 4: Concept connection between two note sections
+export interface ConceptConnection {
+  from: string;
+  to: string;
+  relationship: string;
+}
+
 export interface GeneratedNotes {
   title: string;
   headings: NoteHeading[];
@@ -47,6 +58,7 @@ export interface GeneratedNotes {
   exam_tips?:  ExamTip[];
   mnemonics?:  Mnemonic[];
   cheatsheet?: CheatsheetEntry[];
+  connections?: ConceptConnection[]; // Phase 4
   researchSource?: 'groq' | 'gemini' | 'none';
 }
 
@@ -176,51 +188,163 @@ function buildPrompt(input: NotesInput, researchPreamble: string): string {
   
   const examInstructionsText = examInstructions.length > 0 ? `\n${examInstructions.join('\n')}` : '';
 
-  return `${researchSection}You are an expert academic note-taker. Create structured study notes.
-
-Topic: "${input.topic}"
+  return `${researchSection}Topic: "${input.topic}"
 Depth: ${input.depth ?? 'overview'} — ${depthNote}${subtopicsSection}${formatSection}${levelSection}${examTypeSection}${durationSection}${questionsSection}${diagramsSection}
 
 Return ONLY valid JSON. No markdown, no explanation, no code blocks. Strict format:
 {
   "title": "<notes title>",
   "headings": [
-    { "level": 1, "text": "<major section heading>" },
-    { "level": 2, "text": "<subsection heading>" }
+    { "level": 1, "text": "<major section heading>", "difficulty": "intro" },
+    { "level": 2, "text": "<subsection heading>", "difficulty": "core" }
   ],
   "bullets": [
     {
       "heading": "<section heading this belongs to>",
-      "points": ["<point 1>", "<point 2>", "<point 3>"]
+      "points": ["<point 1>", "<point 2>", "<point 3>"],
+      "confidence": 4
     }
   ],
   "summary": "<3-4 sentence executive summary of the entire topic>",
-  "keyTerms": ["<term 1>", "<term 2>", "<term 3>"]${examJsonFields}
+  "keyTerms": ["<term 1>", "<term 2>", "<term 3>"],
+  "connections": [
+    { "from": "<heading A>", "to": "<heading B>", "relationship": "<how they connect>" }
+  ]${examJsonFields}
 }
 
 Rules:
 - Every heading in the headings array must have a corresponding bullets entry
 - Level 1 headings are major sections, level 2 are subsections
-- Bullets should be concise, scannable (max 20 words each)
+- Bullets should be concise, scannable (max 20 words each). Use **bold** for key terms, \`code\` for formulas/symbols
 - keyTerms: 5-8 important vocabulary words or concepts from the topic
-- Summary must be written as complete sentences, not bullets${examInstructionsText}`;
+- Summary must be written as complete sentences, not bullets
+- difficulty on each heading: "intro" (foundational), "core" (main content), "advanced" (complex/specialised)
+- confidence on each bullets entry: integer 1–5 (5 = very confident, 1 = may need verification)
+- connections: 2–4 relationships showing how sections build on each other (omit if sections are independent)${examInstructionsText}`;
+}
+
+// ── Phase 1: Partial-notes extractor for streaming ─────────────
+function tryExtractPartialNotes(partial: string): Partial<GeneratedNotes> | null {
+  const titleMatch = partial.match(/"title"\s*:\s*"([^"]*)"/);
+
+  // Extract completed headings (with optional difficulty field)
+  const headings: NoteHeading[] = [];
+  for (const m of partial.matchAll(
+    /\{\s*"level"\s*:\s*([123])\s*,\s*"text"\s*:\s*"([^"]+)"(?:\s*,\s*"difficulty"\s*:\s*"(intro|core|advanced)")?\s*\}/g
+  )) {
+    headings.push({
+      level: parseInt(m[1]) as 1 | 2 | 3,
+      text: m[2],
+      ...(m[3] ? { difficulty: m[3] as 'intro' | 'core' | 'advanced' } : {}),
+    });
+  }
+
+  if (!titleMatch && headings.length === 0) return null;
+
+  return {
+    title: titleMatch?.[1] ?? 'Generating…',
+    headings,
+    bullets: [],
+    summary: '',
+    keyTerms: [],
+  };
+}
+
+// ── Phase 1: Streaming AI caller ────────────────────────────────
+async function callAIStreaming(
+  prompt: string,
+  onPartial: (partial: Partial<GeneratedNotes>) => void,
+): Promise<GeneratedNotes> {
+  const systemPrompt = `You are a world-class academic note-taker with a talent for clarity.
+Think step by step: (1) Identify the main thesis, (2) Break into logical sections,
+(3) Distill each concept to its essential insight, (4) Connect ideas across sections.
+Your bullets should be scannable facts a student could recall 24 hours later.
+Output ONLY valid JSON. No markdown. No explanation. No code blocks.`;
+
+  const res = await fetch('/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'notes_stream',
+      systemPrompt,
+      userPrompt: prompt,
+      maxTokens: 4500,
+      temperature: 0.35,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error ?? `Generation failed (HTTP ${res.status})`);
+  }
+
+  if (!res.body) throw new Error('No response body for streaming');
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let accumulated = '';
+  let lastHeadingCount = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    for (const line of chunk.split('\n')) {
+      if (!line.startsWith('data: ')) continue;
+      const data = line.slice(6).trim();
+      if (data === '[DONE]') continue;
+      try {
+        const parsed = JSON.parse(data) as { choices: { delta: { content?: string } }[] };
+        const content = parsed.choices?.[0]?.delta?.content;
+        if (content) {
+          accumulated += content;
+          const partial = tryExtractPartialNotes(accumulated);
+          if (partial && partial.headings && partial.headings.length > lastHeadingCount) {
+            lastHeadingCount = partial.headings.length;
+            onPartial(partial);
+          }
+        }
+      } catch {
+        // ignore malformed SSE lines
+      }
+    }
+  }
+
+  const result = JSON.parse(accumulated) as GeneratedNotes;
+  if (!result.bullets || !Array.isArray(result.bullets)) {
+    throw new Error('Invalid streaming response: missing bullets');
+  }
+  return result;
 }
 
 // ── Enhanced AI generation caller with routing support ──────
 async function callAI(prompt: string, input: NotesInput): Promise<GeneratedNotes> {
   const isExam = input.depth === 'exam' || input.includeExamTips || input.includeMnemonics || input.includeCheatsheet;
+
+  // Phase 3: Chain-of-thought system prompts
+  const systemPrompt = isExam
+    ? `You are a world-class academic educator with deep expertise in exam preparation.
+Think step by step: (1) Identify core concepts, (2) Map conceptual dependencies,
+(3) Anticipate common misconceptions, (4) Structure from foundational to advanced.
+Produce exam-ready material: questions that test understanding not recall,
+mnemonics that exploit pattern recognition, cheatsheets that compress 80% of marks into 20% of content.
+Output ONLY valid JSON. No markdown. No explanation. No code blocks.`
+    : `You are a world-class academic note-taker with a talent for clarity.
+Think step by step: (1) Identify the main thesis, (2) Break into logical sections,
+(3) Distill each concept to its essential insight, (4) Connect ideas across sections.
+Your bullets should be scannable facts a student could recall 24 hours later.
+Output ONLY valid JSON. No markdown. No explanation. No code blocks.`;
   
   const res = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      type: isExam ? 'notes_exam' : 'notes', // Routes to Gemini Pro for exam content, Groq 70b for regular notes
-      systemPrompt: isExam 
-        ? 'You are an expert academic educator specializing in exam preparation. Create comprehensive, exam-focused study materials. Output ONLY valid JSON. No markdown. No explanation. No code blocks.'
-        : 'You are an expert academic note-taker. Output ONLY valid JSON. No markdown. No explanation. No code blocks.',
+      type: isExam ? 'notes_exam' : 'notes',
+      systemPrompt,
       userPrompt: prompt,
-      maxTokens: isExam ? 5000 : 3000,
-      temperature: isExam ? 0.4 : 0.5, // Lower temperature for exam content (more focused)
+      maxTokens: isExam ? 5000 : 4500,   // Phase 3: 3000 → 4500 for regular notes
+      temperature: isExam ? 0.4 : 0.35,  // Phase 3: 0.5 → 0.35 for consistency
     }),
   });
 
@@ -277,6 +401,17 @@ async function callAI(prompt: string, input: NotesInput): Promise<GeneratedNotes
       );
     }
   }
+
+  // Validate Phase 4: concept connections
+  if (parsed.connections && !Array.isArray(parsed.connections)) {
+    parsed.connections = undefined;
+  }
+  if (parsed.connections) {
+    parsed.connections = parsed.connections.filter(c =>
+      c && typeof c.from === 'string' && typeof c.to === 'string' && typeof c.relationship === 'string'
+    );
+    if (parsed.connections.length === 0) parsed.connections = undefined;
+  }
   
   return parsed;
 }
@@ -287,6 +422,7 @@ export function useNotesGenerator() {
   const [notes, setNotes] = useState<GeneratedNotes | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);  // Phase 1
   const [isResearching, setIsResearching] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -360,6 +496,8 @@ export function useNotesGenerator() {
   const generate = useCallback(async (input: NotesInput) => {
     if (!input.topic.trim()) { setError('Please enter a topic.'); return; }
 
+    const isExam = input.depth === 'exam' || input.includeExamTips || input.includeMnemonics || input.includeCheatsheet;
+
     setIsGenerating(true);
     setIsResearching(true);
     setError(null);
@@ -374,7 +512,26 @@ export function useNotesGenerator() {
 
       const preamble = buildResearchPreamble(research);
       const prompt = buildPrompt(input, preamble);
-      const result = await callAI(prompt, input);
+
+      let result: GeneratedNotes;
+
+      // Phase 1: use streaming for non-exam notes
+      if (!isExam) {
+        setIsStreaming(true);
+        result = await callAIStreaming(prompt, (partial) => {
+          // Show section headings as they arrive in the stream
+          setNotes(prev => ({
+            title: partial.title ?? prev?.title ?? 'Generating…',
+            headings: partial.headings ?? prev?.headings ?? [],
+            bullets: prev?.bullets ?? [],
+            summary: prev?.summary ?? '',
+            keyTerms: prev?.keyTerms ?? [],
+          }));
+        });
+        setIsStreaming(false);
+      } else {
+        result = await callAI(prompt, input);
+      }
 
       result.researchSource = research.source;
 
@@ -384,6 +541,7 @@ export function useNotesGenerator() {
       setError(e?.message ?? 'Generation failed. Please try again.');
     } finally {
       setIsGenerating(false);
+      setIsStreaming(false);
       setIsResearching(false);
     }
   }, [saveToSupabase]);
@@ -448,15 +606,59 @@ export function useNotesGenerator() {
     }
   }, [notes, user, loadVersions]);
 
+  // ── Phase 2: Per-section regeneration ────────────────────────
+  const regenerateSection = useCallback(async (headingText: string, topicContext: string) => {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'notes_section',
+        systemPrompt: `You are a world-class academic note-taker with a talent for clarity.
+Output ONLY valid JSON. No markdown. No explanation. No code blocks.`,
+        userPrompt: `Regenerate the notes section "${headingText}" for topic "${topicContext}".
+Return JSON with this exact shape:
+{
+  "heading": "${headingText}",
+  "points": ["<bullet 1>", "<bullet 2>", "<bullet 3>"],
+  "confidence": 4
+}
+Rules: 3–5 scannable bullet points (max 20 words each). Use **bold** for key terms, \`code\` for formulas.`,
+        maxTokens: 800,
+        temperature: 0.5,
+      }),
+    });
+
+    if (!res.ok) return;
+
+    try {
+      const updated = await res.json() as { heading?: string; points?: string[]; confidence?: number };
+      if (!updated.points || !Array.isArray(updated.points)) return;
+
+      setNotes(prev => {
+        if (!prev) return prev;
+        const bullets = prev.bullets.map(b =>
+          b.heading === headingText
+            ? { ...b, points: updated.points!, confidence: updated.confidence }
+            : b
+        );
+        return { ...prev, bullets };
+      });
+    } catch {
+      // ignore parse errors — section stays unchanged
+    }
+  }, []);
+
   return {
     notes,
     savedId,
     isGenerating,
+    isStreaming,
     isResearching,
     saveStatus,
     error,
     versions,
     generate,
+    regenerateSection,
     loadVersions,
     restoreVersion,
   };

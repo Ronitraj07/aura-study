@@ -265,17 +265,59 @@ interface NoteSection {
   heading: string;
   bullets: string[];
   color: string;
+  difficulty?: 'intro' | 'core' | 'advanced'; // Phase 5A
 }
+
+interface ConceptConnectionPdf {
+  from: string;
+  to: string;
+  relationship: string;
+}
+
+const DIFFICULTY_LABEL: Record<string, string> = {
+  intro: 'Intro', core: 'Core', advanced: 'Advanced',
+};
+const DIFFICULTY_COLOR: Record<string, string> = {
+  intro: 'hsl(160,70%,48%)', core: 'hsl(220,85%,65%)', advanced: 'hsl(340,75%,58%)',
+};
 
 export async function exportNotesPDF(
   topic: string,
   sections: NoteSection[],
-  summary: string[]
+  summary: string[],
+  connections?: ConceptConnectionPdf[]
 ): Promise<void> {
   const ACCENT = 'hsl(160,70%,50%)';
   const headerHtml = pageHeader(topic, ACCENT);
 
+  // Phase 5A: Table of Contents page
+  const tocItems = sections.map((sec) => {
+    const dc = sec.difficulty ? DIFFICULTY_COLOR[sec.difficulty] : sec.color;
+    const dl = sec.difficulty ? DIFFICULTY_LABEL[sec.difficulty] : '';
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1e2028;">
+        <span style="width:24px;height:24px;border-radius:50%;background:${sec.color}22;color:${sec.color};font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${sec.id}</span>
+        <span style="flex:1;font-size:13px;color:#d0d2da;font-weight:500;">${escHtml(sec.heading)}</span>
+        ${dl ? `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:${dc}22;border:1px solid ${dc}44;color:${dc};text-transform:uppercase;letter-spacing:0.06em;">${dl}</span>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  const tocBlock = `
+    <div style="margin:0 ${MARGIN}px 24px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+        <span style="font-size:13px;">📋</span>
+        <h3 style="margin:0;font-size:14px;font-weight:700;color:#f0f1f5;">Table of Contents</h3>
+      </div>
+      <div style="background:#161920;border-radius:12px;padding:16px 18px;border:1px solid #2a2d35;">
+        ${tocItems}
+      </div>
+    </div>
+  `;
+
   const sectionBlocks = sections.map((sec) => {
+    const dc = sec.difficulty ? DIFFICULTY_COLOR[sec.difficulty] : null;
+    const dl = sec.difficulty ? DIFFICULTY_LABEL[sec.difficulty] : null;
     const bulletItems = sec.bullets
       .map((b) => `
         <li style="
@@ -307,7 +349,7 @@ export async function exportNotesPDF(
         border:1px solid #2a2d35;
         display:flex;
       ">
-        <div style="width:4px;flex-shrink:0;background:${sec.color};"></div>
+        <div style="width:4px;flex-shrink:0;background:${dc ?? sec.color};"></div>
         <div style="flex:1;padding:16px 18px;">
           <div style="
             display:flex;
@@ -321,7 +363,9 @@ export async function exportNotesPDF(
               font-size:14px;
               font-weight:700;
               color:#f0f1f5;
+              flex:1;
             ">${escHtml(sec.heading)}</h3>
+            ${dl ? `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:${dc}22;border:1px solid ${dc}44;color:${dc};text-transform:uppercase;letter-spacing:0.06em;">${dl}</span>` : ''}
           </div>
           <ul style="margin:0;padding:0;list-style:none;">${bulletItems}</ul>
         </div>
@@ -381,7 +425,27 @@ export async function exportNotesPDF(
     </div>
   `;
 
-  const allBlocks = [...sectionBlocks, summaryBlock];
+  // Phase 5A: Concept connections section
+  const connectionsBlock = connections?.length ? `
+    <div style="margin:0 ${MARGIN}px 20px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:13px;">🔗</span>
+        <h3 style="margin:0;font-size:14px;font-weight:700;color:#f0f1f5;">Concept Connections</h3>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${connections.map(c => `
+          <div style="display:flex;align-items:flex-start;gap:8px;background:#161920;border-radius:10px;padding:10px 14px;border:1px solid #2a2d35;">
+            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:hsl(262,80%,60%,0.15);border:1px solid hsl(262,80%,60%,0.3);color:hsl(262,80%,65%);flex-shrink:0;">${escHtml(c.from)}</span>
+            <span style="color:#5a5f6e;font-size:11px;margin-top:1px;">→</span>
+            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:hsl(160,70%,45%,0.15);border:1px solid hsl(160,70%,45%,0.3);color:hsl(160,70%,55%);flex-shrink:0;">${escHtml(c.to)}</span>
+            <span style="font-size:12px;color:#b0b5c0;flex:1;">${escHtml(c.relationship)}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  const allBlocks = [tocBlock, ...sectionBlocks, summaryBlock, connectionsBlock].filter(Boolean);
   const PRINTABLE_H = PAGE_H - MARGIN * 2;
   const pages = paginateBlocks(headerHtml, allBlocks, PRINTABLE_H);
   const slug = topic.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 40);

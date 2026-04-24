@@ -41,6 +41,7 @@ const MODEL_MAP: Record<string, string> = {
   assignment:           'llama-3.3-70b-versatile',
   assignment_block:     'llama-3.3-70b-versatile',
   notes:                'llama-3.3-70b-versatile',
+  notes_stream:         'llama-3.3-70b-versatile', // Phase 1: streaming generation
   notes_section:        'llama-3.3-70b-versatile',
   timetable:            'llama-3.3-70b-versatile',
   checklist:            'llama-3.3-70b-versatile',
@@ -252,6 +253,46 @@ export default async function handler(req: Request): Promise<Response> {
   let raw: string;
 
   try {
+    // ── STREAMING: pipe Groq SSE directly to the client ──────
+    if (type === 'notes_stream') {
+      const groqStream = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${groqKey}`,
+        },
+        body: JSON.stringify({
+          model: primaryModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user',   content: userPrompt   },
+          ],
+          stream: true,
+          max_tokens: maxTokens ?? 4500,
+          temperature: temperature ?? 0.35,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!groqStream.ok) {
+        const err = await groqStream.json().catch(() => ({})) as { error?: { message?: string } };
+        return new Response(
+          JSON.stringify({ error: err.error?.message ?? `Groq HTTP ${groqStream.status}` }),
+          { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      return new Response(groqStream.body, {
+        status: 200,
+        headers: {
+          ...CORS_HEADERS,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'X-Accel-Buffering': 'no',
+        },
+      });
+    }
+
     // ── RESEARCH: dual parallel pass ─────────────────────────
     if (type === 'research') {
       raw = await dualResearch(groqKey, geminiKey, systemPrompt, userPrompt);

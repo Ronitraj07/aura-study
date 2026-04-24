@@ -26,6 +26,8 @@ import {
   X,
   Search,
   MessageSquarePlus,
+  Link2,
+  RotateCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportNotesPDF, exportExamNotesPDF } from "@/lib/pdfExport";
@@ -35,7 +37,7 @@ import { SubtopicsSuggester } from "@/components/SubtopicsSuggester";
 import { SubtopicsInput } from "@/components/SubtopicsInput";
 import { FollowUpPanel } from "@/components/FollowUpPanel";
 import type { NoteHeading, NoteBullet } from "@/types/database";
-import type { ExamTip, Mnemonic, CheatsheetEntry } from "@/hooks/useNotesGenerator";
+import type { ExamTip, Mnemonic, CheatsheetEntry, ConceptConnection } from "@/hooks/useNotesGenerator";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -47,6 +49,34 @@ function timeAgo(dateStr: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
 }
+
+// Phase 5B: Inline markdown renderer (bold, italic, code — no dependency needed)
+function renderInlineMarkdown(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} className="font-semibold text-foreground/95">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code key={i} className="text-xs font-mono bg-secondary/80 border border-border/40 px-1 py-0.5 rounded">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return part;
+  });
+}
+
+// Phase 4: Difficulty badge config
+const DIFFICULTY_CONFIG = {
+  intro:    { label: 'Intro',    color: 'hsl(160,70%,48%)',  bg: 'hsl(160,70%,48%,0.12)', border: 'hsl(160,70%,48%,0.3)' },
+  core:     { label: 'Core',     color: 'hsl(220,85%,65%)',  bg: 'hsl(220,85%,65%,0.12)', border: 'hsl(220,85%,65%,0.3)' },
+  advanced: { label: 'Advanced', color: 'hsl(340,75%,58%)',  bg: 'hsl(340,75%,58%,0.12)', border: 'hsl(340,75%,58%,0.3)' },
+};
 
 // ─── Section Card ────────────────────────────────────────────────────────────────────────────────────────
 const SECTION_COLORS = [
@@ -61,13 +91,26 @@ function NoteSectionCard({
   heading,
   bullets,
   index,
+  isStreaming,
+  onRegenerate,
 }: {
   heading: NoteHeading;
   bullets: string[];
   index: number;
+  isStreaming?: boolean;
+  onRegenerate?: () => void;
 }) {
+  const [regenerating, setRegenerating] = useState(false);
   const color = SECTION_COLORS[index % SECTION_COLORS.length];
   const indent = heading.level === 2;
+  const diffCfg = heading.difficulty ? DIFFICULTY_CONFIG[heading.difficulty] : undefined;
+
+  const handleRegenerate = async () => {
+    if (!onRegenerate || regenerating) return;
+    setRegenerating(true);
+    await onRegenerate();
+    setRegenerating(false);
+  };
 
   return (
     <motion.div
@@ -82,23 +125,61 @@ function NoteSectionCard({
       <div className="flex">
         <div className="w-1 shrink-0" style={{ background: color }} />
         <div className="flex-1 p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Hash className="w-3.5 h-3.5 shrink-0" style={{ color }} />
+          <div className="flex items-start gap-2 mb-3">
+            <Hash className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color }} />
             <h3 className={cn(
-              "font-display font-semibold text-foreground leading-snug",
+              "font-display font-semibold text-foreground leading-snug flex-1",
               indent ? "text-sm" : "text-base"
             )}>
               {heading.text}
             </h3>
+            {/* Phase 4: difficulty badge */}
+            {diffCfg && (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 uppercase tracking-wide border"
+                style={{ background: diffCfg.bg, borderColor: diffCfg.border, color: diffCfg.color }}
+              >
+                {diffCfg.label}
+              </span>
+            )}
+            {/* Phase 2: per-section regenerate button */}
+            {onRegenerate && !isStreaming && (
+              <button
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                aria-label={`Regenerate section "${heading.text}"`}
+                className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all disabled:opacity-40"
+              >
+                <RotateCw className={cn("w-3 h-3", regenerating && "animate-spin")} />
+              </button>
+            )}
           </div>
-          <ul className="space-y-2">
-            {bullets.map((bullet, idx) => (
-              <li key={idx} className="flex items-start gap-2.5">
-                <ChevronRight className="w-3 h-3 shrink-0 mt-1" style={{ color }} />
-                <span className="text-sm text-foreground/75 leading-snug">{bullet}</span>
-              </li>
-            ))}
-          </ul>
+          {isStreaming && bullets.length === 0 ? (
+            // Skeleton bullets while streaming
+            <div className="space-y-2">
+              {[60, 80, 50].map((w, i) => (
+                <div key={i} className="flex items-start gap-2.5">
+                  <ChevronRight className="w-3 h-3 shrink-0 mt-1 opacity-20" style={{ color }} />
+                  <div
+                    className="h-3 rounded bg-secondary/60 animate-pulse"
+                    style={{ width: `${w}%`, animationDelay: `${i * 0.15}s` }}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {bullets.map((bullet, idx) => (
+                <li key={idx} className="flex items-start gap-2.5">
+                  <ChevronRight className="w-3 h-3 shrink-0 mt-1" style={{ color }} />
+                  {/* Phase 5B: inline markdown rendering */}
+                  <span className="text-sm text-foreground/75 leading-snug">
+                    {renderInlineMarkdown(bullet)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </motion.div>
@@ -152,6 +233,141 @@ function KeyTermsBlock({ terms }: { terms: string[] }) {
           </span>
         ))}
       </div>
+    </motion.div>
+  );
+}
+
+// ─── Phase 4: Concept Connections Block ───────────────────────────────────────
+function ConceptConnectionsBlock({ connections }: { connections: ConceptConnection[] }) {
+  if (!connections?.length) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      className="glass-card rounded-2xl overflow-hidden border border-border/30"
+    >
+      <div className="h-0.5" style={{ background: "linear-gradient(90deg, hsl(262,80%,60%), hsl(160,70%,48%))" }} />
+      <div className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Link2 className="w-4 h-4" style={{ color: "hsl(262,80%,65%)" }} />
+          <h3 className="font-display font-semibold text-base text-foreground">Concept Connections</h3>
+          <span
+            className="text-xs px-2 py-0.5 rounded-full font-medium border uppercase tracking-wide"
+            style={{ background: "hsl(262,80%,60%,0.12)", borderColor: "hsl(262,80%,60%,0.3)", color: "hsl(262,80%,65%)" }}
+          >
+            {connections.length} link{connections.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <div className="space-y-2">
+          {connections.map((c, i) => (
+            <div
+              key={i}
+              className="flex items-start gap-3 p-3 rounded-xl border border-border/20"
+              style={{ background: "hsl(0,0%,8%,0.4)" }}
+            >
+              <span
+                className="text-xs font-semibold px-2 py-0.5 rounded-full border shrink-0 mt-0.5"
+                style={{ background: "hsl(262,80%,60%,0.15)", borderColor: "hsl(262,80%,60%,0.3)", color: "hsl(262,80%,68%)" }}
+              >
+                {c.from}
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+              <span
+                className="text-xs font-semibold px-2 py-0.5 rounded-full border shrink-0 mt-0.5"
+                style={{ background: "hsl(160,70%,45%,0.15)", borderColor: "hsl(160,70%,45%,0.3)", color: "hsl(160,70%,55%)" }}
+              >
+                {c.to}
+              </span>
+              <span className="text-xs text-foreground/60 leading-snug mt-0.5 flex-1">{c.relationship}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Phase 5C: Flashcard flip-card component ──────────────────────────────────
+function FlashcardView({ bullets, notes }: { bullets: NoteBullet[]; notes: { title: string; keyTerms: string[] } }) {
+  const [flippedIdx, setFlippedIdx] = useState<number | null>(null);
+
+  // Build flashcard pairs from bullets (heading = front, first point = back)
+  const cards = bullets.flatMap((b) =>
+    b.points.map((point, i) => ({
+      front: i === 0 ? b.heading : `${b.heading} (${i + 1})`,
+      back: point,
+    }))
+  );
+
+  if (cards.length === 0) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1"
+      style={{ scrollbarWidth: "thin" }}
+    >
+      <div className="glass-card rounded-2xl p-4 flex items-center gap-3 shrink-0">
+        <BookMarked className="w-4 h-4 shrink-0" style={{ color: "hsl(220,85%,65%)" }} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate">{notes.title} — Flashcards</p>
+          <p className="text-xs text-muted-foreground">{cards.length} cards · click to flip</p>
+        </div>
+        <span
+          className="text-xs font-bold px-2.5 py-1 rounded-full border uppercase tracking-wider"
+          style={{ background: "hsl(220,85%,65%,0.15)", borderColor: "hsl(220,85%,65%,0.3)", color: "hsl(220,85%,68%)" }}
+        >
+          Flashcards
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-3">
+        {cards.map((card, i) => {
+          const flipped = flippedIdx === i;
+          return (
+            <button
+              key={i}
+              onClick={() => setFlippedIdx(flipped ? null : i)}
+              aria-label={flipped ? `Hide answer for ${card.front}` : `Show answer for ${card.front}`}
+              className="text-left"
+              style={{ perspective: '1000px' }}
+            >
+              <motion.div
+                animate={{ rotateY: flipped ? 180 : 0 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                style={{ transformStyle: 'preserve-3d', position: 'relative', minHeight: '80px' }}
+              >
+                {/* Front */}
+                <div
+                  className="glass-card rounded-2xl p-4 border border-border/30 hover:border-primary/20 transition-colors absolute inset-0 flex flex-col justify-between"
+                  style={{ backfaceVisibility: 'hidden' }}
+                >
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Question</span>
+                  <span className="text-sm font-semibold text-foreground/90 leading-snug mt-2">{card.front}</span>
+                  <span className="text-[10px] text-muted-foreground/50 mt-2">tap to reveal answer</span>
+                </div>
+                {/* Back */}
+                <div
+                  className="glass-card rounded-2xl p-4 border absolute inset-0 flex flex-col justify-between"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    transform: 'rotateY(180deg)',
+                    borderColor: 'hsl(160,70%,45%,0.3)',
+                    background: 'hsl(160,70%,45%,0.05)',
+                  }}
+                >
+                  <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "hsl(160,70%,52%)" }}>Answer</span>
+                  <span className="text-sm text-foreground/80 leading-relaxed mt-2">{renderInlineMarkdown(card.back)}</span>
+                  <span className="text-[10px] text-muted-foreground/50 mt-2">tap to flip back</span>
+                </div>
+              </motion.div>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-xs text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
     </motion.div>
   );
 }
@@ -519,11 +735,12 @@ const Notes = () => {
   const [includeCheatsheet, setIncludeCheatsheet] = useState(false);
 
   const {
-    notes, savedId, isGenerating, isResearching, saveStatus, error,
-    versions, generate, loadVersions, restoreVersion,
+    notes, savedId, isGenerating, isStreaming, isResearching, saveStatus, error,
+    versions, generate, regenerateSection, loadVersions, restoreVersion,
   } = useNotesGenerator();
   const hasGenerated = !!notes;
   const hasExamContent = !!(notes?.exam_tips?.length || notes?.mnemonics?.length || notes?.cheatsheet?.length);
+  const isFlashcardMode = format === 'flashcards' && hasGenerated && !examMode;
   const { hasGeneratedContent } = useContentState('notes', hasGenerated);
 
   const handleGenerate = () => {
@@ -579,6 +796,7 @@ const Notes = () => {
     if (isPdfExporting || !notes) return;
     setIsPdfExporting(true);
     try {
+      // Phase 5A: pass difficulty and connections to PDF
       const sections = notes.headings.map((h, i) => {
         const b = notes.bullets.find((bl) => bl.heading === h.text);
         return {
@@ -586,6 +804,7 @@ const Notes = () => {
           heading: h.text,
           bullets: b?.points ?? [],
           color: SECTION_COLORS[i % SECTION_COLORS.length],
+          difficulty: h.difficulty,
         };
       });
 
@@ -599,7 +818,7 @@ const Notes = () => {
         );
       } else {
         const summaryLines = notes.summary.split(". ").filter(Boolean).map((s) => s.endsWith(".") ? s : s + ".");
-        await exportNotesPDF(notes.title, sections, summaryLines);
+        await exportNotesPDF(notes.title, sections, summaryLines, notes.connections);
       }
     } catch (err) {
       console.error("PDF export failed:", err);
@@ -643,7 +862,7 @@ const Notes = () => {
         </div>
       )}
 
-      {isGenerating && (
+      {isGenerating && !isStreaming && !notes && (
         <div className="flex-1 glass-card rounded-2xl flex flex-col items-center justify-center text-center p-12">
           <motion.div
             animate={{ rotate: 360 }}
@@ -699,6 +918,9 @@ const Notes = () => {
               <CheatsheetBlock entries={notes.cheatsheet ?? []} />
               <p className="text-xs text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
             </motion.div>
+          ) : isFlashcardMode ? (
+            // Phase 5C: Flashcard mode
+            <FlashcardView key="flashcards" bullets={notes.bullets} notes={{ title: notes.title, keyTerms: notes.keyTerms ?? [] }} />
           ) : (
             <motion.div
               key="notes"
@@ -713,8 +935,14 @@ const Notes = () => {
                 <Sparkles className="w-4 h-4 shrink-0" style={{ color: "hsl(160,70%,50%)" }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground truncate">{notes.title}</p>
-                  <p className="text-xs text-muted-foreground">{notes.headings.length} sections · {totalBullets} bullets · summary included</p>
+                  <p className="text-xs text-muted-foreground">
+                    {notes.headings.length} sections · {totalBullets} bullets
+                    {isStreaming ? " · streaming…" : " · summary included"}
+                  </p>
                 </div>
+                {isStreaming && (
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: "hsl(160,70%,50%)" }} />
+                )}
               </div>
               <AnimatePresence>
                 {notes.headings.map((heading, i) => {
@@ -725,12 +953,22 @@ const Notes = () => {
                       heading={heading}
                       bullets={bulletEntry?.points ?? []}
                       index={i}
+                      isStreaming={isStreaming && !bulletEntry}
+                      onRegenerate={
+                        !isGenerating
+                          ? () => regenerateSection(heading.text, notes.title)
+                          : undefined
+                      }
                     />
                   );
                 })}
               </AnimatePresence>
-              <SummaryBlock summary={notes.summary} />
-              <KeyTermsBlock terms={notes.keyTerms ?? []} />
+              {!isStreaming && notes.summary && <SummaryBlock summary={notes.summary} />}
+              {!isStreaming && <KeyTermsBlock terms={notes.keyTerms ?? []} />}
+              {/* Phase 4: Concept connections */}
+              {!isStreaming && notes.connections && (
+                <ConceptConnectionsBlock connections={notes.connections} />
+              )}
               <p className="text-xs text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
             </motion.div>
           )}
