@@ -48,11 +48,13 @@ export type Schedule = Record<DayOfWeek, TimeSlot[]>;
 export interface NoteHeading {
   level: 1 | 2 | 3;
   text: string;
+  difficulty?: 'intro' | 'core' | 'advanced'; // Phase 4: difficulty curve badge
 }
 
 export interface NoteBullet {
   heading: string;
   points: string[];
+  confidence?: number; // Phase 4: 1–5 AI confidence score per section
 }
 
 // ─── Smart Mode (migration 009) ───────────────────────────────
