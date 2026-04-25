@@ -1038,7 +1038,7 @@ const Notes = () => {
         );
       } else {
         const summaryLines = notes.summary.split(". ").filter(Boolean).map((s) => s.endsWith(".") ? s : s + ".");
-        await exportNotesPDF(notes.title, sections, summaryLines, notes.connections);
+        await exportNotesPDF(notes.title, sections, summaryLines, notes.connections, notes.tables);
       }
     } catch (err) {
       console.error("PDF export failed:", err);
@@ -1190,6 +1190,16 @@ const Notes = () => {
               {!isStreaming && notes.connections && (
                 <ConceptConnectionsBlock connections={notes.connections} />
               )}
+              {/* Academy: callouts, tables, charts */}
+              {!isStreaming && !!notes.callouts?.length && (
+                <NoteCalloutBlock callouts={notes.callouts} />
+              )}
+              {!isStreaming && !!notes.tables?.length && (
+                <NoteTableBlock tables={notes.tables} />
+              )}
+              {!isStreaming && !!notes.charts?.length && (
+                <NoteChartBlock charts={notes.charts} />
+              )}
               <p className="text-xs text-muted-foreground/40 text-center pb-2">AI-generated · auto-saved to your account</p>
             </motion.div>
           )}
@@ -1329,6 +1339,66 @@ const Notes = () => {
               className="w-full bg-secondary/60 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/40 transition-all resize-none"
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleGenerate(); } }}
             />
+          </div>
+
+          {/* Source Document Upload */}
+          <div className="glass-card rounded-2xl p-5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
+              Source Document <span className="normal-case text-muted-foreground/50">(optional)</span>
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.txt,.md"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFileUpload(f);
+                e.target.value = '';
+              }}
+            />
+            {uploadedFile ? (
+              <div className="flex items-start gap-3 p-3 rounded-xl border border-green-500/20 bg-green-500/5">
+                <FileText className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-foreground/90 truncate">{uploadedFile.name}</p>
+                  <p className="text-xs text-muted-foreground">{uploadedFile.wordCount.toLocaleString()} words extracted</p>
+                </div>
+                <button
+                  onClick={() => { setUploadedFile(null); setSourceContent(undefined); setUploadError(null); }}
+                  aria-label="Remove uploaded file"
+                  className="w-5 h-5 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-all shrink-0"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="w-full flex flex-col items-center gap-2 p-4 rounded-xl border border-dashed border-border/50 hover:border-primary/30 hover:bg-primary/5 transition-all text-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUploading ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                ) : (
+                  <FileUp className="w-5 h-5 text-muted-foreground" />
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {isUploading ? "Extracting text…" : "Upload PDF, DOCX or TXT"}
+                </span>
+              </button>
+            )}
+            {uploadError && (
+              <p className="mt-2 text-xs text-destructive flex items-center gap-1.5">
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                {uploadError}
+              </p>
+            )}
+            {uploadedFile && (
+              <p className="mt-2 text-xs text-muted-foreground/60 leading-snug">
+                AI will base notes primarily on the uploaded document.
+              </p>
+            )}
           </div>
 
           <div className="glass-card rounded-2xl p-5">

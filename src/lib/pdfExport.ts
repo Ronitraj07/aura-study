@@ -274,6 +274,12 @@ interface ConceptConnectionPdf {
   relationship: string;
 }
 
+interface NoteTablePdf {
+  caption: string;
+  headers: string[];
+  rows: string[][];
+}
+
 const DIFFICULTY_LABEL: Record<string, string> = {
   intro: 'Intro', core: 'Core', advanced: 'Advanced',
 };
@@ -285,7 +291,8 @@ export async function exportNotesPDF(
   topic: string,
   sections: NoteSection[],
   summary: string[],
-  connections?: ConceptConnectionPdf[]
+  connections?: ConceptConnectionPdf[],
+  tables?: NoteTablePdf[]
 ): Promise<void> {
   const ACCENT = 'hsl(160,70%,50%)';
   const headerHtml = pageHeader(topic, ACCENT);
@@ -445,7 +452,38 @@ export async function exportNotesPDF(
     </div>
   ` : '';
 
-  const allBlocks = [tocBlock, ...sectionBlocks, summaryBlock, connectionsBlock].filter(Boolean);
+  // Academy: comparison tables
+  const tablesBlock = tables?.length ? `
+    <div style="margin:0 ${MARGIN}px 20px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:13px;">📊</span>
+        <h3 style="margin:0;font-size:14px;font-weight:700;color:#f0f1f5;">Reference Tables</h3>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        ${tables.map(t => `
+          <div>
+            <p style="margin:0 0 8px;font-size:12px;font-weight:600;color:hsl(220,85%,65%);">${escHtml(t.caption)}</p>
+            <table style="width:100%;border-collapse:collapse;border:1px solid #2a2d35;border-radius:8px;overflow:hidden;font-size:12px;">
+              <thead>
+                <tr style="background:hsl(220,85%,60%,0.12);">
+                  ${t.headers.map(h => `<th style="text-align:left;padding:8px 10px;font-weight:600;color:#e0e2e8;border-bottom:1px solid #2a2d35;border-right:1px solid #2a2d35;">${escHtml(h)}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${t.rows.map((row, ri) => `
+                  <tr style="background:${ri % 2 === 0 ? '#161920' : '#1a1d24'};">
+                    ${row.map(cell => `<td style="padding:7px 10px;color:#b0b5c0;border-bottom:1px solid #2a2d35;border-right:1px solid #2a2d35;">${escHtml(cell)}</td>`).join('')}
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  const allBlocks = [tocBlock, ...sectionBlocks, summaryBlock, connectionsBlock, tablesBlock].filter(Boolean);
   const PRINTABLE_H = PAGE_H - MARGIN * 2;
   const pages = paginateBlocks(headerHtml, allBlocks, PRINTABLE_H);
   const slug = topic.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 40);
